@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  db:
+    # We are using the official PostGIS image, which is PostgreSQL pre-loaded with geospatial tools
+    image: postgis/postgis:15-3.3
+    container_name: tel_aviv_map_db
+    restart: always
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword  # In a production environment, this goes in the .env file!
+      - POSTGRES_DB=mapbot
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+
+volumes:
+  # This ensures your database isn't deleted if you restart Docker
+  postgis_data:

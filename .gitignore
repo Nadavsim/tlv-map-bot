@@ -1,0 +1,17 @@
+# Inside .gitignore
+
+# Secrets
+.env
+
+# Python Virtual Environments
+venv/
+env/
+__pycache__/
+*.pyc
+
+# OS generated files
+.DS_Store
+
+# (Optional) Ignore your map files if you want to keep your favorite spots private
+map.kml
+cleaned_places.csv
