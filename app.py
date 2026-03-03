@@ -1,15 +1,16 @@
 import os
 import difflib
+import random
+from datetime import datetime, timedelta
 from fastapi import FastAPI, Form, Response
 from twilio.twiml.messaging_response import MessagingResponse
 from dotenv import load_dotenv
 
-# NEW: Import SQLAlchemy tools and your database model
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy import select, func
 from models import Place
 
-# 1. Load environment variables securely (with linter fallbacks)
+# 1. Load environment variables
 load_dotenv()
 twilio_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
 twilio_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
@@ -34,84 +35,123 @@ async def whatsapp_reply(
     incoming_msg = Body.strip().lower()
     resp = MessagingResponse()
 
-    # Logic: Did the user send a location pin?
+    # ==========================================
+    # LOGIC 1: USER SENDS A LOCATION PIN
+    # ==========================================
     if Latitude and Longitude:
-        user_sessions[From] = (float(Latitude), float(Longitude))
-        resp.message("📍 Location locked! What are you looking for? (e.g., Coffee, Pizza)")
+        # --- FEATURE 2: SMART PIN EXPIRATION (Saving the timestamp) ---
+        user_sessions[From] = (float(Latitude), float(Longitude), datetime.now())
+        
+        async with async_session() as session:
+            # --- FEATURE 3: DYNAMIC WELCOME MESSAGE ---
+            # Grab all categories to randomly suggest 3 of them
+            cat_result = await session.execute(select(Place.category).distinct())
+            categories = [row[0] for row in cat_result.all()]
+            
+            if len(categories) >= 3:
+                suggestions = random.sample(categories, 3)
+                suggestion_text = f"{suggestions[0].title()}, {suggestions[1].title()}, or {suggestions[2].title()}"
+            else:
+                suggestion_text = "Coffee, Pizza, etc."
+                
+        resp.message(f"📍 Location locked! What are you looking for? (e.g., {suggestion_text}, or type 'Surprise Me')")
         return Response(content=str(resp), media_type="application/xml")
 
-    # Logic: Did the user type a category?
+    # ==========================================
+    # LOGIC 2: USER SENDS A TEXT MESSAGE
+    # ==========================================
     if From in user_sessions:
-        user_lat, user_lon = user_sessions[From]
+        # Unpack the location AND the timestamp
+        user_lat, user_lon, pin_time = user_sessions[From]
         
-        # Open a connection to PostGIS
+        # --- FEATURE 2 (Cont.): ENFORCING THE EXPIRATION (3 HOURS) ---
+        if datetime.now() - pin_time > timedelta(hours=3):
+            del user_sessions[From] # Clear their memory
+            resp.message("⏳ It's been a while! Please send a fresh location pin so I can find what's nearby.")
+            return Response(content=str(resp), media_type="application/xml")
+        
         async with async_session() as session:
-            
-            # --- FEATURE 1: TYPO HANDLING ---
-            # Query the database for all unique categories
+            # Fetch valid categories for our matching logic
             cat_result = await session.execute(select(Place.category).distinct())
             valid_categories = [row[0] for row in cat_result.all()]
             
-            matches = difflib.get_close_matches(incoming_msg, valid_categories, n=1, cutoff=0.6)
-            
-            if not matches:
-                resp.message(f"I couldn't find any places for '{incoming_msg}'. Try another category!")
+            # --- FEATURE 1: THE HELP / MENU COMMAND ---
+            help_keywords = ["help", "menu", "options", "categories", "list"]
+            if incoming_msg in help_keywords:
+                cat_list = "\n".join([f"🔸 {c.title()}" for c in sorted(valid_categories)])
+                resp.message(f"Here is everything I can find for you right now:\n\n{cat_list}\n\nJust reply with any of these, or 'Surprise Me'!")
                 return Response(content=str(resp), media_type="application/xml")
-                
-            best_category = matches[0]
-
-            # --- FEATURE 2: POSTGIS SPATIAL QUERY ---
-            # Create a string representation of the user's location (Longitude first!)
-            user_point = f"POINT({user_lon} {user_lat})"
             
-            # Tell PostGIS to calculate the distance on the curve of the Earth
+            # --- EXISTING FEATURE: "SURPRISE ME" LOGIC ---
+            surprise_keywords = ["surprise", "surprise me", "any", "nearest", "anything"]
+            surprise_matches = difflib.get_close_matches(incoming_msg, surprise_keywords, n=1, cutoff=0.6)
+            is_surprise = len(surprise_matches) > 0
+            
+            # Start building the base SQL query
+            user_point = f"POINT({user_lon} {user_lat})"
             distance_calc = func.ST_DistanceSphere(
                 Place.location, 
                 func.ST_GeomFromText(user_point, 4326)
             ).label("distance")
             
-            # Build the hyper-optimized SQL query
-            stmt = (
-                select(
-                    Place.name,
-                    Place.instagram_url,
-                    func.ST_Y(Place.location).label("lat"), # Extract Latitude
-                    func.ST_X(Place.location).label("lon"), # Extract Longitude
-                    distance_calc
-                )
-                .where(Place.category == best_category)
-                .order_by(distance_calc) # Order by closest distance
-                .limit(1) # Only return the absolute closest one
+            stmt = select(
+                Place.name,
+                Place.category, 
+                Place.instagram_url,
+                func.ST_Y(Place.location).label("lat"), 
+                func.ST_X(Place.location).label("lon"), 
+                distance_calc
             )
-            
-            # Execute the query and grab the first row
-            result = await session.execute(stmt)
-            closest_place = result.first()
 
-            if closest_place:
-                name = closest_place.name
-                ig_val = closest_place.instagram_url
-                distance_meters = int(closest_place.distance)
-                
-                # --- FEATURE 3: DYNAMIC LINKS ---
-                gmaps_url = f"https://www.google.com/maps/dir/?api=1&destination={closest_place.lat},{closest_place.lon}"
-                
-                ig_url = ""
-                if isinstance(ig_val, str) and ig_val.strip():
-                    ig_url = f"\n📱 Instagram: {ig_val}"
-                
-                reply_text = (
-                    f"Your nearest {best_category.title()} is *{name}*!\n"
-                    f"🚶‍♂️ Distance: {distance_meters} meters away.\n"
-                    f"🗺️ Navigate: {gmaps_url}{ig_url}"
-                )
-                
-                if incoming_msg != best_category:
-                    reply_text = f"(Assuming you meant '{best_category.title()}'...) \n\n" + reply_text
-                    
-                resp.message(reply_text)
+            if is_surprise:
+                stmt = stmt.order_by(distance_calc).limit(3)
             else:
-                resp.message("Oops, something went wrong fetching the location.")
+                # --- EXISTING FEATURE: TYPO HANDLING ---
+                matches = difflib.get_close_matches(incoming_msg, valid_categories, n=1, cutoff=0.6)
+                
+                if not matches:
+                    resp.message(f"I couldn't find '{incoming_msg}'. Try typing 'Menu' to see what I have, or 'Surprise Me'!")
+                    return Response(content=str(resp), media_type="application/xml")
+                    
+                best_category = matches[0]
+                stmt = stmt.where(Place.category == best_category).order_by(distance_calc).limit(3)
+
+            # --- EXECUTE THE POSTGIS QUERY ---
+            result = await session.execute(stmt)
+            top_places = result.all()
+
+            if top_places:
+                if is_surprise:
+                    reply_text = f"🎲 Surprise! Here are the {len(top_places)} absolute closest spots to you right now:\n\n"
+                else:
+                    reply_text = f"Here are the top {len(top_places)} nearest {best_category.title()} spots:\n\n"
+                    if incoming_msg != best_category:
+                        reply_text = f"(Assuming you meant '{best_category.title()}'...) \n\n" + reply_text
+                
+                for index, place in enumerate(top_places, start=1):
+                    name = place.name
+                    ig_val = place.instagram_url
+                    distance_meters = int(place.distance)
+                    
+                    walk_time = max(1, round(distance_meters / 80))
+                    gmaps_url = f"https://www.google.com/maps/dir/?api=1&destination={place.lat},{place.lon}"
+                    
+                    ig_url = ""
+                    if isinstance(ig_val, str) and ig_val.strip():
+                        ig_url = f"\n📱 Insta: {ig_val}"
+                        
+                    cat_label = f" ({place.category.title()})" if is_surprise else ""
+                    
+                    reply_text += (
+                        f"{index}. *{name}*{cat_label}\n"
+                        f"🚶‍♂️ Distance: {distance_meters}m\n"
+                        f"⏱️ Walk: ~{walk_time} min\n"
+                        f"🗺️ Navigate: {gmaps_url}{ig_url}\n\n"
+                    )
+                    
+                resp.message(reply_text.strip())
+            else:
+                resp.message("Oops, something went wrong fetching the locations.")
     else:
         resp.message("👋 Welcome to your map bot! Please send me a WhatsApp Location Pin first.")
 
