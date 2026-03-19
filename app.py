@@ -40,7 +40,20 @@ async def whatsapp_reply(
     # ==========================================
     if Latitude and Longitude:
         # --- FEATURE 2: SMART PIN EXPIRATION (Saving the timestamp) ---
-        user_sessions[From] = (float(Latitude), float(Longitude), datetime.now())
+        user_sessions[From] = (float(Latitude), float(Longitude), datetime.now(), "walking")
+        mode_map = {
+                    "walk": "walking",
+                    "drive": "driving",
+                    "bus": "transit",
+                    "train": "transit"
+                }
+        
+        if incoming_msg in mode_map:
+            lat, lon, time, _ = user_sessions[From]
+            new_mode = mode_map[incoming_msg]
+            user_sessions[From] = (lat, lon, time, new_mode)
+            resp.message(f"🚗 Travel mode updated to: *{new_mode.title()}*")
+            return Response(content=str(resp), media_type="application/xml")
         
         async with async_session() as session:
             # --- FEATURE 3: DYNAMIC WELCOME MESSAGE ---
@@ -142,10 +155,16 @@ async def whatsapp_reply(
                         
                     cat_label = f" ({place.category.title()})" if is_surprise else ""
                     
+                    speeds = {"walking": 80, "driving": 300, "transit": 200}
+                    current_mode = user_sessions[From][3]
+                    speed = speeds.get(current_mode, 80)
+
+                    travel_time = max(1, round(distance_meters / speed))
+                    mode_emoji = "🚶‍♂️" if current_mode == "walking" else "🚗" if current_mode == "driving" else "🚌"
                     reply_text += (
                         f"{index}. *{name}*{cat_label}\n"
-                        f"🚶‍♂️ Distance: {distance_meters}m\n"
-                        f"⏱️ Walk: ~{walk_time} min\n"
+                        f"📏 Distance: {distance_meters}m\n"
+                        f"{mode_emoji} {current_mode.title()}: ~{travel_time} min\n"
                         f"🗺️ Navigate: {gmaps_url}{ig_url}\n\n"
                     )
                     
