@@ -1,6 +1,8 @@
 import os
 import difflib
 import random
+import googlemaps
+from typing import Any, cast
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Form, Response
 from twilio.twiml.messaging_response import MessagingResponse
@@ -15,6 +17,8 @@ load_dotenv()
 twilio_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
 twilio_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
+gmaps_key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+gmaps = googlemaps.Client(key=gmaps_key) if gmaps_key else None
 
 app = FastAPI()
 
@@ -74,8 +78,13 @@ async def whatsapp_reply(
     # LOGIC 2: USER SENDS A TEXT MESSAGE
     # ==========================================
     if From in user_sessions:
-        # Unpack the location AND the timestamp
-        user_lat, user_lon, pin_time = user_sessions[From]
+        # Unpack location, timestamp, and optional travel mode
+        session_data = user_sessions[From]
+        if len(session_data) > 3:
+            user_lat, user_lon, pin_time, current_mode = session_data
+        else:
+            user_lat, user_lon, pin_time = session_data
+            current_mode = "walking"
         
         # --- FEATURE 2 (Cont.): ENFORCING THE EXPIRATION (3 HOURS) ---
         if datetime.now() - pin_time > timedelta(hours=3):
@@ -141,12 +150,45 @@ async def whatsapp_reply(
                     if incoming_msg != best_category:
                         reply_text = f"(Assuming you meant '{best_category.title()}'...) \n\n" + reply_text
                 
+                # --- NEW: BATCHED GOOGLE MAPS API CALL ---
+                destinations = [f"{p.lat},{p.lon}" for p in top_places]
+                
+                durations = []
+                if gmaps:
+                    try:
+                        gmaps_client = cast(Any, gmaps)
+                        # Send 1 request for all 3 places
+                        matrix = gmaps_client.distance_matrix(
+                            origins=f"{user_lat},{user_lon}",
+                            destinations=destinations,
+                            mode=current_mode,
+                            units="metric"
+                        )
+                        elements = matrix['rows'][0]['elements']
+                        for el in elements:
+                            if el['status'] == 'OK':
+                                durations.append(el['duration']['text']) # e.g., "12 mins"
+                            else:
+                                durations.append("N/A")
+                    except Exception as e:
+                        durations = ["N/A"] * len(top_places)
+                else:
+                    durations = ["N/A"] * len(top_places)
+
+                # --- BUILD THE FINAL MESSAGE ---
                 for index, place in enumerate(top_places, start=1):
                     name = place.name
                     ig_val = place.instagram_url
                     distance_meters = int(place.distance)
+                    travel_time_str = durations[index - 1]
                     
-                    walk_time = max(1, round(distance_meters / 80))
+                    if current_mode == "driving":
+                        mode_emoji = "🚗"
+                    elif current_mode == "transit":
+                        mode_emoji = "🚌"
+                    else:
+                        mode_emoji = "🚶‍♂️"
+                        
                     gmaps_url = f"https://www.google.com/maps/dir/?api=1&destination={place.lat},{place.lon}"
                     
                     ig_url = ""
@@ -155,16 +197,10 @@ async def whatsapp_reply(
                         
                     cat_label = f" ({place.category.title()})" if is_surprise else ""
                     
-                    speeds = {"walking": 80, "driving": 300, "transit": 200}
-                    current_mode = user_sessions[From][3]
-                    speed = speeds.get(current_mode, 80)
-
-                    travel_time = max(1, round(distance_meters / speed))
-                    mode_emoji = "🚶‍♂️" if current_mode == "walking" else "🚗" if current_mode == "driving" else "🚌"
                     reply_text += (
                         f"{index}. *{name}*{cat_label}\n"
                         f"📏 Distance: {distance_meters}m\n"
-                        f"{mode_emoji} {current_mode.title()}: ~{travel_time} min\n"
+                        f"{mode_emoji} {current_mode.title()}: {travel_time_str}\n"
                         f"🗺️ Navigate: {gmaps_url}{ig_url}\n\n"
                     )
                     
