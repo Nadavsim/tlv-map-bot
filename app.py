@@ -41,15 +41,20 @@ async def whatsapp_reply(
     # ==========================================
     # BLOCK 1: GREETINGS & INTRO (No location needed)
     # ==========================================
-    greetings = ["hi", "hello", "hey", "start"]
+    greetings = ["hi", "hello", "hey", "start", ".", "היי", "שלום"]
     if incoming_msg in greetings:
+        # If they type reset, wipe their location memory so they aren't stuck!
+        if incoming_msg in ["reset", "restart"] and From in user_sessions:
+            del user_sessions[From]
+            
         intro_text = (
             "👋 *Welcome to TLV-bot!*\n\n"
             "I can help you find the best spots in Tel Aviv right from your phone.\n\n"
             "👇 *Here is how to use me:*\n"
-            "1️⃣ *Send your location:* Tap the 📎 (or +) icon, select 'Location', and send your current pin.\n"
-            "2️⃣ *Search:* Tell me what you are looking for (e.g., 'Coffee', 'Wine bar', 'Pizza').\n"
-            "3️⃣ *Travel Mode:* Reply 'drive', 'walk', or 'bus' to change how you get there.\n\n"
+            "1️⃣ *Send Location:* Tap the 📎 icon, select 'Location', and send your pin.\n"
+            "2️⃣ *Search:* Tell me what you want (e.g., 'Coffee', 'Wine bar').\n"
+            "3️⃣ *Travel Mode:* Reply 'drive', 'walk', or 'bus'.\n"
+            "4️⃣ *Restart:* Type 'reset' at any time to start over.\n\n"
             "📍 *Send me your location pin to get started!*"
         )
         resp.message(intro_text)
@@ -95,7 +100,11 @@ async def whatsapp_reply(
     # ==========================================
     # BLOCK 4: UPDATE TRAVEL MODE
     # ==========================================
-    mode_map = {"walk": "walking", "drive": "driving", "bus": "transit", "train": "transit"}
+    mode_map = {
+        "walk": "walking", "walking": "walking",
+        "drive": "driving", "driving": "driving", "car": "driving",
+        "bus": "transit", "transit": "transit", "train": "transit"
+    }
     if incoming_msg in mode_map:
         new_mode = mode_map[incoming_msg]
         user_sessions[From] = (user_lat, user_lon, pin_time, new_mode)
@@ -181,7 +190,7 @@ async def whatsapp_reply(
                     f"🗺️ Navigate: {gmaps_url}{ig_url}\n\n"
                 )
                 
-            reply_text += "💡 *Tip:* Reply with 'drive', 'walk', or 'bus' to change how you travel!"
+            reply_text += "💡 *Tip:* Reply 'drive' or 'walk' to change mode, or 'reset' to start over!"
             resp.message(reply_text.strip())
         else:
             resp.message("Oops, something went wrong fetching the locations.")
