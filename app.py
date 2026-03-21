@@ -61,9 +61,9 @@ async def whatsapp_reply(
             "I can help you find the best spots in Tel Aviv right from your phone.\n\n"
             "👇 *Here is how to use me:*\n"
             "1️⃣ *Send Location:* Tap the 📎 icon, select 'Location', and send your pin.\n"
-            "2️⃣ *Search:* Tell me what you want (e.g., 'Coffee', 'Wine bar').\n"
-            "3️⃣ *Menu:* Type 'menu' at any time to see a list of all places.\n"
-            "4️⃣ *Travel Mode:* Reply 'drive', 'walk', or 'bus'.\n"
+            "2️⃣ *Travel Mode:* Reply 'drive', 'walk', or 'bus'.\n"
+            "3️⃣ *Search:* Tell me what you want (e.g., 'Coffee', 'Wine bar').\n"
+            "4️⃣ *Menu:* Type 'menu' at any time to see a list of all places.\n"
             "5️⃣ *Restart:* Type 'reset' to clear your memory and start over.\n\n"
             "📍 *Send me your location pin to get started!*"
         )
@@ -225,7 +225,14 @@ async def whatsapp_reply(
             for index, place in enumerate(top_places, start=1):
                 mode_emoji = "🚗" if current_mode == "driving" else "🚌" if current_mode == "transit" else "🚶‍♂️"
                 
-                # --- UPGRADED: Dynamic Google Maps Directions Link ---
+                # --- NEW: KILOMETER CONVERSION ---
+                dist_km = place.distance / 1000
+                if dist_km < 1:
+                    dist_str = f"{round(dist_km, 3)} km" # e.g., 0.85 km
+                else:
+                    dist_str = f"{round(dist_km, 1)} km" # e.g., 16.5 km
+                
+                # Dynamic Google Maps Directions Link
                 gmaps_url = f"https://www.google.com/maps/dir/?api=1&origin={user_lat},{user_lon}&destination={place.lat},{place.lon}&travelmode={current_mode}"
                 
                 ig_url = f"\n📱 Insta: {place.instagram_url}" if isinstance(place.instagram_url, str) and place.instagram_url.strip() else ""
@@ -233,7 +240,7 @@ async def whatsapp_reply(
                 
                 reply_text += (
                     f"{index}. *{place.name}*{cat_label}\n"
-                    f"📏 Distance: {int(place.distance)}m\n"
+                    f"📏 Distance: {dist_str}\n"
                     f"{mode_emoji} {current_mode.title()}: {durations[index - 1]}\n"
                     f"🗺️ Navigate: {gmaps_url}{ig_url}\n\n"
                 )
