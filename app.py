@@ -41,7 +41,7 @@ async def whatsapp_reply(
     # ==========================================
     # BLOCK 0: THE ESCAPE HATCH (Reset)
     # ==========================================
-    if incoming_msg in ["reset", "restart", "clear"]:
+    if incoming_msg in ["restart", "clear"]:
         if From in user_sessions:
             del user_sessions[From] # Wipe their memory
         resp.message("🔄 Memory wiped! Please send me a fresh Location Pin to start over.")
@@ -62,8 +62,9 @@ async def whatsapp_reply(
             "👇 *Here is how to use me:*\n"
             "1️⃣ *Send Location:* Tap the 📎 icon, select 'Location', and send your pin.\n"
             "2️⃣ *Search:* Tell me what you want (e.g., 'Coffee', 'Wine bar').\n"
-            "3️⃣ *Travel Mode:* Reply 'drive', 'walk', or 'bus'.\n"
-            "4️⃣ *Restart:* Type 'reset' at any time to start over.\n\n"
+            "3️⃣ *Menu:* Type 'menu' at any time to see a list of all places.\n"
+            "4️⃣ *Travel Mode:* Reply 'drive', 'walk', or 'bus'.\n"
+            "5️⃣ *Restart:* Type 'reset' to clear your memory and start over.\n\n"
             "📍 *Send me your location pin to get started!*"
         )
         resp.message(intro_text)
@@ -73,20 +74,18 @@ async def whatsapp_reply(
     # BLOCK 2: USER SENDS A LOCATION PIN
     # ==========================================
     if Latitude and Longitude:
-        # Save the new location, timestamp, and default mode to memory
-        user_sessions[From] = (float(Latitude), float(Longitude), datetime.now(), "walking")
+        # Save the new location and set mode to "pending"
+        user_sessions[From] = (float(Latitude), float(Longitude), datetime.now(), "pending")
         
-        # Fetch 3 random categories to suggest
-        async with async_session() as session:
-            cat_result = await session.execute(select(Place.category).distinct())
-            categories = [row[0] for row in cat_result.all()]
-            
-            suggestion_text = "Coffee, Pizza, etc."
-            if len(categories) >= 3:
-                suggestions = random.sample(categories, 3)
-                suggestion_text = f"{suggestions[0].title()}, {suggestions[1].title()}, or {suggestions[2].title()}"
-                
-        resp.message(f"📍 Location locked! What are you looking for? (e.g., {suggestion_text}, or type 'Surprise Me')")
+        prompt = (
+            "📍 *Location locked!*\n\n"
+            "Before we search, how are you getting around today?\n"
+            "Reply with:\n"
+            "🚶‍♂️ *walk*\n"
+            "🚗 *drive*\n"
+            "🚌 *bus*"
+        )
+        resp.message(prompt)
         return Response(content=str(resp), media_type="application/xml")
 
     # ==========================================
@@ -114,10 +113,35 @@ async def whatsapp_reply(
         "drive": "driving", "driving": "driving", "car": "driving",
         "bus": "transit", "transit": "transit", "train": "transit"
     }
+    
     if incoming_msg in mode_map:
         new_mode = mode_map[incoming_msg]
+        was_pending = current_mode == "pending"
+        
+        # Update the session with the new mode
         user_sessions[From] = (user_lat, user_lon, pin_time, new_mode)
-        resp.message(f"🚗 Travel mode updated to: *{new_mode.title()}*\nNow tell me what you want to find!")
+        
+        if was_pending:
+            # First time picking a mode! Generate suggestions and prompt for category.
+            async with async_session() as session:
+                cat_result = await session.execute(select(Place.category).distinct())
+                categories = [row[0] for row in cat_result.all()]
+                
+                suggestion_text = "Coffee, Pizza, etc."
+                if len(categories) >= 3:
+                    suggestions = random.sample(categories, 3)
+                    suggestion_text = f"{suggestions[0].title()}, {suggestions[1].title()}, or {suggestions[2].title()}"
+                    
+            resp.message(f"✅ Mode set to *{new_mode.title()}*!\n\nNow, what are you looking for? (e.g., {suggestion_text}, or 'Surprise Me')")
+        else:
+            # They just changed their mode mid-session
+            resp.message(f"🚗 Travel mode updated to: *{new_mode.title()}*\n\nJust type your category again to see your updated travel times!")
+            
+        return Response(content=str(resp), media_type="application/xml")
+
+    # The Guard: If they try to search for "Pizza" while still "pending", stop them!
+    if current_mode == "pending":
+        resp.message("✋ Please tell me how you are traveling first! Reply with 'walk', 'drive', or 'bus'.")
         return Response(content=str(resp), media_type="application/xml")
 
     # ==========================================
@@ -130,8 +154,19 @@ async def whatsapp_reply(
         # Help Menu
         help_keywords = ["help", "menu", "options", "categories", "list"]
         if incoming_msg in help_keywords:
-            cat_list = "\n".join([f"🔸 {c.title()}" for c in sorted(valid_categories)])
-            resp.message(f"Here is everything I can find for you right now:\n\n{cat_list}\n\nJust reply with any of these, or 'Surprise Me'!")
+            # Format the categories with a clean bullet point
+            cat_list = "\n".join([f"🔹 {c.title()}" for c in sorted(valid_categories)])
+            
+            menu_text = (
+                "📋 *TLV-Bot Category Directory*\n\n"
+                "Here is everything I can search for right now:\n\n"
+                f"{cat_list}\n\n"
+                "👇 *How to choose:*\n"
+                "Reply with any of the categories above.\n\n"
+                "🎲 *Feeling adventurous?*\n"
+                "Reply with *'Surprise Me'* and I will find the 3 absolute closest spots to you, regardless of category!"
+            )
+            resp.message(menu_text)
             return Response(content=str(resp), media_type="application/xml")
         
         # Surprise Logic vs Specific Search
