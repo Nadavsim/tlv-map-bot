@@ -39,6 +39,15 @@ async def whatsapp_reply(
     resp = MessagingResponse()
 
     # ==========================================
+    # BLOCK 0: THE ESCAPE HATCH (Reset)
+    # ==========================================
+    if incoming_msg in ["reset", "restart", "clear"]:
+        if From in user_sessions:
+            del user_sessions[From] # Wipe their memory
+        resp.message("🔄 Memory wiped! Please send me a fresh Location Pin to start over.")
+        return Response(content=str(resp), media_type="application/xml")
+
+    # ==========================================
     # BLOCK 1: GREETINGS & INTRO (No location needed)
     # ==========================================
     greetings = ["hi", "hello", "hey", "start", ".", "היי", "שלום"]
@@ -164,14 +173,18 @@ async def whatsapp_reply(
             if gmaps:
                 try:
                     gmaps_client = cast(Any, gmaps)
-                    matrix = gmaps_client.distance_matrix(
-                        origins=f"{user_lat},{user_lon}", destinations=destinations, mode=current_mode, units="metric"
-                    )
+                    matrix = gmaps_client.distance_matrix(origins=f"{user_lat},{user_lon}", destinations=destinations, mode=current_mode, units="metric")
                     for i, el in enumerate(matrix['rows'][0]['elements']):
                         if el['status'] == 'OK':
                             durations[i] = el['duration']['text']
-                except Exception:
-                    pass
+                        else:
+                            # If Google rejects the route, show the API status (e.g., ZERO_RESULTS)
+                            durations[i] = f"Route Error: {el['status']}"
+                except Exception as e:
+                    # If the API call fails entirely, print the Python error
+                    durations = [f"API Error: {str(e)[:25]}"] * len(top_places)
+            else:
+                durations = ["Missing API Key"] * len(top_places)
 
             # Build Final Output
             for index, place in enumerate(top_places, start=1):
