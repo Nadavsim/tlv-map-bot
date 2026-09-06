@@ -14,20 +14,23 @@
   --chip-fg: #c23f19;
 }
 
+/* Dark mode intentionally isn't just a dark tint of the light palette - it's
+   the separate "dark, moody, premium" direction (electric lime on near-black)
+   from the style comparison, paired with the warm/vibrant light mode. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1d140f;
-    --fg: #f5e9de;
-    --muted: #c9a88f;
-    --bubble-bot: #2a1e17;
-    --bubble-user: #ff6b45;
-    --bubble-user-fg: #1a0f09;
-    --card-bg: #2a1e17;
-    --border: #3d2c21;
-    --accent: #ff6b45;
-    --accent-fg: #1a0f09;
-    --chip-bg: #3d2417;
-    --chip-fg: #ffb08f;
+    --bg: #15161a;
+    --fg: #f2f2ed;
+    --muted: #9a9ca6;
+    --bubble-bot: #1c1d22;
+    --bubble-user: #c9ff3d;
+    --bubble-user-fg: #15161a;
+    --card-bg: #1c1d22;
+    --border: #2c2e36;
+    --accent: #c9ff3d;
+    --accent-fg: #15161a;
+    --chip-bg: #23281a;
+    --chip-fg: #c9ff3d;
   }
 }
 
