@@ -1,55 +1,78 @@
+import re
 import xml.etree.ElementTree as ET
-import pandas as pd
 
-def parse_kml_to_csv(kml_file_path: str, output_csv_path: str) -> None:
-    # KML files use an XML namespace, we have to define it to search the tree
-    ns = {'kml': 'http://www.opengis.net/kml/2.2'}
-    
-    # Load the XML tree
-    tree = ET.parse(kml_file_path)
-    root = tree.getroot()
-    
+# My Maps' public KML export doesn't include a <description> per pin by default,
+# but if the user ever adds one (e.g. pastes an Instagram link into a pin's
+# description in the My Maps UI), pull it out automatically.
+_NS = {"kml": "http://www.opengis.net/kml/2.2"}
+_INSTAGRAM_RE = re.compile(r"https?://(?:www\.)?instagram\.com/\S+", re.IGNORECASE)
+
+
+def parse_kml_text(kml_text: str) -> list[dict]:
+    """Parse KML text (My Maps export) into a list of place dicts.
+
+    Each dict has: name, category, latitude, longitude, instagram_url (may be None).
+    'category' comes from the enclosing Folder name (My Maps layers).
+    """
+    root = ET.fromstring(kml_text)
     places_data = []
 
-    # Iterate through every 'Folder' (which represents your My Maps layers)
-    for folder in root.findall('.//kml:Folder', ns):
-        
-        # 1. Safely extract the Category Name
-        folder_name_node = folder.find('kml:name', ns)
-        category_name = folder_name_node.text if folder_name_node is not None and folder_name_node.text else 'Uncategorized'
-        
-        # Iterate through every 'Placemark' inside this folder
-        for placemark in folder.findall('.//kml:Placemark', ns):
-            
-            # 2. Safely extract the Place Name
-            place_name_node = placemark.find('kml:name', ns)
-            place_name = place_name_node.text if place_name_node is not None and place_name_node.text else 'Unknown'
-            
-            # 3. Safely extract and parse the Coordinates
-            coords_node = placemark.find('.//kml:coordinates', ns)
-            
-            # We strictly check that the node exists AND that it contains text
-            if coords_node is not None and coords_node.text is not None:
-                coords = coords_node.text.strip().split(',')
-                
-                # Ensure we actually got both longitude and latitude back
-                if len(coords) >= 2:
-                    longitude = float(coords[0])
-                    latitude = float(coords[1])
-                    
-                    places_data.append({
-                        'Name': place_name,
-                        'Category': category_name,
-                        'Latitude': latitude,
-                        'Longitude': longitude
-                    })
+    for folder in root.findall(".//kml:Folder", _NS):
+        folder_name_node = folder.find("kml:name", _NS)
+        category_name = (
+            folder_name_node.text
+            if folder_name_node is not None and folder_name_node.text
+            else "Uncategorized"
+        )
 
-    # Convert to a DataFrame and export to CSV
-    df = pd.DataFrame(places_data)
-    df.to_csv(output_csv_path, index=False)
-    print(f"Success! Extracted {len(df)} places into {output_csv_path}")
-    print(df.head())
+        for placemark in folder.findall(".//kml:Placemark", _NS):
+            place_name_node = placemark.find("kml:name", _NS)
+            place_name = (
+                place_name_node.text
+                if place_name_node is not None and place_name_node.text
+                else "Unknown"
+            )
+
+            coords_node = placemark.find(".//kml:coordinates", _NS)
+            if coords_node is None or coords_node.text is None:
+                continue
+
+            coords = coords_node.text.strip().split(",")
+            if len(coords) < 2:
+                continue
+
+            longitude = float(coords[0])
+            latitude = float(coords[1])
+
+            instagram_url = None
+            desc_node = placemark.find("kml:description", _NS)
+            if desc_node is not None and desc_node.text:
+                match = _INSTAGRAM_RE.search(desc_node.text)
+                if match:
+                    instagram_url = match.group(0)
+
+            places_data.append(
+                {
+                    "name": place_name.strip(),
+                    "category": category_name.strip().lower(),
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "instagram_url": instagram_url,
+                }
+            )
+
+    return places_data
+
+
+def parse_kml_file(kml_file_path: str) -> list[dict]:
+    with open(kml_file_path, encoding="utf-8") as f:
+        return parse_kml_text(f.read())
+
 
 if __name__ == "__main__":
-    # Make sure your exported map file is named 'map.kml' and is in the same folder
-    parse_kml_to_csv('map.kml', 'cleaned_places.csv')
+    # Convenience for local/offline use: parse a manually-exported map.kml
+    # sitting next to this script, instead of fetching one over the network.
+    places = parse_kml_file("map.kml")
+    print(f"Parsed {len(places)} places from map.kml")
+    for p in places[:5]:
+        print(p)

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TLV Bot</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>📍 TLV Bot</h1>
+      <p id="location-status">Requesting your location...</p>
+    </header>
+
+    <main id="chat-log" aria-live="polite"></main>
+
+    <form id="chat-form">
+      <input
+        id="chat-input"
+        type="text"
+        placeholder="What are you craving? e.g. 'ramen' or 'coffee'"
+        autocomplete="off"
+        disabled
+      />
+      <button type="submit" disabled>Send</button>
+    </form>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

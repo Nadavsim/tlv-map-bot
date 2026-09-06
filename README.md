@@ -1,44 +1,77 @@
-# 📍 Tel Aviv WhatsApp Map Bot (TLV-bot)
+# 📍 TLV Bot
 
-A location-aware WhatsApp bot built with Python and FastAPI that helps users instantly find the nearest coffee shops, restaurants, and points of interest in Tel Aviv. The bot uses a fully managed Azure PostGIS spatial database to perform native, blazing-fast coordinate distance calculations and integrates with the Google Maps API for real-time travel routing.
+A web chatbot that recommends the closest spot from your own curated Google My Maps
+map of favorite Tel Aviv food places. Tell it what you're craving, share your
+location, and it finds the nearest match with a one-tap navigation link.
+
+This started as a WhatsApp bot (Twilio + Azure PostGIS Postgres); it's now a
+lightweight web app so it can run for well under $12/month.
 
 ## ✨ Features
-* **Live Location Processing:** Accepts WhatsApp location pins to set the user's current coordinates.
-* **Geospatial Distance Math:** Uses PostGIS `ST_DistanceSphere` to natively calculate the exact shortest distance (in meters) to the requested category.
-* **Smart Conversational Memory:** Remembers the user's location pin and preferred travel mode for up to 3 hours, allowing for rapid follow-up searches.
-* **Dynamic Travel Modes:** Users can seamlessly switch between `walking`, `driving`, and `transit`. The bot queries the Google Maps Distance Matrix API to provide real-time ETAs.
-* **Typo-Tolerance & NLP:** Implements fuzzy string matching (`difflib`) to automatically correct slightly misspelled categories (e.g., "cofee" -> "coffee") and handles natural language triggers like "Surprise Me".
-* **Deep-Linked Navigation:** Automatically generates a formatted Google Maps URL that instantly opens the user's maps app with the destination and specific travel mode pre-loaded.
-* **Social Integration:** Pulls associated Instagram profiles for the recommended spots.
 
-## 🏗️ Cloud System Architecture
-* **Cloud Hosting:** Azure App Service (Linux, Free Tier).
-* **CI/CD Pipeline:** GitHub Actions (Automatic deployment on push to `main`).
-* **Database:** Azure Database for PostgreSQL Flexible Server with the PostGIS extension enabled.
-* **Backend Framework:** FastAPI (Python 3.11) running on Uvicorn.
-* **ORM & Queries:** SQLAlchemy 2.0 (Asynchronous) / GeoAlchemy2.
-* **External APIs:** Twilio API (WhatsApp Sandbox) and Google Maps API.
+* **Free-text cravings:** "ramen", "something with meat", "coffee near here" -
+  Claude (Haiku 4.5) matches your message to a category from your map.
+* **Nearest-match search:** MongoDB's geospatial `$geoNear` finds the 3 closest
+  places in that category to wherever your browser says you are.
+* **One-tap navigation:** every result includes a Google Maps directions link
+  (no Google Maps API key or billing needed - it's a plain deep link).
+* **Auto-updating database:** re-run one script to pull the latest pins straight
+  from your public Google My Maps map - no manual export/import step. Edits to
+  `instagram_url` (or anything else you add by hand in MongoDB Atlas) are
+  preserved across syncs.
 
-## 🚀 Setup & Deployment
+## 🏗️ Architecture
+
+* **Frontend:** a single static page (`static/index.html` + `app.js`) - no
+  build step. Uses the browser Geolocation API, with a manual lat/lon fallback.
+* **Backend:** FastAPI (Python 3.11), serving both the page and a `/api/chat`
+  JSON endpoint.
+* **Database:** MongoDB Atlas, free-forever M0 tier (512MB). A `2dsphere` index
+  on each place's location powers the nearest-match queries.
+* **NLU:** Anthropic API, `claude-haiku-4-5` - one small tool-call per chat
+  message to match free text to a known category. At personal-project volume
+  this runs about $1-2/month.
+* **Hosting:** Azure App Service, Free (F1) tier - $0/month, deployed via the
+  existing GitHub Actions workflow in `.github/workflows/`.
+* **Data source:** a Google My Maps custom map, shared publicly, exported as
+  KML on demand via its stable `mid=` URL.
+
+Total running cost at personal-project scale: well under $1/month typically,
+comfortably inside a $12/month budget with room to spare.
+
+## 🚀 Setup
 
 ### 1. Prerequisites
-- Python 3.11+
-- An Azure Account (For Database and App Service)
-- A Twilio Account (Sandbox for WhatsApp)
-- A Google Cloud Account (For Maps API Key)
 
-### 2. Environment Variables
-Create a `.env` file in the root directory and add the following keys:
+- Python 3.11+
+- A MongoDB Atlas account (free M0 cluster)
+- An Anthropic API key
+- Your Tel Aviv food map created in [Google My Maps](https://www.google.com/maps/d/)
+
+### 2. Share your My Maps map publicly
+
+Open your map in My Maps -> Share -> set visibility to "Anyone with this link"
+(view-only is fine). Then open the map and copy the `mid=` value from its URL
+(`https://www.google.com/maps/d/edit?mid=THIS_PART&...`).
+
+### 3. Create a free MongoDB Atlas cluster
+
+Create an M0 (free) cluster at [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas),
+create a database user, allow network access from your IP (or `0.0.0.0/0` for
+simplicity on a personal project), and copy the connection string.
+
+### 4. Environment variables
+
+Copy `.env.example` to `.env` and fill in:
 
 ```env
-TWILIO_ACCOUNT_SID=your_twilio_sid
-TWILIO_AUTH_TOKEN=your_twilio_token
-GOOGLE_MAPS_API_KEY=your_gmaps_api_key
-# Ensure your Azure connection string ends with ?ssl=require
-DATABASE_URL=postgresql+asyncpg://admin_user:password@your-db-server.postgres.database.azure.com:5432/postgres?ssl=require
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority
+MONGODB_DB_NAME=tlvbot
+MYMAPS_ID=your_mymaps_id_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
 ```
-### 3. Install Dependencies
-Create a virtual environment and install the required packages:
+
+### 5. Install dependencies
 
 ```bash
 python -m venv venv
@@ -46,34 +79,59 @@ venv\Scripts\activate  # On Windows
 pip install -r requirements.txt
 ```
 
-### 4. Initialize the Cloud Database
-Run the setup script to explicitly enable the PostGIS extension on the Azure server and build the empty tables:
+### 6. Load your places into MongoDB
 
 ```bash
-python models.py
+python sync_places.py
 ```
 
-### 5. Run the ETL Migration
-Extract the location data from the CSV and load it into the PostGIS database:
+Re-run this any time you add/remove/move a pin on your My Maps map - it
+upserts by place name and removes anything no longer on the map, without
+touching `instagram_url` values already stored.
+
+**If migrating from the old CSV-based bot:** the raw KML export doesn't carry
+Instagram links (those were added by hand into `cleaned_places.csv`). After
+your first `sync_places.py` run, backfill them once with:
 
 ```bash
-python load_data.py
+python seed_instagram_from_csv.py
 ```
 
-### 6. Clound Deployment
-This project is configured for CI/CD via Azure App Service.
+You can also add/edit `instagram_url` (or anything else) directly in the
+MongoDB Atlas web UI at any time - `sync_places.py` never overwrites it.
 
-    1. Provision a Linux Web App in the Azure Portal.
-    2. Add the four .env variables into the App Service Environment variables settings.
-    3. Under Configuration, set the startup command to: python -m uvicorn app:app --host 0.0.0.0 --port 8000
-    4. In the Deployment Center, link the repository to GitHub to trigger the automated build.
-    5. Paste your final Azure App Service URL (e.g., https://your-app.azurewebsites.net/whatsapp) into your Twilio Sandbox Webhook settings.
-
-### **Ready for the final push!**
-Once you save this `README.md` and the completely reorganized `app.py` from earlier, run these three commands in your terminal to send everything up to the cloud:
+### 7. Run locally
 
 ```bash
-git add .
-git commit -m "Refactored code, added smart travel modes, and updated README for cloud architecture"
-git push origin main
+uvicorn app:app --reload
+```
+
+Open `http://localhost:8000`.
+
+### 8. Deploy
+
+The existing `.github/workflows/main_nadav-tlv-bot.yml` deploys to Azure App
+Service on every push to `main` - no changes needed there. Just make sure the
+four env vars above are set in the App Service's Configuration ->
+Application settings, and set the startup command to:
+
+```
+python -m uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+## Structure
+
+- `app.py` - FastAPI app: serves the chat page and `/api/chat`
+- `db.py` - MongoDB connection, geospatial nearest-match query
+- `llm.py` - Claude-based free-text -> category extraction
+- `parser.py` - KML -> place dicts (shared by `sync_places.py` and local/offline use)
+- `sync_places.py` - fetches the latest KML from My Maps and upserts into MongoDB
+- `seed_instagram_from_csv.py` - one-time migration of legacy Instagram links
+- `static/` - the chat frontend (plain HTML/CSS/JS, no build step)
+- `tests/` - pytest suite (`conftest.py` at the root adds it to `sys.path`)
+
+## Running tests
+
+```bash
+pytest
 ```
