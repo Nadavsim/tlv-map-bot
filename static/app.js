@@ -45,8 +45,16 @@ function addPlaceCards(places) {
 
     const meta = document.createElement("div");
     meta.className = "meta";
-    const etaText = place.eta ? ` · ${place.eta}` : "";
-    meta.textContent = `${place.category} · ${place.distance} away${etaText}`;
+
+    const categoryChip = document.createElement("span");
+    categoryChip.className = "category-chip";
+    categoryChip.textContent = place.category;
+
+    const distanceEta = document.createElement("span");
+    distanceEta.className = "distance-eta";
+    distanceEta.textContent = place.eta ? `${place.distance} · ${place.eta}` : place.distance;
+
+    meta.append(categoryChip, distanceEta);
 
     const links = document.createElement("div");
     links.className = "links";

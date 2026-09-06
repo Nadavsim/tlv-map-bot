@@ -1,25 +1,33 @@
 :root {
   color-scheme: light dark;
-  --bg: #f5f5f0;
-  --fg: #1a1a1a;
+  --bg: #fff8f2;
+  --fg: #2a1b12;
+  --muted: #a97c64;
   --bubble-bot: #ffffff;
-  --bubble-user: #2d6a4f;
+  --bubble-user: #ff5a36;
   --bubble-user-fg: #ffffff;
   --card-bg: #ffffff;
-  --border: #ddd;
-  --accent: #2d6a4f;
+  --border: #f0dccb;
+  --accent: #ff5a36;
+  --accent-fg: #ffffff;
+  --chip-bg: #ffede3;
+  --chip-fg: #c23f19;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #14171a;
-    --fg: #eaeaea;
-    --bubble-bot: #22262b;
-    --bubble-user: #3fa172;
-    --bubble-user-fg: #08130d;
-    --card-bg: #1c2024;
-    --border: #33383d;
-    --accent: #3fa172;
+    --bg: #1d140f;
+    --fg: #f5e9de;
+    --muted: #c9a88f;
+    --bubble-bot: #2a1e17;
+    --bubble-user: #ff6b45;
+    --bubble-user-fg: #1a0f09;
+    --card-bg: #2a1e17;
+    --border: #3d2c21;
+    --accent: #ff6b45;
+    --accent-fg: #1a0f09;
+    --chip-bg: #3d2417;
+    --chip-fg: #ffb08f;
   }
 }
 
@@ -31,7 +39,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .app {
@@ -48,58 +56,61 @@ body {
 }
 
 header {
-  padding: 1rem 1rem 0.5rem;
+  padding: 1.1rem 1.1rem 0.6rem;
 }
 
 header h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.4rem;
+  margin: 0 0 0.3rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 #location-status {
   margin: 0;
   font-size: 0.85rem;
-  opacity: 0.7;
+  color: var(--muted);
 }
 
 #mode-toggle {
   display: flex;
-  gap: 0.4rem;
-  margin-top: 0.5rem;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
 }
 
 #mode-toggle button {
   flex: 1;
-  padding: 0.4rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  padding: 0.5rem 0.7rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
   background: var(--card-bg);
-  color: var(--fg);
+  color: var(--muted);
+  font-weight: 700;
   font-size: 0.85rem;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 #mode-toggle button.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
-  font-weight: 600;
+  color: var(--accent-fg);
 }
 
 #chat-log {
   flex: 1;
   overflow-y: auto;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 1.1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.7rem;
 }
 
 .bubble {
   max-width: 85%;
-  padding: 0.6rem 0.85rem;
-  border-radius: 14px;
-  line-height: 1.4;
+  padding: 0.65rem 0.95rem;
+  border-radius: 18px;
+  line-height: 1.45;
   font-size: 0.95rem;
   white-space: pre-wrap;
 }
@@ -107,7 +118,7 @@ header h1 {
 .bubble.bot {
   align-self: flex-start;
   background: var(--bubble-bot);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   border-bottom-left-radius: 4px;
 }
 
@@ -115,13 +126,14 @@ header h1 {
   align-self: flex-end;
   background: var(--bubble-user);
   color: var(--bubble-user-fg);
+  font-weight: 600;
   border-bottom-right-radius: 4px;
 }
 
 .places {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.6rem;
   align-self: flex-start;
   max-width: 85%;
   width: 100%;
@@ -129,60 +141,91 @@ header h1 {
 
 .place-card {
   background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 0.7rem 0.9rem;
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  padding: 0.8rem 1rem;
 }
 
 .place-card .name {
-  font-weight: 600;
+  font-weight: 800;
+  margin-bottom: 0.35rem;
 }
 
 .place-card .meta {
-  font-size: 0.85rem;
-  opacity: 0.75;
-  margin: 0.15rem 0 0.4rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.6rem;
+}
+
+.place-card .category-chip {
+  background: var(--chip-bg);
+  color: var(--chip-fg);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+}
+
+.place-card .distance-eta {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .place-card .links {
   display: flex;
-  gap: 0.9rem;
-  font-size: 0.85rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .place-card a {
   color: var(--accent);
   text-decoration: none;
+  font-weight: 700;
+  font-size: 0.8rem;
+  background: var(--chip-bg);
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
 }
 
 .place-card a:hover {
-  text-decoration: underline;
+  filter: brightness(0.95);
 }
 
 #chat-form {
   display: flex;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border);
+  gap: 0.6rem;
+  padding: 0.85rem 1.1rem calc(0.85rem + env(safe-area-inset-bottom));
+  border-top: 1.5px solid var(--border);
 }
 
 #chat-input {
   flex: 1;
-  padding: 0.6rem 0.8rem;
-  border-radius: 10px;
-  border: 1px solid var(--border);
+  min-width: 0;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
   background: var(--card-bg);
   color: var(--fg);
+  font-family: inherit;
   font-size: 0.95rem;
 }
 
+#chat-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 #chat-form button {
-  padding: 0.6rem 1.1rem;
-  border-radius: 10px;
+  padding: 0.7rem 1.3rem;
+  border-radius: 999px;
   border: none;
   background: var(--accent);
-  color: #fff;
-  font-weight: 600;
+  color: var(--accent-fg);
+  font-family: inherit;
+  font-weight: 800;
   cursor: pointer;
 }
 
