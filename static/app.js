@@ -3,8 +3,17 @@ const chatForm = document.getElementById("chat-form");
 const chatInput = document.getElementById("chat-input");
 const sendButton = chatForm.querySelector("button");
 const locationStatus = document.getElementById("location-status");
+const modeButtons = document.querySelectorAll("#mode-toggle button");
 
 let userLocation = null;
+let transportMode = "walking";
+
+modeButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    transportMode = btn.dataset.mode;
+    modeButtons.forEach((b) => b.classList.toggle("active", b === btn));
+  });
+});
 
 function addBotBubble(text) {
   const el = document.createElement("div");
@@ -36,7 +45,8 @@ function addPlaceCards(places) {
 
     const meta = document.createElement("div");
     meta.className = "meta";
-    meta.textContent = `${place.category} · ${place.distance} away`;
+    const etaText = place.eta ? ` · ${place.eta}` : "";
+    meta.textContent = `${place.category} · ${place.distance} away${etaText}`;
 
     const links = document.createElement("div");
     links.className = "links";
@@ -97,7 +107,8 @@ function showManualLocationForm() {
   wrap.className = "bubble bot";
 
   const label = document.createElement("div");
-  label.textContent = "Paste your coordinates (lat, lon):";
+  label.textContent =
+    "Paste your coordinates, or a Google Maps link (tap-and-hold your spot in Maps → Share):";
   wrap.appendChild(label);
 
   const row = document.createElement("form");
@@ -107,7 +118,7 @@ function showManualLocationForm() {
 
   const input = document.createElement("input");
   input.type = "text";
-  input.placeholder = "32.0809, 34.7806";
+  input.placeholder = "32.0809, 34.7806 or a maps.app.goo.gl link";
   input.style.flex = "1";
 
   const button = document.createElement("button");
@@ -118,16 +129,46 @@ function showManualLocationForm() {
   wrap.appendChild(row);
   chatLog.appendChild(wrap);
 
-  row.addEventListener("submit", (e) => {
+  row.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const parts = input.value.split(",").map((s) => parseFloat(s.trim()));
-    if (parts.length !== 2 || parts.some(Number.isNaN)) {
-      addBotBubble("That doesn't look like 'lat, lon' - try again.");
+    const value = input.value.trim();
+
+    const parts = value.split(",").map((s) => parseFloat(s.trim()));
+    if (parts.length === 2 && !parts.some(Number.isNaN)) {
+      userLocation = { lat: parts[0], lon: parts[1] };
+      locationStatus.textContent = "Location set. Ask away!";
+      enableChat();
       return;
     }
-    userLocation = { lat: parts[0], lon: parts[1] };
-    locationStatus.textContent = "Location set. Ask away!";
-    enableChat();
+
+    if (!value.includes("http://") && !value.includes("https://")) {
+      addBotBubble("That doesn't look like 'lat, lon' or a Maps link - try again.");
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "...";
+    try {
+      const res = await fetch("/api/resolve-location", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: value }),
+      });
+      const data = await res.json();
+      if (data.lat == null || data.lon == null) {
+        addBotBubble("Couldn't find coordinates in that link - try pasting the coordinates directly instead.");
+        button.disabled = false;
+        button.textContent = "Set";
+        return;
+      }
+      userLocation = { lat: data.lat, lon: data.lon };
+      locationStatus.textContent = "Location set. Ask away!";
+      enableChat();
+    } catch (err) {
+      addBotBubble("Couldn't reach the server to resolve that link - try again.");
+      button.disabled = false;
+      button.textContent = "Set";
+    }
   });
 }
 
@@ -138,7 +179,12 @@ async function sendMessage(message) {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, lat: userLocation.lat, lon: userLocation.lon }),
+      body: JSON.stringify({
+        message,
+        lat: userLocation.lat,
+        lon: userLocation.lon,
+        mode: transportMode,
+      }),
     });
 
     if (!res.ok) {

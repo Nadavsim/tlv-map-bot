@@ -1,0 +1,39 @@
+import re
+
+import requests
+
+# Covers the URL shapes Google Maps produces when someone taps "Share" on a
+# pin or their own location: ?q=lat,lon, /@lat,lon,zoom (also inside
+# /maps/place/.../@lat,lon,zoom), and the !3d..!4d.. pair embedded in some
+# place-detail URLs.
+_COORD_PATTERNS = [
+    re.compile(r"[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)"),
+    re.compile(r"@(-?\d+\.\d+),(-?\d+\.\d+)"),
+    re.compile(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)"),
+]
+
+
+def extract_coords_from_url(url: str) -> tuple[float, float] | None:
+    for pattern in _COORD_PATTERNS:
+        match = pattern.search(url)
+        if match:
+            return float(match.group(1)), float(match.group(2))
+    return None
+
+
+def resolve_maps_link(text: str) -> tuple[float, float] | None:
+    """Pull lat/lon out of a pasted Google Maps link, following redirects for
+    short links (maps.app.goo.gl) since the coordinates only appear in the
+    fully-expanded URL, not the short one."""
+    coords = extract_coords_from_url(text)
+    if coords:
+        return coords
+
+    if "http://" not in text and "https://" not in text:
+        return None
+
+    try:
+        resp = requests.get(text.strip(), timeout=5, allow_redirects=True)
+        return extract_coords_from_url(resp.url)
+    except requests.RequestException:
+        return None

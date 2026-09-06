@@ -34,23 +34,23 @@ async def get_categories() -> list[str]:
     return sorted(await places.distinct("category"))
 
 
-def build_geo_pipeline(category: str, lat: float, lon: float, limit: int = 3) -> list[dict]:
+def build_geo_pipeline(category: str | None, lat: float, lon: float, limit: int = 3) -> list[dict]:
     """Pure function (no I/O) so the query shape can be unit tested without a
-    real MongoDB connection."""
+    real MongoDB connection. category=None means "any category" (surprise me)."""
     return [
         {
             "$geoNear": {
                 "near": {"type": "Point", "coordinates": [lon, lat]},
                 "distanceField": "distance",
                 "spherical": True,
-                "query": {"category": category},
+                "query": {"category": category} if category else {},
             }
         },
         {"$limit": limit},
     ]
 
 
-async def find_nearest(category: str, lat: float, lon: float, limit: int = 3) -> list[dict]:
+async def find_nearest(category: str | None, lat: float, lon: float, limit: int = 3) -> list[dict]:
     places = get_places_collection()
     pipeline = build_geo_pipeline(category, lat, lon, limit)
     return [doc async for doc in places.aggregate(pipeline)]

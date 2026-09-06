@@ -13,23 +13,32 @@ _TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
+                "any_category": {
+                    "type": "boolean",
+                    "description": (
+                        "True if the user explicitly wants ANY nearby place regardless "
+                        "of category - e.g. 'surprise me', 'anything', 'whatever is "
+                        "closest', 'I don't care'. False otherwise."
+                    ),
+                },
                 "matched_category": {
                     "type": "string",
                     "description": (
                         "The single best-matching category from the provided list, "
-                        "copied exactly as given. Empty string if nothing matches well."
+                        "copied exactly as given. Empty string if any_category is true "
+                        "or if nothing matches well."
                     ),
                 },
                 "clarifying_question": {
                     "type": "string",
                     "description": (
                         "A short, friendly follow-up question to ask the user if their "
-                        "request was ambiguous or didn't match any category. "
-                        "Empty string if matched_category is set."
+                        "request was ambiguous and didn't match any category and isn't "
+                        "an any_category request. Empty string otherwise."
                     ),
                 },
             },
-            "required": ["matched_category", "clarifying_question"],
+            "required": ["any_category", "matched_category", "clarifying_question"],
         },
     }
 ]
@@ -47,7 +56,8 @@ def _get_client() -> anthropic.Anthropic:
 def parse_food_request(message: str, categories: list[str]) -> dict:
     """Ask Claude to match free text against the known categories.
 
-    Returns {"category": str|None, "clarifying_question": str|None}.
+    Returns {"category": str|None, "clarifying_question": str|None, "any_category": bool}.
+    "any_category" True means "surprise me" - ignore "category" and search all places.
     """
     response = _get_client().messages.create(
         model=MODEL,
@@ -65,6 +75,7 @@ def parse_food_request(message: str, categories: list[str]) -> dict:
     tool_use = next(b for b in response.content if b.type == "tool_use")
     result = tool_use.input
 
-    category = result.get("matched_category") or None
+    any_category = bool(result.get("any_category"))
+    category = None if any_category else (result.get("matched_category") or None)
     question = result.get("clarifying_question") or None
-    return {"category": category, "clarifying_question": question}
+    return {"category": category, "clarifying_question": question, "any_category": any_category}

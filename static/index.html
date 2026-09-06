@@ -1,16 +1,23 @@
+<!-- Bump the ?v= on style.css/app.js below whenever you edit either file -
+     browsers (and any CDN/proxy in front of the app) cache them, and this is
+     the only cache-busting signal since there's no build step. -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TLV Bot</title>
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=3" />
 </head>
 <body>
   <div class="app">
     <header>
       <h1>📍 TLV Bot</h1>
       <p id="location-status">Requesting your location...</p>
+      <div id="mode-toggle" role="group" aria-label="Transport mode">
+        <button type="button" data-mode="walking" class="active">🚶 Walk</button>
+        <button type="button" data-mode="driving">🚗 Drive</button>
+      </div>
     </header>
 
     <main id="chat-log" aria-live="polite"></main>
@@ -27,6 +34,6 @@
     </form>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=3"></script>
 </body>
 </html>
