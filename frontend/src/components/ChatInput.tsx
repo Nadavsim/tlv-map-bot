@@ -1,11 +1,14 @@
 import { useState, type FormEvent } from 'react'
+import { t } from '../i18n'
+import type { Lang } from '../types'
 
 interface ChatInputProps {
   disabled: boolean
   onSend: (message: string) => void
+  lang: Lang
 }
 
-export function ChatInput({ disabled, onSend }: ChatInputProps) {
+export function ChatInput({ disabled, onSend, lang }: ChatInputProps) {
   const [value, setValue] = useState('')
 
   function handleSubmit(e: FormEvent) {
@@ -20,14 +23,14 @@ export function ChatInput({ disabled, onSend }: ChatInputProps) {
     <form className="chat-form" onSubmit={handleSubmit}>
       <input
         type="text"
-        placeholder="What are you craving? e.g. 'ramen' or 'coffee'"
+        placeholder={t(lang, 'chatPlaceholder')}
         autoComplete="off"
         disabled={disabled}
         value={value}
         onChange={(e) => setValue(e.target.value)}
       />
       <button type="submit" disabled={disabled}>
-        Send
+        {t(lang, 'chatSend')}
       </button>
     </form>
   )

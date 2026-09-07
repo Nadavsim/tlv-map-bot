@@ -1,14 +1,28 @@
-import { Car, CircleHelp, Footprints, MapPin } from 'lucide-react'
-import type { TransportMode } from '../types'
+import { Car, CircleHelp, Footprints, Languages, MapPin, Moon, Sun } from 'lucide-react'
+import { t } from '../i18n'
+import type { Lang, Theme, TransportMode } from '../types'
 
 interface HeaderProps {
   locationStatus: string
   mode: TransportMode
   onModeChange: (mode: TransportMode) => void
   onHelp: () => void
+  lang: Lang
+  onLangChange: (lang: Lang) => void
+  theme: Theme
+  onThemeChange: (theme: Theme) => void
 }
 
-export function Header({ locationStatus, mode, onModeChange, onHelp }: HeaderProps) {
+export function Header({
+  locationStatus,
+  mode,
+  onModeChange,
+  onHelp,
+  lang,
+  onLangChange,
+  theme,
+  onThemeChange,
+}: HeaderProps) {
   return (
     <header>
       <div className="header-top">
@@ -16,19 +30,38 @@ export function Header({ locationStatus, mode, onModeChange, onHelp }: HeaderPro
           <MapPin size={22} strokeWidth={2.5} aria-hidden="true" />
           TLV Bot
         </h1>
-        <button type="button" className="help-button" onClick={onHelp} aria-label="Help">
-          <CircleHelp size={20} aria-hidden="true" />
-        </button>
+        <div className="header-actions">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => onLangChange(lang === 'en' ? 'he' : 'en')}
+            aria-label={t(lang, 'languageToggle')}
+          >
+            <Languages size={18} aria-hidden="true" />
+            <span>{t(lang, 'languageToggle')}</span>
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => onThemeChange(theme === 'light' ? 'dark' : 'light')}
+            aria-label={theme === 'light' ? t(lang, 'themeToggleToDark') : t(lang, 'themeToggleToLight')}
+          >
+            {theme === 'light' ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}
+          </button>
+          <button type="button" className="icon-button" onClick={onHelp} aria-label={t(lang, 'help')}>
+            <CircleHelp size={20} aria-hidden="true" />
+          </button>
+        </div>
       </div>
       <p className="location-status">{locationStatus}</p>
-      <div className="mode-toggle" role="group" aria-label="Transport mode">
+      <div className="mode-toggle" role="group" aria-label={t(lang, 'transportMode')}>
         <button
           type="button"
           className={mode === 'walking' ? 'active' : ''}
           onClick={() => onModeChange('walking')}
         >
           <Footprints size={16} aria-hidden="true" />
-          Walk
+          {t(lang, 'walk')}
         </button>
         <button
           type="button"
@@ -36,7 +69,7 @@ export function Header({ locationStatus, mode, onModeChange, onHelp }: HeaderPro
           onClick={() => onModeChange('driving')}
         >
           <Car size={16} aria-hidden="true" />
-          Drive
+          {t(lang, 'drive')}
         </button>
       </div>
     </header>

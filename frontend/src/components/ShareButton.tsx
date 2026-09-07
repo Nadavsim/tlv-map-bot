@@ -1,6 +1,7 @@
 import { Share2 } from 'lucide-react'
-import type { Place } from '../types'
+import { t } from '../i18n'
 import { formatShareText, whatsAppShareUrl } from '../share'
+import type { Lang, Place } from '../types'
 
 /** Prefers the native share sheet (best UX, and includes WhatsApp among the
  * options on mobile where it's installed). Where the Web Share API isn't
@@ -8,8 +9,8 @@ import { formatShareText, whatsAppShareUrl } from '../share'
  * link rather than an imperative window.open() - a script-triggered
  * window.open() is liable to be blocked as a popup by some browsers, while
  * a genuine anchor click is always treated as trusted navigation. */
-export function ShareButton({ places }: { places: Place[] }) {
-  const text = formatShareText(places)
+export function ShareButton({ places, lang }: { places: Place[]; lang: Lang }) {
+  const text = formatShareText(places, lang)
 
   if (typeof navigator.share === 'function') {
     return (
@@ -24,7 +25,7 @@ export function ShareButton({ places }: { places: Place[] }) {
         }}
       >
         <Share2 size={14} aria-hidden="true" />
-        Share these spots
+        {t(lang, 'shareSpots')}
       </button>
     )
   }
@@ -32,7 +33,7 @@ export function ShareButton({ places }: { places: Place[] }) {
   return (
     <a className="share-button" href={whatsAppShareUrl(text)} target="_blank" rel="noopener noreferrer">
       <Share2 size={14} aria-hidden="true" />
-      Share these spots
+      {t(lang, 'shareSpots')}
     </a>
   )
 }

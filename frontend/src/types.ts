@@ -1,10 +1,13 @@
 export type TransportMode = 'walking' | 'driving'
+export type Lang = 'en' | 'he'
+export type Theme = 'light' | 'dark'
 
 export interface ChatRequest {
   message: string
   lat: number
   lon: number
   mode: TransportMode
+  lang: Lang
 }
 
 export interface Place {

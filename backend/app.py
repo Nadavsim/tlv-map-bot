@@ -62,6 +62,7 @@ class ChatRequest(BaseModel):
     lat: float
     lon: float
     mode: Literal["walking", "driving"] = "walking"
+    lang: Literal["en", "he"] = "en"
 
 
 class LocationLinkRequest(BaseModel):
@@ -80,6 +81,34 @@ class MorePlacesRequest(BaseModel):
 # "show more" page - the frontend uses it to detect "that was the last page"
 # (a page shorter than this means there's nothing left to fetch).
 PAGE_SIZE = 3
+
+# Fixed reply strings per UI language. Category names themselves (from the
+# DB, e.g. "coffee") are deliberately NOT translated here even in the
+# Hebrew replies - translating them would need a maintained EN->HE mapping
+# that goes stale as the map's categories change, which is exactly what the
+# help command's live category list (see the frontend) was built to avoid.
+REPLIES = {
+    "en": {
+        "empty_db": "The places database is empty. Run `python -m scripts.sync_places` to load places first.",
+        "no_category_fallback": "Not sure what you're craving - can you tell me a type of food?",
+        "no_matches": "I don't have any {label} spots saved yet.",
+        "matched": "Here are the closest {category} spots:",
+        "surprise": "Surprise! Here are the closest spots overall:",
+        "any_label": "any",
+    },
+    "he": {
+        "empty_db": "מסד הנתונים של המקומות ריק. הרץ `python -m scripts.sync_places` כדי לטעון מקומות קודם.",
+        "no_category_fallback": "לא ברור לי מה מתחשק לך - תוכל לספר לי איזה סוג אוכל?",
+        "no_matches": "עדיין אין לי מקומות מסוג {label} שמורים.",
+        "matched": "הנה המקומות הכי קרובים מסוג {category}:",
+        "surprise": "הפתעה! הנה המקומות הכי קרובים בסך הכל:",
+        "any_label": "כלשהו",
+    },
+}
+
+
+def replies_for(lang: str) -> dict:
+    return REPLIES.get(lang, REPLIES["en"])
 
 
 def format_place(place: PlaceResult, eta_seconds: float | None) -> dict:
@@ -135,21 +164,19 @@ async def categories():
 @app.post("/api/chat")
 @limiter.limit("20/minute;200/day")
 async def chat(request: Request, req: ChatRequest):
+    replies = replies_for(req.lang)
+
     known_categories = await db.get_categories()
     if not known_categories:
-        return {
-            "reply": "The places database is empty. Run `python -m scripts.sync_places` to load places first.",
-            "places": [],
-        }
+        return {"reply": replies["empty_db"], "places": []}
 
-    extraction = await llm.parse_food_request(req.message, known_categories)
+    extraction = await llm.parse_food_request(req.message, known_categories, req.lang)
 
     if not extraction["any_category"] and not extraction["category"]:
         await db.log_unmatched_query(req.message)
         await db.record_category_request(db.UNMATCHED_KEY)
         return {
-            "reply": extraction["clarifying_question"]
-            or "Not sure what you're craving - can you tell me a type of food?",
+            "reply": extraction["clarifying_question"] or replies["no_category_fallback"],
             "places": [],
         }
 
@@ -157,9 +184,9 @@ async def chat(request: Request, req: ChatRequest):
     await db.record_category_request(category or db.ANY_CATEGORY_KEY)
     matches = await db.find_nearest(category, req.lat, req.lon, limit=PAGE_SIZE)
     if not matches:
-        label = category or "any"
+        label = category or replies["any_label"]
         return {
-            "reply": f"I don't have any {label} spots saved yet.",
+            "reply": replies["no_matches"].format(label=label),
             "places": [],
             "category": category,
         }
@@ -170,11 +197,7 @@ async def chat(request: Request, req: ChatRequest):
         [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
     )
 
-    reply = (
-        "Surprise! Here are the closest spots overall:"
-        if extraction["any_category"]
-        else f"Here are the closest {category} spots:"
-    )
+    reply = replies["surprise"] if extraction["any_category"] else replies["matched"].format(category=category)
     return {
         "reply": reply,
         "places": [format_place(p, eta) for p, eta in zip(matches, etas)],

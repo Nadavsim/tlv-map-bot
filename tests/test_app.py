@@ -102,6 +102,41 @@ def test_chat_endpoint_returns_nearest_places_on_match(monkeypatch):
     record_stat_mock.assert_awaited_once_with("coffee")
 
 
+def test_chat_endpoint_replies_in_hebrew_when_lang_is_he(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
+    parse_mock = AsyncMock(
+        return_value={"category": "coffee", "clarifying_question": None, "any_category": False}
+    )
+    monkeypatch.setattr(llm, "parse_food_request", parse_mock)
+    monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE]))
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300]))
+    monkeypatch.setattr(db, "record_category_request", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/chat", json={"message": "קפה", "lat": 32.08, "lon": 34.78, "lang": "he"}
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["reply"] == app_module.REPLIES["he"]["matched"].format(category="coffee")
+    parse_mock.assert_awaited_once_with("קפה", ["coffee"], "he")
+
+
+def test_chat_endpoint_handles_empty_database_in_hebrew(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=[]))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/chat", json={"message": "anything", "lat": 32.08, "lon": 34.78, "lang": "he"}
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["reply"] == app_module.REPLIES["he"]["empty_db"]
+
+
 def test_chat_endpoint_handles_any_category_surprise_me(monkeypatch):
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
     monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee", "burger"]))

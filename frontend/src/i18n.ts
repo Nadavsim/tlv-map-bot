@@ -1,0 +1,102 @@
+import type { Lang } from './types'
+
+// One dictionary per language, kept as flat, hand-written objects (no i18n
+// library) - the string set is small and fixed, so a library would be
+// overhead without real benefit. Add a key to both languages together so
+// TypeScript catches a missing translation at compile time (Record<string,
+// string> below with the same key set for both).
+const STRINGS = {
+  en: {
+    greeting:
+      "Hi! I'll find the closest spot from your Tel Aviv food map. Please allow location access when your browser asks, so I know where you are! 📍",
+    locationRequesting: 'Requesting your location...',
+    locationSet: 'Location set. Ask away!',
+    locationDenied: 'Location permission denied.',
+    locationUnsupported: "Geolocation isn't supported in this browser.",
+    locationRetryFailed: 'Still no access - try again, or use the box below.',
+    locationFallbackMessage:
+      "No worries - please enable location access, or enter an address, a Google Maps link, or your coordinates below and I'll use that instead.",
+    locationRetryButton: 'Try enabling location again',
+    locationRetryButtonChecking: 'Checking...',
+    locationInputPlaceholder: 'Coordinates, a Maps link, or an address',
+    locationSetButton: 'Set',
+    locationResolveError: "Couldn't find that location - try a Maps link, coordinates, or a more specific address.",
+    locationResolveNetworkError: "Couldn't reach the server to resolve that - try again.",
+    chatPlaceholder: "What are you craving? e.g. 'ramen' or 'coffee'",
+    chatSend: 'Send',
+    chatRateLimited: "You're sending messages a bit fast - give it a moment and try again.",
+    chatNetworkError: "Couldn't reach the server - check your connection.",
+    walk: 'Walk',
+    drive: 'Drive',
+    help: 'Help',
+    transportMode: 'Transport mode',
+    waitingForReply: 'Waiting for a reply',
+    navigate: 'Navigate',
+    instagram: 'Instagram',
+    showMore: 'Show more',
+    showMoreLoading: 'Loading...',
+    shareSpots: 'Share these spots',
+    shareHeader: 'TLV Bot recommends:',
+    languageToggle: 'עברית',
+    themeToggleToDark: 'Switch to dark mode',
+    themeToggleToLight: 'Switch to light mode',
+    helpIntro: "Here's how I work:",
+    helpCraving: 'Tell me what you\'re craving - e.g. "ramen" or "coffee" - and I\'ll find the closest match from my curated Tel Aviv map.',
+    helpSurprise: 'Say "surprise me" or "anything" for the closest spot no matter the category.',
+    helpResults:
+      'Each answer shows distance, ETA, a one-tap navigation link, and Instagram when I have it. Tap "Show more" for further matches, or "Share" to send them to WhatsApp.',
+    helpMode: 'Use the Walk / Drive toggle up top to switch how ETAs are calculated.',
+    helpLocation: 'No location? Use "Try enabling location again", or type an address, a Google Maps link, or coordinates instead.',
+    helpAgain: 'Type "help" any time to see this again.',
+    helpCategoriesPrefix: 'Categories I currently know about:',
+    helpCommand: 'help',
+  },
+  he: {
+    greeting: 'היי! אני אמצא לך את המקום הכי קרוב ממפת האוכל של תל אביב. אנא אשר גישה למיקום כשהדפדפן ישאל, כדי שאדע איפה אתה נמצא! 📍',
+    locationRequesting: 'מבקש את המיקום שלך...',
+    locationSet: 'המיקום נקבע. שאל בבקשה!',
+    locationDenied: 'הגישה למיקום נדחתה.',
+    locationUnsupported: 'שירותי מיקום אינם נתמכים בדפדפן זה.',
+    locationRetryFailed: 'עדיין אין גישה - נסה שוב, או השתמש בתיבה למטה.',
+    locationFallbackMessage: 'אין בעיה - אפשר גישה למיקום, או הזן כתובת, קישור לגוגל מפות, או את הקואורדינטות שלך למטה ואשתמש בהן במקום.',
+    locationRetryButton: 'נסה להפעיל מיקום שוב',
+    locationRetryButtonChecking: 'בודק...',
+    locationInputPlaceholder: 'קואורדינטות, קישור למפות, או כתובת',
+    locationSetButton: 'קבע',
+    locationResolveError: 'לא הצלחתי למצוא את המיקום - נסה קישור למפות, קואורדינטות, או כתובת מדויקת יותר.',
+    locationResolveNetworkError: 'לא הצלחתי להתחבר לשרת כדי לפענח את זה - נסה שוב.',
+    chatPlaceholder: "מה מתחשק לך? למשל 'ראמן' או 'קפה'",
+    chatSend: 'שלח',
+    chatRateLimited: 'אתה שולח הודעות מהר מדי - חכה רגע ונסה שוב.',
+    chatNetworkError: 'לא הצלחתי להתחבר לשרת - בדוק את החיבור שלך.',
+    walk: 'הליכה',
+    drive: 'נסיעה',
+    help: 'עזרה',
+    transportMode: 'אמצעי תחבורה',
+    waitingForReply: 'ממתין לתשובה',
+    navigate: 'ניווט',
+    instagram: 'אינסטגרם',
+    showMore: 'הצג עוד',
+    showMoreLoading: 'טוען...',
+    shareSpots: 'שתף את המקומות',
+    shareHeader: 'TLV Bot ממליץ:',
+    languageToggle: 'EN',
+    themeToggleToDark: 'עבור למצב כהה',
+    themeToggleToLight: 'עבור למצב בהיר',
+    helpIntro: 'הנה איך אני עובד:',
+    helpCraving: 'ספר לי מה מתחשק לך - למשל "ראמן" או "קפה" - ואמצא את ההתאמה הכי קרובה מהמפה המוקפדת שלי בתל אביב.',
+    helpSurprise: 'תגיד "תפתיע אותי" או "כל דבר" בשביל המקום הכי קרוב בלי קשר לקטגוריה.',
+    helpResults: 'כל תשובה מציגה מרחק, זמן הגעה, קישור ניווט בלחיצה אחת, ואינסטגרם כשיש לי. לחץ על "הצג עוד" להתאמות נוספות, או "שתף" כדי לשלוח לוואטסאפ.',
+    helpMode: 'השתמש במתג הליכה / נסיעה למעלה כדי לשנות איך זמני ההגעה מחושבים.',
+    helpLocation: 'אין מיקום? השתמש ב"נסה להפעיל מיקום שוב", או הקלד כתובת, קישור לגוגל מפות, או קואורדינטות במקום.',
+    helpAgain: 'הקלד "עזרה" בכל שלב כדי לראות את זה שוב.',
+    helpCategoriesPrefix: 'קטגוריות שאני מכיר כרגע:',
+    helpCommand: 'עזרה',
+  },
+} as const satisfies Record<Lang, Record<string, string>>
+
+export type StringKey = keyof (typeof STRINGS)['en']
+
+export function t(lang: Lang, key: StringKey): string {
+  return STRINGS[lang][key]
+}

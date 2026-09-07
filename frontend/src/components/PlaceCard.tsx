@@ -1,10 +1,13 @@
 import { Camera, Navigation } from 'lucide-react'
-import type { Place } from '../types'
+import { t } from '../i18n'
+import type { Lang, Place } from '../types'
 
-export function PlaceCard({ place }: { place: Place }) {
+export function PlaceCard({ place, lang }: { place: Place; lang: Lang }) {
   return (
     <div className="place-card">
-      <div className="name">{place.name}</div>
+      <div className="name" dir="auto">
+        {place.name}
+      </div>
       <div className="meta">
         <span className="category-chip">{place.category}</span>
         <span className="distance-eta">
@@ -14,12 +17,12 @@ export function PlaceCard({ place }: { place: Place }) {
       <div className="links">
         <a href={place.maps_url} target="_blank" rel="noopener noreferrer">
           <Navigation size={14} aria-hidden="true" />
-          Navigate
+          {t(lang, 'navigate')}
         </a>
         {place.instagram_url && (
           <a href={place.instagram_url} target="_blank" rel="noopener noreferrer">
             <Camera size={14} aria-hidden="true" />
-            Instagram
+            {t(lang, 'instagram')}
           </a>
         )}
       </div>

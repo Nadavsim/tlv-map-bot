@@ -1,6 +1,7 @@
-import type { Place } from './types'
+import { t } from './i18n'
+import type { Lang, Place } from './types'
 
-export function formatShareText(places: Place[]): string {
+export function formatShareText(places: Place[], lang: Lang): string {
   const entries = places.map((place, i) => {
     const distanceEta = place.eta ? `${place.distance} - ${place.eta}` : place.distance
     const lines = [`${i + 1}. ${place.name} (${place.category})`, `📍 ${distanceEta}`, `🗺️ ${place.maps_url}`]
@@ -10,7 +11,7 @@ export function formatShareText(places: Place[]): string {
     return lines.join('\n')
   })
 
-  return `🍽️ TLV Bot recommends:\n\n${entries.join('\n\n')}`
+  return `🍽️ ${t(lang, 'shareHeader')}\n\n${entries.join('\n\n')}`
 }
 
 export function whatsAppShareUrl(text: string): string {

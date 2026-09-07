@@ -4,7 +4,7 @@ import { ChatBubble } from './ChatBubble'
 import { PlaceCards } from './PlaceCards'
 import { TypingIndicator } from './TypingIndicator'
 import { LocationForm } from './LocationForm'
-import type { Coordinates } from '../types'
+import type { Coordinates, Lang } from '../types'
 
 interface ChatLogProps {
   entries: ChatEntry[]
@@ -16,6 +16,7 @@ interface ChatLogProps {
   isRequestingLocation: boolean
   onShowMore: (entryId: string) => void
   loadingMoreId: string | null
+  lang: Lang
 }
 
 export function ChatLog({
@@ -28,6 +29,7 @@ export function ChatLog({
   isRequestingLocation,
   onShowMore,
   loadingMoreId,
+  lang,
 }: ChatLogProps) {
   const logRef = useRef<HTMLElement>(null)
 
@@ -52,6 +54,7 @@ export function ChatLog({
                 hasMore={entry.hasMore}
                 isLoadingMore={loadingMoreId === entry.id}
                 onShowMore={() => onShowMore(entry.id)}
+                lang={lang}
               />
             )
         }
@@ -62,9 +65,10 @@ export function ChatLog({
           onError={onLocationError}
           onRetryLocation={onRetryLocation}
           isRequestingLocation={isRequestingLocation}
+          lang={lang}
         />
       )}
-      {isWaitingForReply && <TypingIndicator />}
+      {isWaitingForReply && <TypingIndicator lang={lang} />}
     </main>
   )
 }

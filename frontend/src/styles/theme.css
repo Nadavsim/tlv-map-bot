@@ -16,9 +16,14 @@
 
 /* Dark mode intentionally isn't just a dark tint of the light palette - it's
    the separate "dark, moody, premium" direction (electric lime on near-black)
-   from the style comparison, paired with the warm/vibrant light mode. */
+   from the style comparison, paired with the warm/vibrant light mode.
+
+   Applied two ways: automatically for a system dark-mode preference (unless
+   the user has explicitly picked light via the header toggle), and always
+   when the user has explicitly picked dark - the toggle's choice, once
+   made, needs to override the system preference in both directions. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #15161a;
     --fg: #f2f2ed;
     --muted: #9a9ca6;
@@ -32,6 +37,21 @@
     --chip-bg: #23281a;
     --chip-fg: #c9ff3d;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #15161a;
+  --fg: #f2f2ed;
+  --muted: #9a9ca6;
+  --bubble-bot: #1c1d22;
+  --bubble-user: #c9ff3d;
+  --bubble-user-fg: #15161a;
+  --card-bg: #1c1d22;
+  --border: #2c2e36;
+  --accent: #c9ff3d;
+  --accent-fg: #15161a;
+  --chip-bg: #23281a;
+  --chip-fg: #c9ff3d;
 }
 
 * {

@@ -95,6 +95,30 @@ async def test_degrades_gracefully_on_api_error(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_instructs_the_model_to_write_hebrew_when_language_is_he(monkeypatch):
+    fake_client = make_fake_client(
+        {"any_category": False, "matched_category": "burger", "clarifying_question": ""}
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    await llm.parse_food_request("something with meat", ["coffee", "burger"], language="he")
+
+    _, kwargs = fake_client.messages.create.call_args
+    assert "Hebrew" in kwargs["system"]
+
+
+@pytest.mark.asyncio
+async def test_degrades_gracefully_on_api_error_with_hebrew_fallback(monkeypatch):
+    fake_client = AsyncMock()
+    fake_client.messages.create.side_effect = anthropic.APIConnectionError(request=object())
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request("burger", ["coffee", "burger"], language="he")
+
+    assert result["clarifying_question"] == llm._FALLBACK_QUESTIONS["he"]
+
+
+@pytest.mark.asyncio
 async def test_degrades_gracefully_when_no_tool_use_block_returned(monkeypatch):
     fake_client = AsyncMock()
     fake_client.messages.create.return_value = SimpleNamespace(

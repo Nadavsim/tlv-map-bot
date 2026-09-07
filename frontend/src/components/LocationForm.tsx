@@ -1,13 +1,15 @@
 import { LocateFixed } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { resolveLocation } from '../api'
-import type { Coordinates } from '../types'
+import { t } from '../i18n'
+import type { Coordinates, Lang } from '../types'
 
 interface LocationFormProps {
   onLocationSet: (coords: Coordinates) => void
   onError: (message: string) => void
   onRetryLocation: () => void
   isRequestingLocation: boolean
+  lang: Lang
 }
 
 export function LocationForm({
@@ -15,6 +17,7 @@ export function LocationForm({
   onError,
   onRetryLocation,
   isRequestingLocation,
+  lang,
 }: LocationFormProps) {
   const [value, setValue] = useState('')
   const [isResolving, setIsResolving] = useState(false)
@@ -37,12 +40,12 @@ export function LocationForm({
     try {
       const data = await resolveLocation(text)
       if (data.lat == null || data.lon == null) {
-        onError("Couldn't find that location - try a Maps link, coordinates, or a more specific address.")
+        onError(t(lang, 'locationResolveError'))
         return
       }
       onLocationSet({ lat: data.lat, lon: data.lon })
     } catch {
-      onError("Couldn't reach the server to resolve that - try again.")
+      onError(t(lang, 'locationResolveNetworkError'))
     } finally {
       setIsResolving(false)
     }
@@ -57,17 +60,17 @@ export function LocationForm({
         disabled={isRequestingLocation}
       >
         <LocateFixed size={15} aria-hidden="true" />
-        {isRequestingLocation ? 'Checking...' : 'Try enabling location again'}
+        {isRequestingLocation ? t(lang, 'locationRetryButtonChecking') : t(lang, 'locationRetryButton')}
       </button>
       <form className="location-form-row" onSubmit={handleSubmit}>
         <input
           type="text"
-          placeholder="Coordinates, a Maps link, or an address"
+          placeholder={t(lang, 'locationInputPlaceholder')}
           value={value}
           onChange={(e) => setValue(e.target.value)}
         />
         <button type="submit" disabled={isResolving}>
-          {isResolving ? '...' : 'Set'}
+          {isResolving ? '...' : t(lang, 'locationSetButton')}
         </button>
       </form>
     </div>

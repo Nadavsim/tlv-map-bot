@@ -43,7 +43,12 @@ _TOOLS = [
     }
 ]
 
-_FALLBACK_QUESTION = "I'm having trouble understanding right now - could you try again in a moment?"
+_FALLBACK_QUESTIONS = {
+    "en": "I'm having trouble understanding right now - could you try again in a moment?",
+    "he": "אני מתקשה להבין כרגע - תוכל לנסות שוב בעוד רגע?",
+}
+
+_LANGUAGE_NAMES = {"en": "English", "he": "Hebrew"}
 
 _client: anthropic.AsyncAnthropic | None = None
 
@@ -55,14 +60,19 @@ def _get_client() -> anthropic.AsyncAnthropic:
     return _client
 
 
-async def parse_food_request(message: str, categories: list[str]) -> dict:
+async def parse_food_request(message: str, categories: list[str], language: str = "en") -> dict:
     """Ask Claude to match free text against the known categories.
 
     Returns {"category": str|None, "clarifying_question": str|None, "any_category": bool}.
     "any_category" True means "surprise me" - ignore "category" and search all places.
     On any API failure, degrades to a clarifying-question response instead of raising -
     a chat turn failing outright is worse than asking the user to retry.
+
+    `language` only affects the free-text clarifying_question Claude writes -
+    matched_category is always copied verbatim from the given category list
+    (which stays in its original, e.g. English, form regardless of language).
     """
+    language_name = _LANGUAGE_NAMES.get(language, _LANGUAGE_NAMES["en"])
     try:
         response = await _get_client().messages.create(
             model=MODEL,
@@ -70,6 +80,7 @@ async def parse_food_request(message: str, categories: list[str]) -> dict:
             system=(
                 "You help match a user's food craving to one category from this "
                 f"list of known categories: {', '.join(categories)}. "
+                f"Write any clarifying_question in {language_name}. "
                 "Always call the extract_food_request tool."
             ),
             tools=_TOOLS,
@@ -79,7 +90,8 @@ async def parse_food_request(message: str, categories: list[str]) -> dict:
         tool_use = next(b for b in response.content if b.type == "tool_use")
         result = tool_use.input
     except (anthropic.APIError, StopIteration):
-        return {"category": None, "clarifying_question": _FALLBACK_QUESTION, "any_category": False}
+        fallback = _FALLBACK_QUESTIONS.get(language, _FALLBACK_QUESTIONS["en"])
+        return {"category": None, "clarifying_question": fallback, "any_category": False}
 
     any_category = bool(result.get("any_category"))
     category = None if any_category else (result.get("matched_category") or None)

@@ -168,6 +168,44 @@ See `README.md` for setup/run instructions and the full directory structure.
   live against the real DB (one matched "coffee" request, one nonsense
   query) - counters and the log entry landed correctly, then cleaned up
   since this was verification data, not real usage.
+- Visual adjustments: help text split into several short bubbles instead of
+  one block (readability); full Hebrew UI option; manual light/dark toggle.
+  - **Help readability**: `App.tsx`'s help flow now pushes 4-5 short bubbles
+    (intro+craving, surprise+results, mode+location, "type help again",
+    plus the live categories line) instead of one big block.
+  - **Hebrew (full bilingual, not just UI chrome)**: a `Languages`-icon
+    toggle in the header flips `lang` between `en`/`he`, persisted in
+    localStorage (`frontend/src/preferences.ts`) and applied as
+    `document.documentElement.lang`/`dir` - `dir="rtl"` mirrors the whole
+    layout for free since the CSS already used logical flex alignment
+    (`align-self: flex-start/end`) everywhere except two chat-bubble corner
+    radii, which were switched from physical (`border-bottom-left/right-
+    radius`) to logical (`border-end-start/end-radius`) so the bubble
+    "tail" stays on the correct side under RTL too. All UI strings live in
+    `frontend/src/i18n.ts` (a plain `Record<Lang, Record<key,string>>`, no
+    i18n library - the string set is small and fixed). `/api/chat` takes a
+    `lang` field; `backend/app.py`'s `REPLIES` dict supplies the Hebrew
+    reply templates, and `services/llm.py` tells Claude to write its
+    `clarifying_question` in the requested language. Category names
+    themselves (from the DB) are deliberately left untranslated even in
+    Hebrew replies/help text - a maintained EN->HE category mapping would
+    go stale exactly like the help command's live category list was built
+    to avoid. Each `ChatBubble` (and place-card name) gets `dir="auto"` so
+    a message's own text decides its alignment independent of the page's
+    current direction - old English messages don't flip to right-aligned
+    just because the UI language was switched to Hebrew afterward, and
+    vice versa. Typing "help" or "עזרה" both trigger the local help flow
+    regardless of current UI language. Verified live end-to-end: toggling
+    language mirrors the whole layout correctly, a Hebrew query ("קפה")
+    round-trips through the real LLM and gets a real Hebrew reply
+    ("הנה המקומות הכי קרובים מסוג coffee:"), and switching back to English
+    un-mirrors cleanly.
+  - **Light/dark toggle**: a `Sun`/`Moon` header button flips `theme`
+    between `light`/`dark`, persisted the same way; defaults to the OS
+    preference (`prefers-color-scheme`) the first time, same as before,
+    but now an explicit choice always wins over it in both directions
+    (`theme.css`'s `:root:not([data-theme='light'])` under the dark media
+    query, plus an unconditional `:root[data-theme='dark']` block).
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
