@@ -1,0 +1,109 @@
+# TLV Bot
+
+## What this is
+
+A recommendation chatbot for Tel Aviv food and coffee spots. You tell it what
+you're craving and where you are, and it finds the closest match from a
+curated Google My Maps list — with distance, a real walking/driving ETA, a
+one-tap navigation link, and an Instagram link where available.
+
+## Why it exists
+
+This is a computer science graduate's side project, born out of years of
+personally collecting favorite food and coffee spots around Tel Aviv into a
+Google My Maps list. The goal is to turn that personal list into something
+genuinely useful — first for the creator, then for friends and family, and
+potentially into a real small product down the line. It's a real, running
+project with real (if modest) usage, not a toy or a tutorial exercise.
+
+## Goals
+
+- **Personal utility first.** It should be the fastest way to answer "what's
+  good and close by right now" using a list the creator actually trusts,
+  rather than sifting through generic reviews.
+- **Grow to friends and family**, then possibly beyond. Every architectural
+  decision (auth, data model, hosting) is made with this trajectory in mind —
+  not over-built for a hypothetical scale, but not so disposable it needs a
+  rewrite the moment a second real user shows up.
+- **Stay cheap, deliberately.** Hosting/DB/API costs are capped at **$12/month**
+  even though there's a $100 Azure credit (GitHub Student pack) available —
+  the credit is a cushion, not a budget. In practice this runs at roughly
+  $1-2/month by leaning on free tiers (MongoDB Atlas M0, Azure App Service
+  F1, free public OSRM routing) and a cheap, fast LLM (Claude Haiku 4.5) for
+  the one paid dependency. Any new feature or dependency should be evaluated
+  against this constraint, not just "does it work."
+- **Keep the data source easy to maintain.** The place list is curated by
+  hand in Google My Maps (the format the creator already uses day to day) -
+  the app syncs from it, not the other way around.
+
+## Architecture (current)
+
+- **Backend:** FastAPI (Python 3.11), in `backend/` — `app.py` (routes),
+  `db.py` (MongoDB access), `models.py` (Pydantic schema, single source of
+  truth for a place document), `parser.py` (KML parsing), and
+  `services/` (one module per external integration: `llm.py` for Claude NLU,
+  `routing.py` for OSRM ETAs, `location.py` for Google Maps link resolution).
+- **Frontend:** React + TypeScript, in `frontend/`, built with Vite straight
+  into `static/` for FastAPI to serve.
+- **Database:** MongoDB Atlas, free M0 tier. Places are matched by physical
+  proximity (not name) so renaming a pin on the map doesn't look like a
+  delete+recreate. A `$jsonSchema` validator runs in `warn` mode as
+  defense-in-depth alongside the Pydantic models.
+- **NLU:** Claude Haiku 4.5, one tool-call per chat message to match
+  free text to a known category.
+- **Routing:** free public OSRM instances (routing.openstreetmap.de) for
+  real walking/driving ETAs - no API key, no billing.
+- **Hosting:** Azure App Service, Free (F1) tier. Deployed via GitHub Actions
+  on every push to `main` (builds the frontend, then the Python app).
+- **Data source:** a Google My Maps custom map, shared publicly, synced via
+  `scripts/sync_places.py`.
+
+See `README.md` for setup/run instructions and the full directory structure.
+
+## To-do list
+
+### Deferred (explicitly, revisit later)
+- Public transit ETA — needs Google Distance Matrix (real cost/setup
+  tradeoff vs. the free OSRM walk/drive ETAs already in place)
+
+### Scoped, not yet built
+- Shorten/change the Azure URL (custom domain, or rename the App Service)
+- Light usage stats — category-level demand counters + a log of unmatched
+  queries, to inform which categories to add/refine/drop (My Maps caps out
+  around 10 layers, so this matters for curation decisions)
+- Plan-ahead / typed-address geocoding (free via Nominatim) as a friendlier
+  alternative to pasting a Maps link or raw coordinates
+- WhatsApp export/share button for a recommendation (client-side only, via
+  the Web Share API / a `wa.me` link - no Twilio/WhatsApp Business API needed)
+- Rate limiting on `/api/chat` - protects the budget goal against
+  abuse/automated hammering, currently nothing stops it
+- Scheduled auto-sync (a cron job, e.g. GitHub Actions, running
+  `scripts.sync_places` automatically instead of by hand)
+- Conversational refinement / short-lived session memory (so "something
+  cheaper" or "further is fine" can build on the last answer instead of
+  every message being stateless)
+- "Show more" pagination beyond the top 3 results
+- PWA support (add-to-home-screen, app-like icon)
+- Kosher/dietary tags and filtering (locally relevant for Tel Aviv)
+
+### Bigger builds - user system (sequenced, not started)
+Goal: real accounts (JWT + bcrypt, matching prior hands-on experience from a
+university project), usable by friends and family now, with an eye toward a
+full product later.
+1. Auth core - register/login/refresh/logout. Access token in memory (not
+   localStorage), refresh token in an `httpOnly`/`Secure`/`SameSite=Strict`
+   cookie, bcrypt cost factor 12, rate-limited login attempts, revocable
+   refresh tokens (a stored token version/hash per user).
+2. Favorites (save spots from the list)
+3. Ratings
+4. User map uploads + switching between multiple maps/datasets - needs the
+   KML parser hardened first (`defusedxml`, size caps, per-user namespacing,
+   since `xml.etree.ElementTree` is vulnerable to entity-expansion attacks on
+   untrusted input)
+5. User-suggested new places, with a moderation queue (never auto-publish
+   user input to the shared list)
+
+One flagged tradeoff: growing past personal/occasional friends-and-family
+traffic will eventually outgrow the Azure App Service Free (F1) tier's
+60 CPU-minutes/day cap - the next tier up (~$13/month) alone would just
+about break the $12/month budget. Not a problem yet: worth watching.
