@@ -1,3 +1,4 @@
+import { Car, Footprints, MapPin } from 'lucide-react'
 import type { TransportMode } from '../types'
 
 interface HeaderProps {
@@ -9,7 +10,10 @@ interface HeaderProps {
 export function Header({ locationStatus, mode, onModeChange }: HeaderProps) {
   return (
     <header>
-      <h1>📍 TLV Bot</h1>
+      <h1>
+        <MapPin size={22} strokeWidth={2.5} aria-hidden="true" />
+        TLV Bot
+      </h1>
       <p className="location-status">{locationStatus}</p>
       <div className="mode-toggle" role="group" aria-label="Transport mode">
         <button
@@ -17,14 +21,16 @@ export function Header({ locationStatus, mode, onModeChange }: HeaderProps) {
           className={mode === 'walking' ? 'active' : ''}
           onClick={() => onModeChange('walking')}
         >
-          🚶 Walk
+          <Footprints size={16} aria-hidden="true" />
+          Walk
         </button>
         <button
           type="button"
           className={mode === 'driving' ? 'active' : ''}
           onClick={() => onModeChange('driving')}
         >
-          🚗 Drive
+          <Car size={16} aria-hidden="true" />
+          Drive
         </button>
       </div>
     </header>

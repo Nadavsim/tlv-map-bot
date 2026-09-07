@@ -38,10 +38,18 @@ header {
 }
 
 header h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   margin: 0 0 0.3rem;
   font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+
+header h1 svg {
+  flex-shrink: 0;
+  color: var(--accent);
 }
 
 .location-status {
@@ -58,6 +66,10 @@ header h1 {
 
 .mode-toggle button {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   padding: 0.5rem 0.7rem;
   border-radius: 999px;
   border: 1.5px solid var(--border);
@@ -71,6 +83,10 @@ header h1 {
     color 0.15s ease,
     border-color 0.15s ease,
     transform 0.1s ease;
+}
+
+.mode-toggle button svg {
+  flex-shrink: 0;
 }
 
 .mode-toggle button:active,
@@ -195,6 +211,9 @@ header h1 {
 }
 
 .place-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   color: var(--accent);
   text-decoration: none;
   font-weight: 700;
@@ -202,8 +221,11 @@ header h1 {
   background: var(--chip-bg);
   padding: 0.35rem 0.75rem;
   border-radius: 999px;
-  display: inline-block;
   transition: transform 0.1s ease;
+}
+
+.place-card a svg {
+  flex-shrink: 0;
 }
 
 .place-card a:hover {

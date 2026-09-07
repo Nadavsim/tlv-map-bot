@@ -1,3 +1,4 @@
+import { Camera, Navigation } from 'lucide-react'
 import type { Place } from '../types'
 
 export function PlaceCard({ place }: { place: Place }) {
@@ -12,11 +13,13 @@ export function PlaceCard({ place }: { place: Place }) {
       </div>
       <div className="links">
         <a href={place.maps_url} target="_blank" rel="noopener noreferrer">
-          🗺️ Navigate
+          <Navigation size={14} aria-hidden="true" />
+          Navigate
         </a>
         {place.instagram_url && (
           <a href={place.instagram_url} target="_blank" rel="noopener noreferrer">
-            📱 Instagram
+            <Camera size={14} aria-hidden="true" />
+            Instagram
           </a>
         )}
       </div>

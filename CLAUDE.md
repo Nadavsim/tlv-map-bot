@@ -69,6 +69,15 @@ See `README.md` for setup/run instructions and the full directory structure.
   via an autouse `conftest.py` fixture (`TestClient` requests all share one
   fake IP, so without this the limit would accumulate across the whole test
   session instead of resetting per test).
+- Improved icons - swapped the plain emoji (📍🚶🚗🗺️📱) for `lucide-react`
+  (tree-shakeable, `currentColor`-based so it auto-adapts to both themes).
+  Note: lucide-react dropped brand/logo icons (trademark reasons), so the
+  Instagram link uses `Camera` rather than a literal Instagram glyph.
+- Also fixed in passing: the manual location input had no styling at all
+  (just `flex:1`, no padding/border/sizing) and rendered as a tiny,
+  hard-to-tap box; the location-request flow now reads as an actual
+  two-turn conversation (explicit ask up front, a real follow-up chat
+  message if permission doesn't come through) instead of one static line.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
@@ -76,10 +85,7 @@ See `README.md` for setup/run instructions and the full directory structure.
 
 ### Scoped, not yet built (priority order)
 1. ~~Rate limiting on `/api/chat`~~ - done, see above.
-2. Improved icons - replace the plain emoji (📍🚶🚗🗺️📱) with a proper icon
-   set. Emoji render inconsistently across platforms/OS; a real icon
-   library gives a more consistent, professional look, and directly
-   unblocks proper PWA icons later (#7).
+2. ~~Improved icons~~ - done, see above.
 3. WhatsApp export/share button for a recommendation (client-side only, via
    the Web Share API / a `wa.me` link - no Twilio/WhatsApp Business API
    needed). Quick, cheap, all the data's already there.
