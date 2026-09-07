@@ -37,6 +37,12 @@ header {
   padding: 1.1rem 1.1rem 0.6rem;
 }
 
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 header h1 {
   display: flex;
   align-items: center;
@@ -50,6 +56,22 @@ header h1 {
 header h1 svg {
   flex-shrink: 0;
   color: var(--accent);
+}
+
+.help-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.help-button:hover {
+  color: var(--fg);
 }
 
 .location-status {

@@ -140,17 +140,20 @@ See `README.md` for setup/run instructions and the full directory structure.
   Verified live: manifest and both icon sizes resolve and fetch correctly
   (relative icon paths in the manifest resolve against the manifest's own
   URL, `/static/manifest.webmanifest`, which is what actually makes them
-  land on `/static/icons/...`). Service worker registration itself could
-  not be verified in this session's sandboxed browser preview - it fails
-  there with a generic "unknown error fetching the script" even though the
-  exact same URL fetches fine normally and registration against an
-  external test site correctly surfaced a real 404, which points to a
-  proxy quirk in the local preview tunnel rather than an app bug. Worth a
-  quick manual check (`chrome://inspect` -> Application -> Service Workers,
-  or just look for the install icon in the address bar) after this
-  deploys to the real Azure URL. Either way, registration failures are
-  caught and swallowed silently (`.catch(() => {})`) since this is a
-  progressive enhancement that must never surface an error to a user.
+  land on `/static/icons/...`). Service worker registration couldn't be
+  verified in this session's sandboxed browser preview (a generic error
+  there looked like a proxy quirk in the local preview tunnel, not an app
+  bug - a plain fetch of the same URL worked fine) - confirmed after
+  deploying to the real Azure URL: "Add to Home Screen" on a real phone
+  correctly installs it as a standalone app with its own icon.
+- Help button/command - a `CircleHelp` icon button in the header (works
+  even before location is set, since it also explains the location
+  fallback), plus typing "help" as a chat message. Both handled entirely
+  client-side (`App.tsx`'s `showHelp`) - no `/api/chat` call, so no LLM
+  cost - and only hit the existing `/api/categories` endpoint to append a
+  live, always-current category list rather than hardcoding one that would
+  drift from the real data. Verified live both ways (button, and typing
+  "help") - confirmed only `/api/categories` fires, never `/api/chat`.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup

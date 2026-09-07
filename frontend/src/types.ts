@@ -39,6 +39,10 @@ export interface ResolveLocationResponse {
   lon: number | null
 }
 
+export interface CategoriesResponse {
+  categories: string[]
+}
+
 // Matches backend.app.PAGE_SIZE - a page shorter than this means there's
 // nothing left to fetch, so "Show more" hides itself.
 export const PAGE_SIZE = 3

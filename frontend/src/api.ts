@@ -1,4 +1,5 @@
 import type {
+  CategoriesResponse,
   ChatRequest,
   ChatResponse,
   MorePlacesRequest,
@@ -34,6 +35,14 @@ export function postChat(body: ChatRequest): Promise<ChatResponse> {
 
 export function postMorePlaces(body: MorePlacesRequest): Promise<MorePlacesResponse> {
   return postJSON<MorePlacesResponse>('/api/more-places', body)
+}
+
+export async function getCategories(): Promise<CategoriesResponse> {
+  const res = await fetch('/api/categories')
+  if (!res.ok) {
+    throw new ApiError(res.status, `Request to /api/categories failed with status ${res.status}`)
+  }
+  return res.json() as Promise<CategoriesResponse>
 }
 
 export function resolveLocation(text: string): Promise<ResolveLocationResponse> {

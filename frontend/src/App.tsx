@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react'
-import { ApiError, postChat, postMorePlaces } from './api'
+import { ApiError, getCategories, postChat, postMorePlaces } from './api'
 import { type ChatEntry, makeEntryId } from './chatTypes'
 import { ChatInput } from './components/ChatInput'
 import { ChatLog } from './components/ChatLog'
 import { Header } from './components/Header'
 import type { Coordinates, TransportMode } from './types'
 import { PAGE_SIZE } from './types'
+
+const HELP_TEXT = `Here's how I work:
+
+- Tell me what you're craving - e.g. "ramen" or "coffee" - and I'll find the closest match from my curated Tel Aviv map.
+- Say "surprise me" or "anything" for the closest spot no matter the category.
+- Each answer shows distance, ETA, a one-tap navigation link, and Instagram when I have it. Tap "Show more" for further matches, or "Share" to send them to WhatsApp.
+- Use the Walk / Drive toggle up top to switch how ETAs are calculated.
+- No location? Use "Try enabling location again", or type an address, a Google Maps link, or coordinates instead.
+- Type "help" any time to see this again.`
 import './styles/theme.css'
 import './styles/App.css'
 
@@ -84,8 +93,30 @@ export default function App() {
     setEntries((prev) => [...prev, { id: makeEntryId(), kind: 'bot-text', text: message }])
   }
 
+  async function showHelp(userMessageText: string | null) {
+    if (userMessageText !== null) {
+      setEntries((prev) => [...prev, { id: makeEntryId(), kind: 'user-text', text: userMessageText }])
+    }
+
+    let categoriesLine = ''
+    try {
+      const { categories } = await getCategories()
+      if (categories.length) categoriesLine = `\n\nCategories I currently know about: ${categories.join(', ')}.`
+    } catch {
+      // Fine to skip the live category list if this fails - the rest of the help text still stands.
+    }
+
+    setEntries((prev) => [...prev, { id: makeEntryId(), kind: 'bot-text', text: HELP_TEXT + categoriesLine }])
+  }
+
   async function handleSend(message: string) {
     if (!userLocation) return
+
+    // Answered locally - free, instant, no LLM call needed for a fixed command.
+    if (message.trim().toLowerCase() === 'help') {
+      await showHelp(message)
+      return
+    }
 
     setEntries((prev) => [...prev, { id: makeEntryId(), kind: 'user-text', text: message }])
     setIsWaitingForReply(true)
@@ -153,7 +184,12 @@ export default function App() {
 
   return (
     <div className="app">
-      <Header locationStatus={locationStatus} mode={mode} onModeChange={setMode} />
+      <Header
+        locationStatus={locationStatus}
+        mode={mode}
+        onModeChange={setMode}
+        onHelp={() => showHelp(null)}
+      />
       <ChatLog
         entries={entries}
         isWaitingForReply={isWaitingForReply}
