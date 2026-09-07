@@ -27,7 +27,7 @@ export function Header({
     <header>
       <div className="header-top">
         <h1>
-          <MapPin size={22} strokeWidth={2.5} aria-hidden="true" />
+          <MapPin size={22} aria-hidden="true" />
           TLV Bot
         </h1>
         <div className="header-actions">

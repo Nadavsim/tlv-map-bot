@@ -308,6 +308,39 @@ See `README.md` for setup/run instructions and the full directory structure.
   existing chat/list view (the original "chat now, map later" plan from
   early in the project). (Improved icons moved into the priority list
   above, at #2.)
+- Design polish pass, done via the third-party "Taste Skill" project skills
+  (`.claude/skills/`, installed via `npx skills add Leonxlnx/taste-skill` -
+  a separate "Impeccable" skill was tried too but its installer was blocked
+  by this environment's safety classifier). Ran the `redesign-existing-
+  projects` skill's audit checklist honestly against the actual codebase
+  rather than applying it wholesale - most of its checklist items were
+  already satisfied from earlier work this session (the warm/dark palettes
+  were a deliberate prior choice, not an AI default; `100dvh` was already
+  used correctly; the pill/soft-radius system was already consistent;
+  lucide-react was kept since the project already depends on it, which the
+  skill itself carves out as an exception). Four real, targeted gaps got
+  fixed:
+  - Added subtle, hue-tinted `box-shadow`s (`--shadow-sm`/`--shadow-md` in
+    `theme.css`, warm-tinted in light mode, a dark shadow + faint top
+    highlight in dark mode) to bubbles and place cards, which had zero
+    depth/elevation before - pure border-only flat cards.
+    place cards also get a `:hover` shadow lift.
+  - Added `:hover` states to every button that only had `:active` press
+    feedback before (mode toggle, share, show-more, retry-location, the
+    filled Set/Send pills) - previously zero desktop mouse feedback until
+    the moment of click.
+  - Standardized icon stroke width across the whole app to one consistent
+    value via a single `.app svg { stroke-width: 2.5 }` rule (CSS overrides
+    an SVG's own stroke-width attribute) instead of the one-off
+    `strokeWidth={2.5}` that only `MapPin` had - a real, if minor,
+    inconsistency the redesign skill's audit specifically flags.
+  - `scroll-behavior: smooth` on the chat log (guarded by
+    `prefers-reduced-motion`) so new messages scroll into view instead of
+    snapping, plus `text-wrap: pretty` on bubble text.
+  Deliberately left alone: the sun/moon theme toggle (the skill flags this
+  as a generic pattern, but replacing it with a settings dropdown would be
+  a real usability regression at this app's mobile-first, low-chrome
+  scale - a tradeoff, not a clear defect).
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a
