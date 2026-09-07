@@ -266,6 +266,19 @@ def test_more_places_endpoint_supports_any_category_with_null_category(monkeypat
     find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3, offset=3)
 
 
+def test_service_worker_is_served_from_the_root_path_not_under_static(monkeypatch):
+    # Deliberately not /static/sw.js - a service worker's default scope is its
+    # own directory, and it must cover the manifest's start_url ("/") to be
+    # installable.
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        resp = client.get("/sw.js")
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/javascript"
+
+
 def test_more_places_endpoint_returns_empty_list_when_no_more_matches(monkeypatch):
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
     monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[]))

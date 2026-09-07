@@ -104,6 +104,15 @@ async def index():
     return FileResponse(BASE_DIR / "static" / "index.html")
 
 
+@app.get("/sw.js")
+async def service_worker():
+    # Served from the root path (not /static/sw.js) on purpose: a service
+    # worker's default scope is its own script's directory, and the scope
+    # must cover the manifest's start_url ("/") for Chrome to consider the
+    # app installable as a PWA.
+    return FileResponse(BASE_DIR / "static" / "sw.js", media_type="application/javascript")
+
+
 @app.post("/api/resolve-location")
 async def resolve_location(req: LocationLinkRequest):
     text = req.text.strip()
