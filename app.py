@@ -30,12 +30,15 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
 @app.middleware("http")
-async def no_cache_html_and_static(request, call_next):
-    """Force revalidation on every load instead of letting browsers reuse a
-    stale index.html/app.js/style.css after a deploy (no versioned filenames
-    here, so this is the simplest way to avoid serving old frontend code)."""
+async def cache_control(request, call_next):
+    """index.html must always be revalidated - it's what points the browser
+    at the current build's asset filenames. Everything under /static/assets/
+    is Vite's content-hashed output (a new build gets new filenames), so it
+    can be cached aggressively forever with zero staleness risk."""
     response = await call_next(request)
-    if request.url.path == "/" or request.url.path.startswith("/static/"):
+    if request.url.path.startswith("/static/assets/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    else:
         response.headers["Cache-Control"] = "no-cache"
     return response
 

@@ -22,10 +22,12 @@ lightweight web app so it can run for well under $12/month.
 
 ## 🏗️ Architecture
 
-* **Frontend:** a single static page (`static/index.html` + `app.js`) - no
-  build step. Uses the browser Geolocation API, with a manual lat/lon fallback.
-* **Backend:** FastAPI (Python 3.11), serving both the page and a `/api/chat`
-  JSON endpoint.
+* **Frontend:** React + TypeScript (`frontend/`), built with Vite straight into
+  `static/` (content-hashed filenames, cached forever; `index.html` itself is
+  always revalidated so it picks up the latest build). Uses the browser
+  Geolocation API, with a manual lat/lon or Google Maps link fallback.
+* **Backend:** FastAPI (Python 3.11), serving both the built page and a
+  `/api/chat` JSON endpoint.
 * **Database:** MongoDB Atlas, free-forever M0 tier (512MB). A `2dsphere` index
   on each place's location powers the nearest-match queries.
 * **NLU:** Anthropic API, `claude-haiku-4-5` - one small tool-call per chat
@@ -44,6 +46,7 @@ comfortably inside a $12/month budget with room to spare.
 ### 1. Prerequisites
 
 - Python 3.11+
+- Node.js 18+ (for the frontend build)
 - A MongoDB Atlas account (free M0 cluster)
 - An Anthropic API key
 - Your Tel Aviv food map created in [Google My Maps](https://www.google.com/maps/d/)
@@ -100,7 +103,22 @@ python seed_instagram_from_csv.py
 You can also add/edit `instagram_url` (or anything else) directly in the
 MongoDB Atlas web UI at any time - `sync_places.py` never overwrites it.
 
-### 7. Run locally
+### 7. Build the frontend
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+This builds straight into `static/` (gitignored - it's build output, not
+source). Re-run it after any change under `frontend/src`. For frontend-only
+iteration, `npm run dev` inside `frontend/` runs Vite's dev server on
+`localhost:5173` and proxies `/api/*` to `localhost:8000`, so run the backend
+(next step) alongside it.
+
+### 8. Run locally
 
 ```bash
 uvicorn app:app --reload
@@ -108,11 +126,11 @@ uvicorn app:app --reload
 
 Open `http://localhost:8000`.
 
-### 8. Deploy
+### 9. Deploy
 
-The existing `.github/workflows/main_nadav-tlv-bot.yml` deploys to Azure App
-Service on every push to `main` - no changes needed there. Just make sure the
-four env vars above are set in the App Service's Configuration ->
+`.github/workflows/main_nadav-tlv-bot.yml` builds the frontend (Node) and then
+the Python app, on every push to `main` - no manual steps needed there. Just
+make sure the four env vars above are set in the App Service's Configuration ->
 Application settings, and set the startup command to:
 
 ```
@@ -121,13 +139,14 @@ python -m uvicorn app:app --host 0.0.0.0 --port 8000
 
 ## Structure
 
-- `app.py` - FastAPI app: serves the chat page and `/api/chat`
+- `app.py` - FastAPI app: serves the built frontend and `/api/chat`
 - `db.py` - MongoDB connection, geospatial nearest-match query
 - `llm.py` - Claude-based free-text -> category extraction
 - `parser.py` - KML -> place dicts (shared by `sync_places.py` and local/offline use)
 - `sync_places.py` - fetches the latest KML from My Maps and upserts into MongoDB
 - `seed_instagram_from_csv.py` - one-time migration of legacy Instagram links
-- `static/` - the chat frontend (plain HTML/CSS/JS, no build step)
+- `frontend/` - React + TypeScript chat UI (source of truth for the frontend)
+- `static/` - **generated** by `frontend`'s build - gitignored, don't edit by hand
 - `tests/` - pytest suite (`conftest.py` at the root adds it to `sys.path`)
 
 ## Running tests

@@ -19,6 +19,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Node version
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
       - name: Set up Python version
         uses: actions/setup-python@v5
         with:
@@ -40,6 +51,7 @@ jobs:
           path: |
             .
             !antenv/
+            !frontend/node_modules/
 
       # 🚫 Opting Out of Oryx Build
       # If you prefer to disable the Oryx build process during deployment, follow these steps:

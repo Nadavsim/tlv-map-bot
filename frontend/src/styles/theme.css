@@ -1,0 +1,46 @@
+:root {
+  color-scheme: light dark;
+  --bg: #fff8f2;
+  --fg: #2a1b12;
+  --muted: #a97c64;
+  --bubble-bot: #ffffff;
+  --bubble-user: #ff5a36;
+  --bubble-user-fg: #ffffff;
+  --card-bg: #ffffff;
+  --border: #f0dccb;
+  --accent: #ff5a36;
+  --accent-fg: #ffffff;
+  --chip-bg: #ffede3;
+  --chip-fg: #c23f19;
+}
+
+/* Dark mode intentionally isn't just a dark tint of the light palette - it's
+   the separate "dark, moody, premium" direction (electric lime on near-black)
+   from the style comparison, paired with the warm/vibrant light mode. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15161a;
+    --fg: #f2f2ed;
+    --muted: #9a9ca6;
+    --bubble-bot: #1c1d22;
+    --bubble-user: #c9ff3d;
+    --bubble-user-fg: #15161a;
+    --card-bg: #1c1d22;
+    --border: #2c2e36;
+    --accent: #c9ff3d;
+    --accent-fg: #15161a;
+    --chip-bg: #23281a;
+    --chip-fg: #c9ff3d;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
