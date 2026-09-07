@@ -75,6 +75,7 @@ header h1 {
 
 .mode-toggle button:active,
 .chat-form button:active,
+.location-form-row button:active,
 .place-card a:active {
   transform: scale(0.96);
 }
@@ -211,13 +212,44 @@ header h1 {
 
 .location-form-row {
   display: flex;
-  gap: 0.4rem;
-  margin-top: 0.5rem;
+  gap: 0.5rem;
+  align-self: flex-start;
+  max-width: 85%;
+  width: 100%;
 }
 
 .location-form-row input {
   flex: 1;
   min-width: 0;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: var(--card-bg);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.location-form-row input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.location-form-row button {
+  padding: 0.7rem 1.3rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-family: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.location-form-row button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .chat-form {

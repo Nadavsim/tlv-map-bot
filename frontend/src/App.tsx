@@ -13,7 +13,7 @@ export default function App() {
     {
       id: makeEntryId(),
       kind: 'bot-text',
-      text: "Hi! I'll find the closest spot from your Tel Aviv food map once I know where you are.",
+      text: "Hi! I'll find the closest spot from your Tel Aviv food map. Please allow location access when your browser asks, so I know where you are! 📍",
     },
   ])
   const [locationStatus, setLocationStatus] = useState('Requesting your location...')
@@ -22,10 +22,22 @@ export default function App() {
   const [mode, setMode] = useState<TransportMode>('walking')
   const [isWaitingForReply, setIsWaitingForReply] = useState(false)
 
+  function offerManualLocation(statusText: string) {
+    setLocationStatus(statusText)
+    setShowLocationForm(true)
+    setEntries((prev) => [
+      ...prev,
+      {
+        id: makeEntryId(),
+        kind: 'bot-text',
+        text: "No worries - please enable location access, or paste a Google Maps link or your coordinates below and I'll use that instead.",
+      },
+    ])
+  }
+
   useEffect(() => {
     if (!navigator.geolocation) {
-      setLocationStatus("Geolocation isn't supported in this browser - enter a manual location below.")
-      setShowLocationForm(true)
+      offerManualLocation("Geolocation isn't supported in this browser.")
       return
     }
 
@@ -34,10 +46,7 @@ export default function App() {
         setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
         setLocationStatus('Location set. Ask away!')
       },
-      () => {
-        setLocationStatus('Location permission denied - enter your coordinates manually.')
-        setShowLocationForm(true)
-      },
+      () => offerManualLocation('Location permission denied.'),
       { enableHighAccuracy: true, timeout: 10000 },
     )
   }, [])

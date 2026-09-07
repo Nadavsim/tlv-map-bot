@@ -42,19 +42,16 @@ export function LocationForm({ onLocationSet, onError }: LocationFormProps) {
   }
 
   return (
-    <div className="bubble bot">
-      <div>Paste your coordinates, or a Google Maps link (tap-and-hold your spot in Maps → Share):</div>
-      <form className="location-form-row" onSubmit={handleSubmit}>
-        <input
-          type="text"
-          placeholder="32.0809, 34.7806 or a maps.app.goo.gl link"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-        />
-        <button type="submit" disabled={isResolving}>
-          {isResolving ? '...' : 'Set'}
-        </button>
-      </form>
-    </div>
+    <form className="location-form-row" onSubmit={handleSubmit}>
+      <input
+        type="text"
+        placeholder="Paste coordinates or a Google Maps link"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+      />
+      <button type="submit" disabled={isResolving}>
+        {isResolving ? '...' : 'Set'}
+      </button>
+    </form>
   )
 }
