@@ -96,7 +96,7 @@ async def chat(req: ChatRequest):
             "places": [],
         }
 
-    extraction = llm.parse_food_request(req.message, known_categories)
+    extraction = await llm.parse_food_request(req.message, known_categories)
 
     if not extraction["any_category"] and not extraction["category"]:
         return {
@@ -114,15 +114,10 @@ async def chat(req: ChatRequest):
             "places": [],
         }
 
-    etas = await asyncio.gather(
-        *[
-            routing.get_eta_seconds(
-                req.mode,
-                (req.lat, req.lon),
-                (p["location"]["coordinates"][1], p["location"]["coordinates"][0]),
-            )
-            for p in matches
-        ]
+    etas = await routing.get_eta_seconds_batch(
+        req.mode,
+        (req.lat, req.lon),
+        [(p["location"]["coordinates"][1], p["location"]["coordinates"][0]) for p in matches],
     )
 
     reply = (

@@ -75,6 +75,30 @@ def test_placemark_outside_any_folder_is_skipped():
     assert parse_kml_text(kml) == []
 
 
+def test_placemark_in_nested_folder_is_counted_once_under_the_inner_category():
+    # Google My Maps' own UI/export never nests folders (flat layer list), but
+    # the parser shouldn't silently double-count a placemark if it ever did.
+    kml = """<?xml version="1.0" encoding="UTF-8"?>
+    <kml xmlns="http://www.opengis.net/kml/2.2">
+      <Document>
+        <Folder>
+          <name>Outer</name>
+          <Folder>
+            <name>Inner</name>
+            <Placemark>
+              <name>Nested Place</name>
+              <Point><coordinates>34.77,32.08,0</coordinates></Point>
+            </Placemark>
+          </Folder>
+        </Folder>
+      </Document>
+    </kml>
+    """
+    places = parse_kml_text(kml)
+    assert len(places) == 1
+    assert places[0]["category"] == "inner"
+
+
 def test_placemark_without_coordinates_is_skipped():
     kml = """<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2">

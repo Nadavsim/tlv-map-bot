@@ -5,11 +5,14 @@ import requests
 # Covers the URL shapes Google Maps produces when someone taps "Share" on a
 # pin or their own location: ?q=lat,lon, /@lat,lon,zoom (also inside
 # /maps/place/.../@lat,lon,zoom), and the !3d..!4d.. pair embedded in some
-# place-detail URLs.
+# place-detail URLs. Order matters: a place-detail URL can contain BOTH an
+# @lat,lon (the map viewport center, which can be panned away from the pin)
+# and !3d..!4d.. (the actual precise place coordinate) - the more specific
+# !3d!4d pattern must be tried first so it wins when both are present.
 _COORD_PATTERNS = [
     re.compile(r"[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)"),
-    re.compile(r"@(-?\d+\.\d+),(-?\d+\.\d+)"),
     re.compile(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)"),
+    re.compile(r"@(-?\d+\.\d+),(-?\d+\.\d+)"),
 ]
 
 

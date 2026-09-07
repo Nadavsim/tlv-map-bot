@@ -13,33 +13,43 @@ _MODE_CONFIG = {
 }
 
 
-def _fetch_eta_seconds(mode: str, origin: tuple[float, float], dest: tuple[float, float]) -> float | None:
+def _fetch_eta_seconds_batch(
+    mode: str, origin: tuple[float, float], destinations: list[tuple[float, float]]
+) -> list[float | None]:
     config = _MODE_CONFIG.get(mode)
     if not config:
-        return None
+        return [None] * len(destinations)
 
     origin_lat, origin_lon = origin
-    dest_lat, dest_lon = dest
-    url = (
-        f"{_OSRM_BASE}/{config['service']}/route/v1/{config['profile']}/"
-        f"{origin_lon},{origin_lat};{dest_lon},{dest_lat}?overview=false"
-    )
+    coords = [f"{origin_lon},{origin_lat}"] + [f"{lon},{lat}" for lat, lon in destinations]
+    # This OSRM deployment rejects the sources/destinations filter params
+    # ("Query string malformed"), so request the full matrix instead and
+    # slice out row 0 (origin -> each point), dropping index 0 (origin ->
+    # itself) - still one HTTP request regardless of destination count.
+    url = f"{_OSRM_BASE}/{config['service']}/table/v1/{config['profile']}/{';'.join(coords)}"
 
     try:
         resp = requests.get(url, timeout=5)
         resp.raise_for_status()
         data = resp.json()
-        return data["routes"][0]["duration"]
+        return data["durations"][0][1:]
     except (requests.RequestException, KeyError, IndexError, ValueError):
-        return None
+        return [None] * len(destinations)
 
 
-async def get_eta_seconds(mode: str, origin: tuple[float, float], dest: tuple[float, float]) -> float | None:
-    """Real road-network ETA in seconds, or None if routing failed/unavailable.
+async def get_eta_seconds_batch(
+    mode: str, origin: tuple[float, float], destinations: list[tuple[float, float]]
+) -> list[float | None]:
+    """Real road-network ETAs in seconds, one per destination, from a single
+    OSRM /table/ request instead of one /route/ request per destination.
+    Returns a list aligned with `destinations`; entries are None for any
+    unreachable destination or if routing failed/is unavailable entirely.
 
     Runs the blocking HTTP call in a thread so it doesn't stall the event loop.
     """
-    return await asyncio.to_thread(_fetch_eta_seconds, mode, origin, dest)
+    if not destinations:
+        return []
+    return await asyncio.to_thread(_fetch_eta_seconds_batch, mode, origin, destinations)
 
 
 def format_duration(seconds: float) -> str:

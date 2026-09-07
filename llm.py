@@ -43,37 +43,43 @@ _TOOLS = [
     }
 ]
 
-_client: anthropic.Anthropic | None = None
+_FALLBACK_QUESTION = "I'm having trouble understanding right now - could you try again in a moment?"
+
+_client: anthropic.AsyncAnthropic | None = None
 
 
-def _get_client() -> anthropic.Anthropic:
+def _get_client() -> anthropic.AsyncAnthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic()
+        _client = anthropic.AsyncAnthropic()
     return _client
 
 
-def parse_food_request(message: str, categories: list[str]) -> dict:
+async def parse_food_request(message: str, categories: list[str]) -> dict:
     """Ask Claude to match free text against the known categories.
 
     Returns {"category": str|None, "clarifying_question": str|None, "any_category": bool}.
     "any_category" True means "surprise me" - ignore "category" and search all places.
+    On any API failure, degrades to a clarifying-question response instead of raising -
+    a chat turn failing outright is worse than asking the user to retry.
     """
-    response = _get_client().messages.create(
-        model=MODEL,
-        max_tokens=256,
-        system=(
-            "You help match a user's food craving to one category from this "
-            f"list of known categories: {', '.join(categories)}. "
-            "Always call the extract_food_request tool."
-        ),
-        tools=_TOOLS,
-        tool_choice={"type": "tool", "name": _TOOL_NAME},
-        messages=[{"role": "user", "content": message}],
-    )
-
-    tool_use = next(b for b in response.content if b.type == "tool_use")
-    result = tool_use.input
+    try:
+        response = await _get_client().messages.create(
+            model=MODEL,
+            max_tokens=256,
+            system=(
+                "You help match a user's food craving to one category from this "
+                f"list of known categories: {', '.join(categories)}. "
+                "Always call the extract_food_request tool."
+            ),
+            tools=_TOOLS,
+            tool_choice={"type": "tool", "name": _TOOL_NAME},
+            messages=[{"role": "user", "content": message}],
+        )
+        tool_use = next(b for b in response.content if b.type == "tool_use")
+        result = tool_use.input
+    except (anthropic.APIError, StopIteration):
+        return {"category": None, "clarifying_question": _FALLBACK_QUESTION, "any_category": False}
 
     any_category = bool(result.get("any_category"))
     category = None if any_category else (result.get("matched_category") or None)

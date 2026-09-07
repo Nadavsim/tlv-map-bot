@@ -25,7 +25,10 @@ def parse_kml_text(kml_text: str) -> list[dict]:
             else "Uncategorized"
         )
 
-        for placemark in folder.findall(".//kml:Placemark", _NS):
+        # Direct children only - ".//" would also match placemarks belonging
+        # to a nested sub-folder (if one ever existed) and double-count them
+        # under both the outer and inner folder's category.
+        for placemark in folder.findall("kml:Placemark", _NS):
             place_name_node = placemark.find("kml:name", _NS)
             place_name = (
                 place_name_node.text

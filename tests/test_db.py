@@ -1,4 +1,17 @@
-from db import build_geo_pipeline
+import time
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+import db
+from db import build_geo_pipeline, build_proximity_pipeline
+
+
+@pytest.fixture(autouse=True)
+def reset_categories_cache():
+    db.invalidate_categories_cache()
+    yield
+    db.invalidate_categories_cache()
 
 
 def test_geo_pipeline_uses_geojson_lon_lat_order():
@@ -26,3 +39,72 @@ def test_geo_pipeline_respects_limit():
 def test_geo_pipeline_is_spherical():
     pipeline = build_geo_pipeline("coffee", lat=32.08, lon=34.78, limit=3)
     assert pipeline[0]["$geoNear"]["spherical"] is True
+
+
+def test_proximity_pipeline_uses_geojson_lon_lat_order():
+    pipeline = build_proximity_pipeline(lat=32.08, lon=34.78, max_meters=30)
+    near = pipeline[0]["$geoNear"]["near"]
+    assert near["coordinates"] == [34.78, 32.08]
+
+
+def test_proximity_pipeline_sets_max_distance():
+    pipeline = build_proximity_pipeline(lat=32.08, lon=34.78, max_meters=30)
+    assert pipeline[0]["$geoNear"]["maxDistance"] == 30
+
+
+def test_proximity_pipeline_limits_to_one():
+    pipeline = build_proximity_pipeline(lat=32.08, lon=34.78, max_meters=30)
+    assert pipeline[1] == {"$limit": 1}
+
+
+def test_proximity_pipeline_query_defaults_to_empty():
+    pipeline = build_proximity_pipeline(lat=32.08, lon=34.78, max_meters=30)
+    assert pipeline[0]["$geoNear"]["query"] == {}
+
+
+def test_proximity_pipeline_applies_extra_query_filter():
+    pipeline = build_proximity_pipeline(lat=32.08, lon=34.78, max_meters=30, query={"foo": "bar"})
+    assert pipeline[0]["$geoNear"]["query"] == {"foo": "bar"}
+
+
+@pytest.mark.asyncio
+async def test_get_categories_caches_between_calls(monkeypatch):
+    fake_collection = MagicMock()
+    fake_collection.distinct = AsyncMock(return_value=["coffee", "burger"])
+    monkeypatch.setattr(db, "get_places_collection", lambda: fake_collection)
+
+    first = await db.get_categories()
+    second = await db.get_categories()
+
+    assert first == ["burger", "coffee"]
+    assert second == ["burger", "coffee"]
+    fake_collection.distinct.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_categories_refetches_after_ttl_expires(monkeypatch):
+    fake_collection = MagicMock()
+    fake_collection.distinct = AsyncMock(return_value=["coffee"])
+    monkeypatch.setattr(db, "get_places_collection", lambda: fake_collection)
+
+    fake_time = [1000.0]
+    monkeypatch.setattr(time, "monotonic", lambda: fake_time[0])
+
+    await db.get_categories()
+    fake_time[0] += db.CATEGORIES_CACHE_TTL_SECONDS + 1
+    await db.get_categories()
+
+    assert fake_collection.distinct.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_invalidate_categories_cache_forces_refetch(monkeypatch):
+    fake_collection = MagicMock()
+    fake_collection.distinct = AsyncMock(return_value=["coffee"])
+    monkeypatch.setattr(db, "get_places_collection", lambda: fake_collection)
+
+    await db.get_categories()
+    db.invalidate_categories_cache()
+    await db.get_categories()
+
+    assert fake_collection.distinct.await_count == 2

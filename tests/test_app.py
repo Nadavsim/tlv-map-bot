@@ -52,11 +52,13 @@ def test_chat_endpoint_returns_clarifying_question_when_llm_finds_no_match(monke
     monkeypatch.setattr(
         llm,
         "parse_food_request",
-        lambda message, categories: {
-            "category": None,
-            "clarifying_question": "What are you craving?",
-            "any_category": False,
-        },
+        AsyncMock(
+            return_value={
+                "category": None,
+                "clarifying_question": "What are you craving?",
+                "any_category": False,
+            }
+        ),
     )
 
     with TestClient(app_module.app) as client:
@@ -74,14 +76,12 @@ def test_chat_endpoint_returns_nearest_places_on_match(monkeypatch):
     monkeypatch.setattr(
         llm,
         "parse_food_request",
-        lambda message, categories: {
-            "category": "coffee",
-            "clarifying_question": None,
-            "any_category": False,
-        },
+        AsyncMock(
+            return_value={"category": "coffee", "clarifying_question": None, "any_category": False}
+        ),
     )
     monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE]))
-    monkeypatch.setattr(routing, "get_eta_seconds", AsyncMock(return_value=300))
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300]))
 
     with TestClient(app_module.app) as client:
         resp = client.post("/api/chat", json={"message": "flat white", "lat": 32.08, "lon": 34.78})
@@ -99,15 +99,11 @@ def test_chat_endpoint_handles_any_category_surprise_me(monkeypatch):
     monkeypatch.setattr(
         llm,
         "parse_food_request",
-        lambda message, categories: {
-            "category": None,
-            "clarifying_question": None,
-            "any_category": True,
-        },
+        AsyncMock(return_value={"category": None, "clarifying_question": None, "any_category": True}),
     )
     find_nearest_mock = AsyncMock(return_value=[SAMPLE_PLACE])
     monkeypatch.setattr(db, "find_nearest", find_nearest_mock)
-    monkeypatch.setattr(routing, "get_eta_seconds", AsyncMock(return_value=None))
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[None]))
 
     with TestClient(app_module.app) as client:
         resp = client.post("/api/chat", json={"message": "surprise me", "lat": 32.08, "lon": 34.78})
@@ -156,18 +152,40 @@ def test_chat_endpoint_defaults_to_walking_mode(monkeypatch):
     monkeypatch.setattr(
         llm,
         "parse_food_request",
-        lambda message, categories: {
-            "category": "coffee",
-            "clarifying_question": None,
-            "any_category": False,
-        },
+        AsyncMock(
+            return_value={"category": "coffee", "clarifying_question": None, "any_category": False}
+        ),
     )
     monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE]))
-    eta_mock = AsyncMock(return_value=None)
-    monkeypatch.setattr(routing, "get_eta_seconds", eta_mock)
+    eta_mock = AsyncMock(return_value=[None])
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", eta_mock)
 
     with TestClient(app_module.app) as client:
         client.post("/api/chat", json={"message": "flat white", "lat": 32.08, "lon": 34.78})
 
     args, _ = eta_mock.call_args
     assert args[0] == "walking"
+
+
+def test_chat_endpoint_requests_one_batched_eta_call_for_multiple_places(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
+    monkeypatch.setattr(
+        llm,
+        "parse_food_request",
+        AsyncMock(
+            return_value={"category": "coffee", "clarifying_question": None, "any_category": False}
+        ),
+    )
+    place_2 = {**SAMPLE_PLACE, "name": "Other Cafe", "distance": 900}
+    monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE, place_2]))
+    eta_mock = AsyncMock(return_value=[120, 240])
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", eta_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/chat", json={"message": "coffee", "lat": 32.08, "lon": 34.78})
+
+    eta_mock.assert_awaited_once()
+    body = resp.json()
+    assert body["places"][0]["eta"] == "2 min"
+    assert body["places"][1]["eta"] == "4 min"
