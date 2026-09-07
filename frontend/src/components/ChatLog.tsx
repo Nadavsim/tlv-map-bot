@@ -12,6 +12,8 @@ interface ChatLogProps {
   showLocationForm: boolean
   onLocationSet: (coords: Coordinates) => void
   onLocationError: (message: string) => void
+  onRetryLocation: () => void
+  isRequestingLocation: boolean
 }
 
 export function ChatLog({
@@ -20,6 +22,8 @@ export function ChatLog({
   showLocationForm,
   onLocationSet,
   onLocationError,
+  onRetryLocation,
+  isRequestingLocation,
 }: ChatLogProps) {
   const logRef = useRef<HTMLElement>(null)
 
@@ -41,7 +45,12 @@ export function ChatLog({
         }
       })}
       {showLocationForm && (
-        <LocationForm onLocationSet={onLocationSet} onError={onLocationError} />
+        <LocationForm
+          onLocationSet={onLocationSet}
+          onError={onLocationError}
+          onRetryLocation={onRetryLocation}
+          isRequestingLocation={isRequestingLocation}
+        />
       )}
       {isWaitingForReply && <TypingIndicator />}
     </main>

@@ -19,6 +19,7 @@ export default function App() {
   const [locationStatus, setLocationStatus] = useState('Requesting your location...')
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
   const [showLocationForm, setShowLocationForm] = useState(false)
+  const [isRequestingLocation, setIsRequestingLocation] = useState(false)
   const [mode, setMode] = useState<TransportMode>('walking')
   const [isWaitingForReply, setIsWaitingForReply] = useState(false)
 
@@ -35,20 +36,40 @@ export default function App() {
     ])
   }
 
-  useEffect(() => {
+  // isRetry=false (initial mount attempt): a failure pushes the full
+  // explanatory chat message + shows the manual-entry form. isRetry=true
+  // (the "try again" button, after the form is already showing - e.g. the
+  // user enabled location in settings after initially denying it, which
+  // otherwise required a page reload to take effect): a failure just
+  // updates the status line instead of spamming another chat bubble.
+  function requestLocation(isRetry: boolean) {
     if (!navigator.geolocation) {
-      offerManualLocation("Geolocation isn't supported in this browser.")
+      if (!isRetry) offerManualLocation("Geolocation isn't supported in this browser.")
       return
     }
 
+    setIsRequestingLocation(true)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
         setLocationStatus('Location set. Ask away!')
+        setShowLocationForm(false)
+        setIsRequestingLocation(false)
       },
-      () => offerManualLocation('Location permission denied.'),
+      () => {
+        setIsRequestingLocation(false)
+        if (isRetry) {
+          setLocationStatus('Still no access - try again, or use the box below.')
+        } else {
+          offerManualLocation('Location permission denied.')
+        }
+      },
       { enableHighAccuracy: true, timeout: 10000 },
     )
+  }
+
+  useEffect(() => {
+    requestLocation(false)
   }, [])
 
   function handleLocationSet(coords: Coordinates) {
@@ -98,6 +119,8 @@ export default function App() {
         showLocationForm={showLocationForm}
         onLocationSet={handleLocationSet}
         onLocationError={handleLocationError}
+        onRetryLocation={() => requestLocation(true)}
+        isRequestingLocation={isRequestingLocation}
       />
       <ChatInput disabled={chatDisabled} onSend={handleSend} />
     </div>

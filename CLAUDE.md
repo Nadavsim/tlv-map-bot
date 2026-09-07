@@ -78,6 +78,20 @@ See `README.md` for setup/run instructions and the full directory structure.
   hard-to-tap box; the location-request flow now reads as an actual
   two-turn conversation (explicit ask up front, a real follow-up chat
   message if permission doesn't come through) instead of one static line.
+- WhatsApp export/share button (`ShareButton` on each results list) -
+  formats the 3 places into shareable text, prefers the native Web Share
+  API (best UX, WhatsApp included among the options on mobile), falls back
+  to a real `<a href="https://wa.me/...">` link where that API isn't
+  available. Deliberately a real anchor, not an imperative `window.open()`
+  - confirmed live that `window.open()` from script gets popup-blocked in
+  some browser contexts, while a genuine anchor click is always trusted
+  navigation.
+- Fixed a real mobile bug: if location permission was denied/off at first
+  load and then enabled afterward (e.g. in phone settings), nothing in the
+  app noticed - it required a full page reload to pick up. Added a "Try
+  enabling location again" button that re-attempts geolocation on demand;
+  a repeated failure updates the status line rather than spamming another
+  chat bubble each time.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
@@ -86,9 +100,7 @@ See `README.md` for setup/run instructions and the full directory structure.
 ### Scoped, not yet built (priority order)
 1. ~~Rate limiting on `/api/chat`~~ - done, see above.
 2. ~~Improved icons~~ - done, see above.
-3. WhatsApp export/share button for a recommendation (client-side only, via
-   the Web Share API / a `wa.me` link - no Twilio/WhatsApp Business API
-   needed). Quick, cheap, all the data's already there.
+3. ~~WhatsApp export/share button~~ - done, see above.
 4. Plan-ahead / typed-address geocoding (free via Nominatim) as a
    friendlier alternative to pasting a Maps link or raw coordinates -
    small addition to the existing `services/location.py`.

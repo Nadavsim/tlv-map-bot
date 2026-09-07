@@ -1,3 +1,4 @@
+import { LocateFixed } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { resolveLocation } from '../api'
 import type { Coordinates } from '../types'
@@ -5,9 +6,16 @@ import type { Coordinates } from '../types'
 interface LocationFormProps {
   onLocationSet: (coords: Coordinates) => void
   onError: (message: string) => void
+  onRetryLocation: () => void
+  isRequestingLocation: boolean
 }
 
-export function LocationForm({ onLocationSet, onError }: LocationFormProps) {
+export function LocationForm({
+  onLocationSet,
+  onError,
+  onRetryLocation,
+  isRequestingLocation,
+}: LocationFormProps) {
   const [value, setValue] = useState('')
   const [isResolving, setIsResolving] = useState(false)
 
@@ -42,16 +50,27 @@ export function LocationForm({ onLocationSet, onError }: LocationFormProps) {
   }
 
   return (
-    <form className="location-form-row" onSubmit={handleSubmit}>
-      <input
-        type="text"
-        placeholder="Paste coordinates or a Google Maps link"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-      />
-      <button type="submit" disabled={isResolving}>
-        {isResolving ? '...' : 'Set'}
+    <div className="location-fallback">
+      <button
+        type="button"
+        className="retry-location-button"
+        onClick={onRetryLocation}
+        disabled={isRequestingLocation}
+      >
+        <LocateFixed size={15} aria-hidden="true" />
+        {isRequestingLocation ? 'Checking...' : 'Try enabling location again'}
       </button>
-    </form>
+      <form className="location-form-row" onSubmit={handleSubmit}>
+        <input
+          type="text"
+          placeholder="Paste coordinates or a Google Maps link"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+        <button type="submit" disabled={isResolving}>
+          {isResolving ? '...' : 'Set'}
+        </button>
+      </form>
+    </div>
   )
 }

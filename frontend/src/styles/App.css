@@ -232,12 +232,68 @@ header h1 svg {
   filter: brightness(0.95);
 }
 
-.location-form-row {
+.share-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.share-button:active {
+  transform: scale(0.97);
+}
+
+.location-fallback {
   display: flex;
+  flex-direction: column;
   gap: 0.5rem;
   align-self: flex-start;
   max-width: 85%;
   width: 100%;
+}
+
+.retry-location-button {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition:
+    transform 0.1s ease,
+    opacity 0.15s ease;
+}
+
+.retry-location-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.retry-location-button:active {
+  transform: scale(0.97);
+}
+
+.location-form-row {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .location-form-row input {
