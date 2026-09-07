@@ -73,9 +73,9 @@ def parse_kml_file(kml_file_path: str) -> list[dict]:
 
 
 if __name__ == "__main__":
-    # Convenience for local/offline use: parse a manually-exported map.kml
-    # sitting next to this script, instead of fetching one over the network.
-    places = parse_kml_file("map.kml")
-    print(f"Parsed {len(places)} places from map.kml")
+    # Convenience for local/offline use: parse a manually-exported KML file
+    # instead of fetching one over the network.
+    places = parse_kml_file("data/map.kml")
+    print(f"Parsed {len(places)} places from data/map.kml")
     for p in places[:5]:
         print(p)

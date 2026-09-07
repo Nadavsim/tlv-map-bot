@@ -1,4 +1,4 @@
-from sync_places import looks_like_truncated_fetch
+from scripts.sync_places import looks_like_truncated_fetch
 
 
 def test_no_guard_needed_when_database_was_empty():

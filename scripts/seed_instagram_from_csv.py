@@ -14,7 +14,7 @@ import pandas as pd
 from db import get_places_collection
 
 
-async def seed(csv_path: str = "cleaned_places.csv") -> None:
+async def seed(csv_path: str = "data/cleaned_places.csv") -> None:
     df = pd.read_csv(csv_path)
     collection = get_places_collection()
 
@@ -40,5 +40,5 @@ async def seed(csv_path: str = "cleaned_places.csv") -> None:
 
 
 if __name__ == "__main__":
-    path = sys.argv[1] if len(sys.argv) > 1 else "cleaned_places.csv"
+    path = sys.argv[1] if len(sys.argv) > 1 else "data/cleaned_places.csv"
     asyncio.run(seed(path))
