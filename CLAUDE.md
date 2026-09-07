@@ -66,33 +66,46 @@ See `README.md` for setup/run instructions and the full directory structure.
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
   tradeoff vs. the free OSRM walk/drive ETAs already in place)
 
-### Scoped, not yet built
-- Shorten/change the Azure URL (custom domain, or rename the App Service)
-- Light usage stats — category-level demand counters + a log of unmatched
-  queries, to inform which categories to add/refine/drop (My Maps caps out
-  around 10 layers, so this matters for curation decisions)
-- Plan-ahead / typed-address geocoding (free via Nominatim) as a friendlier
-  alternative to pasting a Maps link or raw coordinates
-- WhatsApp export/share button for a recommendation (client-side only, via
-  the Web Share API / a `wa.me` link - no Twilio/WhatsApp Business API needed)
-- Rate limiting on `/api/chat` - protects the budget goal against
-  abuse/automated hammering, currently nothing stops it
-- Scheduled auto-sync (a cron job, e.g. GitHub Actions, running
-  `scripts.sync_places` automatically instead of by hand)
-- Conversational refinement / short-lived session memory (so "something
-  cheaper" or "further is fine" can build on the last answer instead of
-  every message being stateless)
-- "Show more" pagination beyond the top 3 results
-- PWA support (add-to-home-screen, app-like icon)
-- Kosher/dietary tags and filtering (locally relevant for Tel Aviv)
+### Scoped, not yet built (priority order)
+1. Rate limiting on `/api/chat` - protects the budget goal against
+   abuse/automated hammering, currently nothing stops it. Do this before
+   anything below that increases traffic/exposure (e.g. the share button).
+2. Improved icons - replace the plain emoji (📍🚶🚗🗺️📱) with a proper icon
+   set. Emoji render inconsistently across platforms/OS; a real icon
+   library gives a more consistent, professional look, and directly
+   unblocks proper PWA icons later (#7).
+3. WhatsApp export/share button for a recommendation (client-side only, via
+   the Web Share API / a `wa.me` link - no Twilio/WhatsApp Business API
+   needed). Quick, cheap, all the data's already there.
+4. Plan-ahead / typed-address geocoding (free via Nominatim) as a
+   friendlier alternative to pasting a Maps link or raw coordinates -
+   small addition to the existing `services/location.py`.
+5. Scheduled auto-sync (a cron job, e.g. GitHub Actions, running
+   `scripts.sync_places` automatically instead of by hand) - no UI needed.
+6. "Show more" pagination beyond the top 3 results - small extension of
+   the existing nearest-match query.
+7. PWA support (add-to-home-screen, app-like icon) - builds directly on
+   the icons from #2.
+8. Light usage stats - category-level demand counters + a log of unmatched
+   queries, to inform which categories to add/refine/drop (My Maps caps
+   out around 10 layers, so this matters for curation decisions). Real
+   value, but not an urgent decision yet.
+9. Conversational refinement / short-lived session memory (so "something
+   cheaper" or "further is fine" can build on the last answer instead of
+   every message being stateless) - meaningfully bigger than anything
+   above it (new state, prompt changes).
+10. Kosher/dietary tags and filtering (locally relevant for Tel Aviv) -
+    needs a data-model change (tag places) plus LLM/query changes.
+11. Shorten/change the Azure URL (custom domain, or rename the App
+    Service) - lowest urgency, purely cosmetic, and needs a decision
+    (buy a domain vs. just live with a renamed App Service) before it's
+    even scoped.
 
 ### Visual upgrades
-- Improved icons - replace the plain emoji (📍🚶🚗🗺️📱) with a proper icon
-  set. Emoji render inconsistently across platforms/OS; a real icon library
-  gives a more consistent, professional look.
 - Map view - a visible map showing the recommended place(s), on top of the
   existing chat/list view (the original "chat now, map later" plan from
-  early in the project).
+  early in the project). (Improved icons moved into the priority list
+  above, at #2.)
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a
