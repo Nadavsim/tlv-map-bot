@@ -9,15 +9,15 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-import db
-import llm
-import location
-import routing
-from models import PlaceResult
+from . import db
+from .models import PlaceResult
+from .services import llm, location, routing
 
 load_dotenv()
 
-BASE_DIR = Path(__file__).parent
+# .parent.parent, not .parent: this file lives in backend/, but static/ (built
+# by frontend/'s Vite build) sits at the repo root, a sibling of backend/.
+BASE_DIR = Path(__file__).parent.parent
 
 
 @asynccontextmanager

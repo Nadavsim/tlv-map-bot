@@ -11,7 +11,7 @@ import sys
 
 import pandas as pd
 
-from db import get_places_collection
+from backend.db import get_places_collection
 
 
 async def seed(csv_path: str = "data/cleaned_places.csv") -> None:

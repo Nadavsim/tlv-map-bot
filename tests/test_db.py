@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import db
-from db import build_geo_pipeline, build_proximity_pipeline
-from models import PlaceResult
+from backend import db
+from backend.db import build_geo_pipeline, build_proximity_pipeline
+from backend.models import PlaceResult
 
 
 @pytest.fixture(autouse=True)

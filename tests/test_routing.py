@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
-import routing
+from backend.services import routing
 
 
 def test_format_duration_under_a_minute():

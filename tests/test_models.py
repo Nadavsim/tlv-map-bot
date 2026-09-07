@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from models import GeoPoint, Place, PlaceResult
+from backend.models import GeoPoint, Place, PlaceResult
 
 
 def test_geo_point_exposes_longitude_and_latitude_from_geojson_order():

@@ -2,13 +2,11 @@ from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
 
-import app as app_module
-import db
-import llm
-import location
-import routing
-from app import format_place
-from models import GeoPoint, PlaceResult
+from backend import app as app_module
+from backend import db
+from backend.app import format_place
+from backend.models import GeoPoint, PlaceResult
+from backend.services import llm, location, routing
 
 SAMPLE_PLACE = PlaceResult(
     name="Cafelix",

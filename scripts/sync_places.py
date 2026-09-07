@@ -5,9 +5,9 @@ from datetime import datetime, timezone
 import requests
 from dotenv import load_dotenv
 
-from db import ensure_indexes, find_nearby, get_places_collection, invalidate_categories_cache
-from models import GeoPoint, Place
-from parser import parse_kml_text
+from backend.db import ensure_indexes, find_nearby, get_places_collection, invalidate_categories_cache
+from backend.models import GeoPoint, Place
+from backend.parser import parse_kml_text
 
 load_dotenv()
 

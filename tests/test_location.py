@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import requests
 
-import location
+from backend.services import location
 
 
 def test_extracts_coords_from_q_param():

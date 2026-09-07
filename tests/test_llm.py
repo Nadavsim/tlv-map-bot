@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 import anthropic
 import pytest
 
-import llm
+from backend.services import llm
 
 
 def make_fake_client(tool_input: dict):
