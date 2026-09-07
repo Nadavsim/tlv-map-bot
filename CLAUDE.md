@@ -60,6 +60,32 @@ project with real (if modest) usage, not a toy or a tutorial exercise.
 
 See `README.md` for setup/run instructions and the full directory structure.
 
+## Roadmap (agreed 2026-09-08, milestone: base app ready for friends/family)
+
+In order:
+1. Buy a custom domain (the user's call - not something Claude can purchase;
+   see item 11 in the to-do list below for the Azure-side half of this).
+2. Install the "Impeccable" design skill for a second design pass (its
+   installer was blocked by the sandbox's safety classifier in the session
+   that tried it - needs to be run by the user in their own terminal:
+   `npx impeccable install`). The "Taste Skill" skills are already installed
+   (`.claude/skills/`) and were used once already (see "Visual upgrades").
+3. A few minor clarity/completeness features - privacy policy, custom 404,
+   etc. (see "Strategic Omissions" - things AI-built apps typically forget -
+   in the redesign-existing-projects skill for a fuller checklist).
+4. Set up separate production and test/staging environments before auth
+   work begins - real accounts/sessions are exactly the kind of thing that
+   shouldn't be debugged live. Cheap to do: a second free Azure App Service
+   plus a second database *name* inside the same free MongoDB Atlas cluster
+   (no second cluster needed) - stays within the $12/month budget. Pair
+   this with a `staging` git branch (deploys to the test environment) job
+   alongside `main` (deploys to production, as today) - simple two-branch
+   model, not a full gitflow, appropriate for a solo project.
+5. Implement auth and the user system - see "Bigger builds - user system"
+   below for the already-sequenced plan (Google Sign-In + JWT session layer
+   first, then favorites, ratings, user-suggested spots, map uploads).
+6. Add the map view visual feature (see "Visual upgrades" below).
+
 ## To-do list
 
 ### Done since the priority ordering
