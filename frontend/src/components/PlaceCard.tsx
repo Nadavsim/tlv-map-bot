@@ -10,6 +10,11 @@ export function PlaceCard({ place, lang }: { place: Place; lang: Lang }) {
       </div>
       <div className="meta">
         <span className="category-chip">{place.category}</span>
+        {place.dietary_tags.map((tag) => (
+          <span className="tag-chip" key={tag}>
+            {tag}
+          </span>
+        ))}
         <span className="distance-eta">
           {place.eta ? `${place.distance} · ${place.eta}` : place.distance}
         </span>

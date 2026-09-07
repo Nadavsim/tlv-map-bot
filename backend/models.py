@@ -31,6 +31,11 @@ class Place(BaseModel):
     category: str
     location: GeoPoint
     instagram_url: str | None = None
+    # Free-form (whatever hashtag is typed into the pin's My Maps
+    # description, e.g. "#kosher #vegan") rather than a fixed/validated
+    # set - mirrors category itself being whatever a My Maps layer is
+    # named, not a hardcoded list.
+    dietary_tags: list[str] = []
     last_synced_at: datetime | None = None
 
 

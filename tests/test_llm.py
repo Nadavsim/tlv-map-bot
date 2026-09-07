@@ -30,6 +30,7 @@ async def test_returns_matched_category(monkeypatch):
 
     assert result == {
         "category": "coffee",
+        "dietary_tag": None,
         "clarifying_question": None,
         "any_category": False,
         "is_followup": False,
@@ -71,6 +72,7 @@ async def test_any_category_true_ignores_matched_category(monkeypatch):
 
     assert result == {
         "category": None,
+        "dietary_tag": None,
         "clarifying_question": None,
         "any_category": True,
         "is_followup": False,
@@ -197,6 +199,7 @@ async def test_is_followup_forced_false_when_model_names_a_different_category(mo
 
     assert result == {
         "category": "pizza",
+        "dietary_tag": None,
         "clarifying_question": None,
         "any_category": False,
         "is_followup": False,
@@ -233,6 +236,111 @@ async def test_no_previous_category_mention_in_system_prompt_without_context(mon
 
     _, kwargs = fake_client.messages.create.call_args
     assert "previous request" not in kwargs["system"]
+
+
+@pytest.mark.asyncio
+async def test_returns_matched_dietary_tag(monkeypatch):
+    monkeypatch.setattr(
+        llm,
+        "_get_client",
+        lambda: make_fake_client(
+            {
+                "any_category": False,
+                "matched_category": "burger",
+                "matched_dietary_tag": "vegan",
+                "is_followup": False,
+                "clarifying_question": "",
+            }
+        ),
+    )
+
+    result = await llm.parse_food_request("vegan burger", ["coffee", "burger"], dietary_tags=["vegan", "kosher"])
+
+    assert result["category"] == "burger"
+    assert result["dietary_tag"] == "vegan"
+
+
+@pytest.mark.asyncio
+async def test_dietary_tags_mentioned_in_system_prompt_when_present(monkeypatch):
+    fake_client = make_fake_client(
+        {
+            "any_category": False,
+            "matched_category": "burger",
+            "matched_dietary_tag": "",
+            "is_followup": False,
+            "clarifying_question": "",
+        }
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    await llm.parse_food_request("burger", ["coffee", "burger"], dietary_tags=["vegan", "kosher"])
+
+    _, kwargs = fake_client.messages.create.call_args
+    assert "vegan, kosher" in kwargs["system"]
+
+
+@pytest.mark.asyncio
+async def test_no_dietary_tags_mention_in_system_prompt_when_none_exist(monkeypatch):
+    fake_client = make_fake_client(
+        {"any_category": False, "matched_category": "burger", "is_followup": False, "clarifying_question": ""}
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    await llm.parse_food_request("burger", ["coffee", "burger"])
+
+    _, kwargs = fake_client.messages.create.call_args
+    assert "dietary tags" not in kwargs["system"]
+
+
+@pytest.mark.asyncio
+async def test_is_followup_forced_false_when_model_names_a_different_dietary_tag(monkeypatch):
+    fake_client = make_fake_client(
+        {
+            "any_category": False,
+            "matched_category": "burger",
+            "matched_dietary_tag": "vegan",
+            "is_followup": True,
+            "clarifying_question": "",
+        }
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request(
+        "actually make it vegan",
+        ["burger"],
+        dietary_tags=["vegan", "kosher"],
+        previous_category="burger",
+        previous_dietary_tag="kosher",
+        has_previous_context=True,
+    )
+
+    assert result["dietary_tag"] == "vegan"
+    assert result["is_followup"] is False
+
+
+@pytest.mark.asyncio
+async def test_is_followup_stays_true_when_dietary_tag_matches_previous(monkeypatch):
+    fake_client = make_fake_client(
+        {
+            "any_category": False,
+            "matched_category": "burger",
+            "matched_dietary_tag": "kosher",
+            "is_followup": True,
+            "clarifying_question": "",
+        }
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request(
+        "something else",
+        ["burger"],
+        dietary_tags=["vegan", "kosher"],
+        previous_category="burger",
+        previous_dietary_tag="kosher",
+        has_previous_context=True,
+    )
+
+    assert result["is_followup"] is True
 
 
 @pytest.mark.asyncio

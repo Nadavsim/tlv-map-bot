@@ -5,7 +5,13 @@ from datetime import datetime, timezone
 import requests
 from dotenv import load_dotenv
 
-from backend.db import ensure_indexes, find_nearby, get_places_collection, invalidate_categories_cache
+from backend.db import (
+    ensure_indexes,
+    find_nearby,
+    get_places_collection,
+    invalidate_categories_cache,
+    invalidate_dietary_tags_cache,
+)
 from backend.models import GeoPoint, Place
 from backend.parser import parse_kml_text
 
@@ -77,6 +83,7 @@ async def sync() -> None:
             category=place["category"],
             location=GeoPoint(coordinates=(place["longitude"], place["latitude"])),
             instagram_url=place["instagram_url"],
+            dietary_tags=place["dietary_tags"],
             last_synced_at=sync_time,
         )
         location_doc = validated.location.model_dump()
@@ -98,6 +105,7 @@ async def sync() -> None:
                         "name": validated.name,
                         "category": validated.category,
                         "location": location_doc,
+                        "dietary_tags": validated.dietary_tags,
                         "last_synced_at": validated.last_synced_at,
                     }
                 },
@@ -109,6 +117,7 @@ async def sync() -> None:
                     "category": validated.category,
                     "location": location_doc,
                     "instagram_url": validated.instagram_url,
+                    "dietary_tags": validated.dietary_tags,
                     "last_synced_at": validated.last_synced_at,
                 }
             )

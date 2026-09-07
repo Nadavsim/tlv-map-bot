@@ -71,6 +71,7 @@ class ChatRequest(BaseModel):
     # the previous turn was "any category" (surprise me), not "no previous
     # turn at all" - that distinction is what has_previous_context is for.
     previous_category: str | None = None
+    previous_dietary_tag: str | None = None
     previous_offset: int = 0
     has_previous_context: bool = False
 
@@ -81,6 +82,7 @@ class LocationLinkRequest(BaseModel):
 
 class MorePlacesRequest(BaseModel):
     category: str | None = None
+    tag: str | None = None
     lat: float
     lon: float
     mode: Literal["walking", "driving"] = "walking"
@@ -102,18 +104,26 @@ REPLIES = {
         "empty_db": "The places database is empty. Run `python -m scripts.sync_places` to load places first.",
         "no_category_fallback": "Not sure what you're craving - can you tell me a type of food?",
         "no_matches": "I don't have any {label} spots saved yet.",
+        "no_matches_with_tag": "I don't have any {tag} {label} spots saved yet.",
         "no_more_matches": "That's all the {label} spots I have saved for now.",
+        "no_more_matches_with_tag": "That's all the {tag} {label} spots I have saved for now.",
         "matched": "Here are the closest {category} spots:",
+        "matched_with_tag": "Here are the closest {tag} {category} spots:",
         "surprise": "Surprise! Here are the closest spots overall:",
+        "surprise_with_tag": "Here are the closest {tag} spots overall:",
         "any_label": "any",
     },
     "he": {
         "empty_db": "מסד הנתונים של המקומות ריק. הרץ `python -m scripts.sync_places` כדי לטעון מקומות קודם.",
         "no_category_fallback": "לא ברור לי מה מתחשק לך - תוכל לספר לי איזה סוג אוכל?",
         "no_matches": "עדיין אין לי מקומות מסוג {label} שמורים.",
+        "no_matches_with_tag": "עדיין אין לי מקומות מסוג {label} ({tag}) שמורים.",
         "no_more_matches": "אלה כל המקומות מסוג {label} ששמורים אצלי כרגע.",
+        "no_more_matches_with_tag": "אלה כל המקומות מסוג {label} ({tag}) ששמורים אצלי כרגע.",
         "matched": "הנה המקומות הכי קרובים מסוג {category}:",
+        "matched_with_tag": "הנה המקומות הכי קרובים מסוג {category} ({tag}):",
         "surprise": "הפתעה! הנה המקומות הכי קרובים בסך הכל:",
+        "surprise_with_tag": "הנה המקומות הכי קרובים מסוג {tag}:",
         "any_label": "כלשהו",
     },
 }
@@ -123,8 +133,28 @@ def replies_for(lang: str) -> dict:
     return REPLIES.get(lang, REPLIES["en"])
 
 
-def _places_reply(category: str | None, any_category: bool, matches: list, etas: list, offset: int, replies: dict) -> dict:
-    reply = replies["surprise"] if any_category else replies["matched"].format(category=category)
+def _no_results_reply(base_key: str, category: str | None, dietary_tag: str | None, replies: dict) -> str:
+    label = category or replies["any_label"]
+    if dietary_tag:
+        return replies[f"{base_key}_with_tag"].format(tag=dietary_tag, label=label)
+    return replies[base_key].format(label=label)
+
+
+def _places_reply(
+    category: str | None,
+    dietary_tag: str | None,
+    any_category: bool,
+    matches: list,
+    etas: list,
+    offset: int,
+    replies: dict,
+) -> dict:
+    if any_category:
+        reply = replies["surprise_with_tag"].format(tag=dietary_tag) if dietary_tag else replies["surprise"]
+    elif dietary_tag:
+        reply = replies["matched_with_tag"].format(tag=dietary_tag, category=category)
+    else:
+        reply = replies["matched"].format(category=category)
     return {
         "reply": reply,
         "places": [format_place(p, eta) for p, eta in zip(matches, etas)],
@@ -132,6 +162,7 @@ def _places_reply(category: str | None, any_category: bool, matches: list, etas:
         # (via /api/more-places, or a natural-language follow-up like
         # "something else") without re-running the LLM categorization.
         "category": category,
+        "dietary_tag": dietary_tag,
         "offset": offset,
     }
 
@@ -149,6 +180,7 @@ def format_place(place: PlaceResult, eta_seconds: float | None) -> dict:
         "distance": distance_str,
         "eta": routing.format_duration(eta_seconds) if eta_seconds is not None else None,
         "instagram_url": place.instagram_url,
+        "dietary_tags": place.dietary_tags,
         "maps_url": maps_url,
     }
 
@@ -195,28 +227,34 @@ async def chat(request: Request, req: ChatRequest):
     if not known_categories:
         return {"reply": replies["empty_db"], "places": []}
 
+    known_dietary_tags = await db.get_dietary_tags()
     extraction = await llm.parse_food_request(
         req.message,
         known_categories,
         req.lang,
+        dietary_tags=known_dietary_tags,
         previous_category=req.previous_category,
+        previous_dietary_tag=req.previous_dietary_tag,
         has_previous_context=req.has_previous_context,
     )
 
     # A refinement of the previous turn ("something else", "another one") -
-    # keep the same category (or "any", if that's what the previous turn
-    # was) and continue past what was already shown, rather than treating
-    # this message as its own fresh, independent request.
+    # keep the same category/tag (or "any", if that's what the previous
+    # turn was) and continue past what was already shown, rather than
+    # treating this message as its own fresh, independent request.
     if req.has_previous_context and extraction["is_followup"]:
         category = req.previous_category
+        dietary_tag = req.previous_dietary_tag
         await db.record_category_request(category or db.ANY_CATEGORY_KEY)
-        matches = await db.find_nearest(category, req.lat, req.lon, limit=PAGE_SIZE, offset=req.previous_offset)
+        matches = await db.find_nearest(
+            category, req.lat, req.lon, limit=PAGE_SIZE, offset=req.previous_offset, tag=dietary_tag
+        )
         if not matches:
-            label = category or replies["any_label"]
             return {
-                "reply": replies["no_more_matches"].format(label=label),
+                "reply": _no_results_reply("no_more_matches", category, dietary_tag, replies),
                 "places": [],
                 "category": category,
+                "dietary_tag": dietary_tag,
                 "offset": req.previous_offset,
             }
         etas = await routing.get_eta_seconds_batch(
@@ -224,7 +262,9 @@ async def chat(request: Request, req: ChatRequest):
             (req.lat, req.lon),
             [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
         )
-        return _places_reply(category, category is None, matches, etas, req.previous_offset + len(matches), replies)
+        return _places_reply(
+            category, dietary_tag, category is None, matches, etas, req.previous_offset + len(matches), replies
+        )
 
     if not extraction["any_category"] and not extraction["category"]:
         await db.log_unmatched_query(req.message)
@@ -235,14 +275,15 @@ async def chat(request: Request, req: ChatRequest):
         }
 
     category = extraction["category"]
+    dietary_tag = extraction["dietary_tag"]
     await db.record_category_request(category or db.ANY_CATEGORY_KEY)
-    matches = await db.find_nearest(category, req.lat, req.lon, limit=PAGE_SIZE)
+    matches = await db.find_nearest(category, req.lat, req.lon, limit=PAGE_SIZE, tag=dietary_tag)
     if not matches:
-        label = category or replies["any_label"]
         return {
-            "reply": replies["no_matches"].format(label=label),
+            "reply": _no_results_reply("no_matches", category, dietary_tag, replies),
             "places": [],
             "category": category,
+            "dietary_tag": dietary_tag,
         }
 
     etas = await routing.get_eta_seconds_batch(
@@ -250,13 +291,15 @@ async def chat(request: Request, req: ChatRequest):
         (req.lat, req.lon),
         [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
     )
-    return _places_reply(category, extraction["any_category"], matches, etas, len(matches), replies)
+    return _places_reply(category, dietary_tag, extraction["any_category"], matches, etas, len(matches), replies)
 
 
 @app.post("/api/more-places")
 @limiter.limit("20/minute;200/day")
 async def more_places(request: Request, req: MorePlacesRequest):
-    matches = await db.find_nearest(req.category, req.lat, req.lon, limit=PAGE_SIZE, offset=req.offset)
+    matches = await db.find_nearest(
+        req.category, req.lat, req.lon, limit=PAGE_SIZE, offset=req.offset, tag=req.tag
+    )
     if not matches:
         return {"places": []}
 

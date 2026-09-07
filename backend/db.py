@@ -50,6 +50,7 @@ PLACES_JSON_SCHEMA = {
             },
         },
         "instagram_url": {"bsonType": ["string", "null"]},
+        "dietary_tags": {"bsonType": "array", "items": {"bsonType": "string"}},
         "last_synced_at": {"bsonType": ["date", "null"]},
     },
 }
@@ -57,6 +58,8 @@ PLACES_JSON_SCHEMA = {
 _client: AsyncIOMotorClient | None = None
 _categories_cache: list[str] | None = None
 _categories_cache_expires_at: float = 0.0
+_dietary_tags_cache: list[str] | None = None
+_dietary_tags_cache_expires_at: float = 0.0
 
 
 def _get_collection(name: str):
@@ -159,6 +162,31 @@ async def get_categories() -> list[str]:
     return _categories_cache
 
 
+def invalidate_dietary_tags_cache() -> None:
+    global _dietary_tags_cache, _dietary_tags_cache_expires_at
+    _dietary_tags_cache = None
+    _dietary_tags_cache_expires_at = 0.0
+
+
+async def get_dietary_tags() -> list[str]:
+    """Same caching approach as get_categories() - the live set of dietary
+    tags actually in use (from My Maps pin descriptions), so the LLM can
+    match free text against real, current tags rather than a hardcoded and
+    inevitably stale list."""
+    global _dietary_tags_cache, _dietary_tags_cache_expires_at
+    now = time.monotonic()
+    if _dietary_tags_cache is not None and now < _dietary_tags_cache_expires_at:
+        return _dietary_tags_cache
+
+    places = get_places_collection()
+    # distinct() on an array field automatically flattens to the unique
+    # scalar values across every document's array - no special handling
+    # needed for the "field is a list" part.
+    _dietary_tags_cache = sorted(await places.distinct("dietary_tags"))
+    _dietary_tags_cache_expires_at = now + CATEGORIES_CACHE_TTL_SECONDS
+    return _dietary_tags_cache
+
+
 async def record_category_request(key: str) -> None:
     """Bumps a demand counter for a category (or ANY_CATEGORY_KEY /
     UNMATCHED_KEY) - a lightweight, curation-facing signal for which
@@ -179,19 +207,27 @@ async def log_unmatched_query(text: str) -> None:
 
 
 def build_geo_pipeline(
-    category: str | None, lat: float, lon: float, limit: int = 3, offset: int = 0
+    category: str | None, lat: float, lon: float, limit: int = 3, offset: int = 0, tag: str | None = None
 ) -> list[dict]:
     """Pure function (no I/O) so the query shape can be unit tested without a
     real MongoDB connection. category=None means "any category" (surprise me).
     offset supports "show more" - skipping past results already shown for the
-    same query rather than re-fetching and re-displaying the top matches."""
+    same query rather than re-fetching and re-displaying the top matches.
+    tag filters to places whose dietary_tags array contains that value -
+    Mongo matches an array field against a scalar query value by "contains"
+    automatically, no special operator needed."""
+    query: dict = {}
+    if category:
+        query["category"] = category
+    if tag:
+        query["dietary_tags"] = tag
     pipeline = [
         {
             "$geoNear": {
                 "near": {"type": "Point", "coordinates": [lon, lat]},
                 "distanceField": "distance",
                 "spherical": True,
-                "query": {"category": category} if category else {},
+                "query": query,
             }
         },
     ]
@@ -202,10 +238,15 @@ def build_geo_pipeline(
 
 
 async def find_nearest(
-    category: str | None, lat: float, lon: float, limit: int = 3, offset: int = 0
+    category: str | None,
+    lat: float,
+    lon: float,
+    limit: int = 3,
+    offset: int = 0,
+    tag: str | None = None,
 ) -> list[PlaceResult]:
     places = get_places_collection()
-    pipeline = build_geo_pipeline(category, lat, lon, limit, offset)
+    pipeline = build_geo_pipeline(category, lat, lon, limit, offset, tag)
     return [PlaceResult(**doc) async for doc in places.aggregate(pipeline)]
 
 

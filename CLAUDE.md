@@ -242,6 +242,45 @@ See `README.md` for setup/run instructions and the full directory structure.
   UI: "coffee" -> "what else do you have" (served 3 different, previously
   unseen coffee spots) -> "actually, pizza" (correctly switched category
   rather than continuing coffee pagination).
+- Kosher/dietary tags and filtering - tags are free-form hashtags typed
+  into a pin's My Maps description (e.g. "#kosher #vegan"), the same field
+  that already holds Instagram links - a deliberate choice (offered as a
+  question, not assumed) over dedicating new My Maps layers to it, since
+  layers are already spent on categories (~10-layer cap) and a place often
+  needs more than one tag at once. `backend/parser.py` extracts them
+  (`_TAG_RE`, lowercased/deduped, same file as the existing Instagram-link
+  regex); `Place.dietary_tags: list[str]` is the new model field;
+  `scripts/sync_places.py` refreshes it on every sync (unlike
+  `instagram_url`, which intentionally never overwrites on update to
+  preserve a manually-backfilled value - dietary tags have no such
+  backfill path, so always-refresh is correct here, not a copy-paste of
+  that behavior). `db.get_dietary_tags()` mirrors `get_categories()`
+  (same caching, and `distinct()` on an array field auto-flattens to
+  unique scalar values with no special handling needed) so the LLM always
+  sees the real, current set of tags rather than a hardcoded one.
+  `services/llm.py`'s tool schema gained `matched_dietary_tag`, extracted
+  as its own dimension alongside category (e.g. "vegan burger" ->
+  category=burger, tag=vegan; "anything kosher" -> any_category=true,
+  tag=kosher) and reuses the exact same deterministic is_followup override
+  already built for category (an explicit tag differing from the previous
+  one always overrides a followup, for the identical reason). Filtering
+  itself is a one-line Mongo addition (`{"dietary_tags": tag}` matches an
+  array field against a scalar automatically) threaded through
+  `find_nearest`/`build_geo_pipeline`, `/api/more-places`, and the
+  conversational-refinement previous-context plumbing so "Show more" and
+  "something else" both keep respecting an active tag filter instead of
+  silently dropping it. Reply text and the "no matches"/"no more matches"
+  messages all gained tag-aware variants (e.g. "Here are the closest vegan
+  coffee spots:") so the constraint is never silently ignored in the
+  bot's own words either. Place cards show each result's tags as chips
+  next to the category chip. Verified live end-to-end against the real DB
+  and LLM: temporarily tagged a real place (Jera) as vegan, confirmed
+  "vegan coffee" correctly filtered to just that one place with the right
+  reply text and tag chip, confirmed a plain "coffee" query was unaffected
+  (still returned all coffee spots), confirmed a followup after
+  exhausting the one vegan result replied "That's all the vegan coffee
+  spots I have saved for now." rather than silently dropping the tag -
+  then reverted the temporary tag.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
@@ -258,8 +297,7 @@ See `README.md` for setup/run instructions and the full directory structure.
 8. ~~Light usage stats~~ - done, see above.
 9. ~~Conversational refinement / short-lived session memory~~ - done, see
    above.
-10. Kosher/dietary tags and filtering (locally relevant for Tel Aviv) -
-    needs a data-model change (tag places) plus LLM/query changes.
+10. ~~Kosher/dietary tags and filtering~~ - done, see above.
 11. Shorten/change the Azure URL (custom domain, or rename the App
     Service) - lowest urgency, purely cosmetic, and needs a decision
     (buy a domain vs. just live with a renamed App Service) before it's

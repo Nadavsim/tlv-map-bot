@@ -14,6 +14,7 @@ export interface ChatRequest {
   // means the previous turn was "any category" (surprise me), not "no
   // previous turn at all".
   previous_category: string | null
+  previous_dietary_tag: string | null
   previous_offset: number
   has_previous_context: boolean
 }
@@ -24,6 +25,7 @@ export interface Place {
   distance: string
   eta: string | null
   instagram_url: string | null
+  dietary_tags: string[]
   maps_url: string
 }
 
@@ -31,11 +33,13 @@ export interface ChatResponse {
   reply: string
   places: Place[]
   category: string | null
+  dietary_tag: string | null
   offset: number
 }
 
 export interface MorePlacesRequest {
   category: string | null
+  tag: string | null
   lat: number
   lon: number
   mode: TransportMode

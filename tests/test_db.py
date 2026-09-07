@@ -11,8 +11,10 @@ from backend.models import PlaceResult
 @pytest.fixture(autouse=True)
 def reset_categories_cache():
     db.invalidate_categories_cache()
+    db.invalidate_dietary_tags_cache()
     yield
     db.invalidate_categories_cache()
+    db.invalidate_dietary_tags_cache()
 
 
 @pytest.mark.asyncio
@@ -76,6 +78,21 @@ def test_geo_pipeline_skips_past_already_shown_results_for_show_more():
 def test_geo_pipeline_is_spherical():
     pipeline = build_geo_pipeline("coffee", lat=32.08, lon=34.78, limit=3)
     assert pipeline[0]["$geoNear"]["spherical"] is True
+
+
+def test_geo_pipeline_filters_by_dietary_tag():
+    pipeline = build_geo_pipeline("coffee", lat=32.08, lon=34.78, limit=3, tag="vegan")
+    assert pipeline[0]["$geoNear"]["query"] == {"category": "coffee", "dietary_tags": "vegan"}
+
+
+def test_geo_pipeline_filters_by_dietary_tag_with_any_category():
+    pipeline = build_geo_pipeline(None, lat=32.08, lon=34.78, limit=3, tag="kosher")
+    assert pipeline[0]["$geoNear"]["query"] == {"dietary_tags": "kosher"}
+
+
+def test_geo_pipeline_has_no_tag_filter_when_tag_is_none():
+    pipeline = build_geo_pipeline("coffee", lat=32.08, lon=34.78, limit=3)
+    assert "dietary_tags" not in pipeline[0]["$geoNear"]["query"]
 
 
 def test_proximity_pipeline_uses_geojson_lon_lat_order():
@@ -143,6 +160,33 @@ async def test_invalidate_categories_cache_forces_refetch(monkeypatch):
     await db.get_categories()
     db.invalidate_categories_cache()
     await db.get_categories()
+
+    assert fake_collection.distinct.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_get_dietary_tags_caches_between_calls(monkeypatch):
+    fake_collection = MagicMock()
+    fake_collection.distinct = AsyncMock(return_value=["vegan", "kosher"])
+    monkeypatch.setattr(db, "get_places_collection", lambda: fake_collection)
+
+    first = await db.get_dietary_tags()
+    second = await db.get_dietary_tags()
+
+    assert first == ["kosher", "vegan"]
+    assert second == ["kosher", "vegan"]
+    fake_collection.distinct.assert_awaited_once_with("dietary_tags")
+
+
+@pytest.mark.asyncio
+async def test_invalidate_dietary_tags_cache_forces_refetch(monkeypatch):
+    fake_collection = MagicMock()
+    fake_collection.distinct = AsyncMock(return_value=["vegan"])
+    monkeypatch.setattr(db, "get_places_collection", lambda: fake_collection)
+
+    await db.get_dietary_tags()
+    db.invalidate_dietary_tags_cache()
+    await db.get_dietary_tags()
 
     assert fake_collection.distinct.await_count == 2
 

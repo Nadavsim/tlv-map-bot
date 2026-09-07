@@ -138,10 +138,12 @@ export default function App() {
   // derived from in-memory entries (not persisted) - a page reload starts
   // a fresh conversation, which is exactly the "short-lived" scope this
   // was meant to have.
-  function getPreviousContext(): { category: string | null; offset: number } | null {
+  function getPreviousContext(): { category: string | null; dietaryTag: string | null; offset: number } | null {
     for (let i = entries.length - 1; i >= 0; i--) {
       const entry = entries[i]
-      if (entry.kind === 'places') return { category: entry.category, offset: entry.offset }
+      if (entry.kind === 'places') {
+        return { category: entry.category, dietaryTag: entry.dietaryTag, offset: entry.offset }
+      }
     }
     return null
   }
@@ -167,6 +169,7 @@ export default function App() {
         mode,
         lang,
         previous_category: previous?.category ?? null,
+        previous_dietary_tag: previous?.dietaryTag ?? null,
         previous_offset: previous?.offset ?? 0,
         has_previous_context: previous !== null,
       })
@@ -178,6 +181,7 @@ export default function App() {
             kind: 'places',
             places: data.places,
             category: data.category,
+            dietaryTag: data.dietary_tag,
             offset: data.offset,
             hasMore: data.places.length >= PAGE_SIZE,
           })
@@ -201,6 +205,7 @@ export default function App() {
     try {
       const data = await postMorePlaces({
         category: entry.category,
+        tag: entry.dietaryTag,
         lat: userLocation.lat,
         lon: userLocation.lon,
         mode,

@@ -7,12 +7,21 @@ import xml.etree.ElementTree as ET
 _NS = {"kml": "http://www.opengis.net/kml/2.2"}
 _INSTAGRAM_RE = re.compile(r"https?://(?:www\.)?instagram\.com/\S+", re.IGNORECASE)
 
+# Dietary/other tags are hashtags typed into the same pin description field
+# (e.g. "#kosher #vegan") - deliberately free-form (whatever hashtag is
+# typed becomes a real, queryable tag) rather than a fixed/validated set,
+# mirroring how categories are just whatever a My Maps layer is named
+# rather than a hardcoded list. Doesn't compete with the ~10-layer cap
+# already spent on categories, since no new layers are needed.
+_TAG_RE = re.compile(r"#(\w+)", re.UNICODE)
+
 
 def parse_kml_text(kml_text: str) -> list[dict]:
     """Parse KML text (My Maps export) into a list of place dicts.
 
-    Each dict has: name, category, latitude, longitude, instagram_url (may be None).
-    'category' comes from the enclosing Folder name (My Maps layers).
+    Each dict has: name, category, latitude, longitude, instagram_url (may
+    be None), dietary_tags (list[str], may be empty). 'category' comes from
+    the enclosing Folder name (My Maps layers).
     """
     root = ET.fromstring(kml_text)
     places_data = []
@@ -48,11 +57,13 @@ def parse_kml_text(kml_text: str) -> list[dict]:
             latitude = float(coords[1])
 
             instagram_url = None
+            dietary_tags: list[str] = []
             desc_node = placemark.find("kml:description", _NS)
             if desc_node is not None and desc_node.text:
                 match = _INSTAGRAM_RE.search(desc_node.text)
                 if match:
                     instagram_url = match.group(0)
+                dietary_tags = sorted({tag.lower() for tag in _TAG_RE.findall(desc_node.text)})
 
             places_data.append(
                 {
@@ -61,6 +72,7 @@ def parse_kml_text(kml_text: str) -> list[dict]:
                     "latitude": latitude,
                     "longitude": longitude,
                     "instagram_url": instagram_url,
+                    "dietary_tags": dietary_tags,
                 }
             )
 
