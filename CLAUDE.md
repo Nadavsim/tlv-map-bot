@@ -206,6 +206,42 @@ See `README.md` for setup/run instructions and the full directory structure.
     but now an explicit choice always wins over it in both directions
     (`theme.css`'s `:root:not([data-theme='light'])` under the dark media
     query, plus an unconditional `:root[data-theme='dark']` block).
+- Conversational refinement / short-lived session memory - a follow-up like
+  "something else", "another one", or "what else do you have" now continues
+  the previous request instead of being treated as its own independent
+  query. Deliberately NOT a server-side session: the frontend
+  (`App.tsx`'s `getPreviousContext`) just looks at the most recent
+  `places`-kind entry already in the chat log for its category and how many
+  results have been shown, and sends that along on the next `/api/chat`
+  call (`previous_category`, `previous_offset`, `has_previous_context`) -
+  gone on reload, exactly the "short-lived" scope this was meant to have,
+  with zero new storage/infra.
+  `services/llm.py`'s tool schema gained an `is_followup` field, and the
+  system prompt tells Claude what the previous turn's category was so it
+  can judge whether this message is a refinement of that vs. a distinct
+  new craving. When it's a refinement, `backend/app.py`'s `/api/chat`
+  reuses the *same pagination mechanism built for "Show more"* - it just
+  fetches the next page for the previous category starting at
+  `previous_offset`, rather than resetting to the top 3 - so "something
+  else" naturally surfaces places the user hasn't already seen. A new
+  `no_more_matches` reply covers the case where that pagination is
+  exhausted. The chat response now always includes an `offset` field
+  (previously only `/api/more-places` needed one) so the frontend can pass
+  the right number forward on the *next* turn too.
+  One real bug caught and fixed via live testing against the real LLM (not
+  just mocks): Claude doesn't reliably self-correct `is_followup` to false
+  when it also extracts an explicit new category - "actually, pizza" right
+  after a "coffee" context came back as `is_followup: true` *and*
+  `matched_category: "pizza"` simultaneously, which would have silently
+  kept serving coffee. Fixed with a deterministic override in
+  `parse_food_request`: since `matched_category` only ever comes from the
+  known category list (never freeform), a non-null category that differs
+  from `previous_category` is treated as decisive proof of a new request,
+  regardless of what `is_followup` says - prompt wording alone wasn't
+  trustworthy enough on its own. Verified live end-to-end through the real
+  UI: "coffee" -> "what else do you have" (served 3 different, previously
+  unseen coffee spots) -> "actually, pizza" (correctly switched category
+  rather than continuing coffee pagination).
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
@@ -220,10 +256,8 @@ See `README.md` for setup/run instructions and the full directory structure.
 6. ~~"Show more" pagination beyond the top 3 results~~ - done, see above.
 7. ~~PWA support~~ - done, see above.
 8. ~~Light usage stats~~ - done, see above.
-9. Conversational refinement / short-lived session memory (so "something
-   cheaper" or "further is fine" can build on the last answer instead of
-   every message being stateless) - meaningfully bigger than anything
-   above it (new state, prompt changes).
+9. ~~Conversational refinement / short-lived session memory~~ - done, see
+   above.
 10. Kosher/dietary tags and filtering (locally relevant for Tel Aviv) -
     needs a data-model change (tag places) plus LLM/query changes.
 11. Shorten/change the Azure URL (custom domain, or rename the App

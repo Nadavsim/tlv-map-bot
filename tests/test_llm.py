@@ -28,7 +28,12 @@ async def test_returns_matched_category(monkeypatch):
 
     result = await llm.parse_food_request("I want a flat white", ["coffee", "burger"])
 
-    assert result == {"category": "coffee", "clarifying_question": None, "any_category": False}
+    assert result == {
+        "category": "coffee",
+        "clarifying_question": None,
+        "any_category": False,
+        "is_followup": False,
+    }
 
 
 @pytest.mark.asyncio
@@ -64,7 +69,12 @@ async def test_any_category_true_ignores_matched_category(monkeypatch):
 
     result = await llm.parse_food_request("surprise me", ["coffee", "burger"])
 
-    assert result == {"category": None, "clarifying_question": None, "any_category": True}
+    assert result == {
+        "category": None,
+        "clarifying_question": None,
+        "any_category": True,
+        "is_followup": False,
+    }
 
 
 @pytest.mark.asyncio
@@ -116,6 +126,113 @@ async def test_degrades_gracefully_on_api_error_with_hebrew_fallback(monkeypatch
     result = await llm.parse_food_request("burger", ["coffee", "burger"], language="he")
 
     assert result["clarifying_question"] == llm._FALLBACK_QUESTIONS["he"]
+
+
+@pytest.mark.asyncio
+async def test_mentions_previous_category_in_system_prompt_when_context_given(monkeypatch):
+    fake_client = make_fake_client(
+        {"any_category": False, "matched_category": "coffee", "is_followup": True, "clarifying_question": ""}
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    await llm.parse_food_request(
+        "something else",
+        ["coffee", "burger"],
+        previous_category="coffee",
+        has_previous_context=True,
+    )
+
+    _, kwargs = fake_client.messages.create.call_args
+    assert "coffee" in kwargs["system"]
+    assert "is_followup" in kwargs["system"]
+
+
+@pytest.mark.asyncio
+async def test_is_followup_true_passes_through_when_context_was_given(monkeypatch):
+    fake_client = make_fake_client(
+        {"any_category": False, "matched_category": "coffee", "is_followup": True, "clarifying_question": ""}
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request(
+        "something else", ["coffee", "burger"], previous_category="coffee", has_previous_context=True
+    )
+
+    assert result["is_followup"] is True
+
+
+@pytest.mark.asyncio
+async def test_is_followup_forced_false_when_no_previous_context_was_given(monkeypatch):
+    # Defense in depth: even if the model somehow returns is_followup=true
+    # without being given any previous-turn context, there's nothing to
+    # follow up on, so the result must not claim otherwise.
+    fake_client = make_fake_client(
+        {"any_category": False, "matched_category": "coffee", "is_followup": True, "clarifying_question": ""}
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request("something else", ["coffee", "burger"], has_previous_context=False)
+
+    assert result["is_followup"] is False
+
+
+@pytest.mark.asyncio
+async def test_is_followup_forced_false_when_model_names_a_different_category(monkeypatch):
+    # Regression guard: the model doesn't always self-correct is_followup
+    # when it extracts an explicit new category after a previous one (seen
+    # live with "actually, pizza" after a "coffee" context) - matched_category
+    # only ever comes from the known list, so a differing one is treated as
+    # decisive regardless of what is_followup says.
+    fake_client = make_fake_client(
+        {"any_category": False, "matched_category": "pizza", "is_followup": True, "clarifying_question": ""}
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request(
+        "actually, pizza",
+        ["coffee", "pizza"],
+        previous_category="coffee",
+        has_previous_context=True,
+    )
+
+    assert result == {
+        "category": "pizza",
+        "clarifying_question": None,
+        "any_category": False,
+        "is_followup": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_is_followup_stays_true_when_model_repeats_the_same_previous_category(monkeypatch):
+    # A model that (redundantly but harmlessly) echoes the same category
+    # back on a genuine followup shouldn't get overridden.
+    fake_client = make_fake_client(
+        {"any_category": False, "matched_category": "coffee", "is_followup": True, "clarifying_question": ""}
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request(
+        "something else",
+        ["coffee", "pizza"],
+        previous_category="coffee",
+        has_previous_context=True,
+    )
+
+    assert result["is_followup"] is True
+
+
+@pytest.mark.asyncio
+async def test_no_previous_category_mention_in_system_prompt_without_context(monkeypatch):
+    fake_client = make_fake_client(
+        {"any_category": False, "matched_category": "burger", "is_followup": False, "clarifying_question": ""}
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    await llm.parse_food_request("burger", ["coffee", "burger"])
+
+    _, kwargs = fake_client.messages.create.call_args
+    assert "previous request" not in kwargs["system"]
 
 
 @pytest.mark.asyncio

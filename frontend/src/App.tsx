@@ -124,6 +124,20 @@ export default function App() {
     ])
   }
 
+  // The most recent places result in the conversation, if any - lets a
+  // follow-up like "something else" continue that search (same category,
+  // next page) without the user having to restate it. Deliberately just
+  // derived from in-memory entries (not persisted) - a page reload starts
+  // a fresh conversation, which is exactly the "short-lived" scope this
+  // was meant to have.
+  function getPreviousContext(): { category: string | null; offset: number } | null {
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const entry = entries[i]
+      if (entry.kind === 'places') return { category: entry.category, offset: entry.offset }
+    }
+    return null
+  }
+
   async function handleSend(message: string) {
     if (!userLocation) return
 
@@ -137,7 +151,17 @@ export default function App() {
     setIsWaitingForReply(true)
 
     try {
-      const data = await postChat({ message, lat: userLocation.lat, lon: userLocation.lon, mode, lang })
+      const previous = getPreviousContext()
+      const data = await postChat({
+        message,
+        lat: userLocation.lat,
+        lon: userLocation.lon,
+        mode,
+        lang,
+        previous_category: previous?.category ?? null,
+        previous_offset: previous?.offset ?? 0,
+        has_previous_context: previous !== null,
+      })
       setEntries((prev) => {
         const next: ChatEntry[] = [...prev, { id: makeEntryId(), kind: 'bot-text', text: data.reply }]
         if (data.places.length) {
@@ -146,7 +170,7 @@ export default function App() {
             kind: 'places',
             places: data.places,
             category: data.category,
-            offset: data.places.length,
+            offset: data.offset,
             hasMore: data.places.length >= PAGE_SIZE,
           })
         }

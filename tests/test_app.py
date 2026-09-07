@@ -121,7 +121,9 @@ def test_chat_endpoint_replies_in_hebrew_when_lang_is_he(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["reply"] == app_module.REPLIES["he"]["matched"].format(category="coffee")
-    parse_mock.assert_awaited_once_with("קפה", ["coffee"], "he")
+    parse_mock.assert_awaited_once_with(
+        "קפה", ["coffee"], "he", previous_category=None, has_previous_context=False
+    )
 
 
 def test_chat_endpoint_handles_empty_database_in_hebrew(monkeypatch):
@@ -340,3 +342,161 @@ def test_more_places_endpoint_returns_empty_list_when_no_more_matches(monkeypatc
 
     assert resp.status_code == 200
     assert resp.json() == {"places": []}
+
+
+def test_chat_endpoint_treats_a_followup_as_continuing_the_previous_category(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
+    monkeypatch.setattr(
+        llm,
+        "parse_food_request",
+        AsyncMock(
+            return_value={
+                "category": "burger",  # what this turn's text alone would match - should be ignored
+                "clarifying_question": None,
+                "any_category": False,
+                "is_followup": True,
+            }
+        ),
+    )
+    find_nearest_mock = AsyncMock(return_value=[SAMPLE_PLACE])
+    monkeypatch.setattr(db, "find_nearest", find_nearest_mock)
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300]))
+    record_stat_mock = AsyncMock()
+    monkeypatch.setattr(db, "record_category_request", record_stat_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/chat",
+            json={
+                "message": "something else",
+                "lat": 32.08,
+                "lon": 34.78,
+                "previous_category": "coffee",
+                "previous_offset": 3,
+                "has_previous_context": True,
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["category"] == "coffee"
+    assert "coffee" in body["reply"]
+    assert body["offset"] == 4
+    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3, offset=3)
+    record_stat_mock.assert_awaited_once_with("coffee")
+
+
+def test_chat_endpoint_followup_continues_any_category_when_previous_was_surprise_me(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
+    monkeypatch.setattr(
+        llm,
+        "parse_food_request",
+        AsyncMock(
+            return_value={"category": None, "clarifying_question": None, "any_category": False, "is_followup": True}
+        ),
+    )
+    find_nearest_mock = AsyncMock(return_value=[SAMPLE_PLACE])
+    monkeypatch.setattr(db, "find_nearest", find_nearest_mock)
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300]))
+    record_stat_mock = AsyncMock()
+    monkeypatch.setattr(db, "record_category_request", record_stat_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/chat",
+            json={
+                "message": "another one",
+                "lat": 32.08,
+                "lon": 34.78,
+                "previous_category": None,
+                "previous_offset": 3,
+                "has_previous_context": True,
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["category"] is None
+    assert "Surprise" in body["reply"]
+    find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3, offset=3)
+    record_stat_mock.assert_awaited_once_with(db.ANY_CATEGORY_KEY)
+
+
+def test_chat_endpoint_followup_replies_gracefully_when_pagination_exhausted(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
+    monkeypatch.setattr(
+        llm,
+        "parse_food_request",
+        AsyncMock(
+            return_value={"category": "coffee", "clarifying_question": None, "any_category": False, "is_followup": True}
+        ),
+    )
+    monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[]))
+    monkeypatch.setattr(db, "record_category_request", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/chat",
+            json={
+                "message": "something else",
+                "lat": 32.08,
+                "lon": 34.78,
+                "previous_category": "coffee",
+                "previous_offset": 9,
+                "has_previous_context": True,
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["reply"] == app_module.REPLIES["en"]["no_more_matches"].format(label="coffee")
+    assert body["places"] == []
+
+
+def test_chat_endpoint_ignores_followup_flag_when_no_previous_context_given(monkeypatch):
+    # Guards against relying on the LLM alone: even if it somehow returns
+    # is_followup=true, there's no previous_category to fall back to when
+    # has_previous_context is false, so this must run the normal fresh flow.
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
+    monkeypatch.setattr(
+        llm,
+        "parse_food_request",
+        AsyncMock(
+            return_value={"category": "coffee", "clarifying_question": None, "any_category": False, "is_followup": True}
+        ),
+    )
+    find_nearest_mock = AsyncMock(return_value=[SAMPLE_PLACE])
+    monkeypatch.setattr(db, "find_nearest", find_nearest_mock)
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300]))
+    monkeypatch.setattr(db, "record_category_request", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/chat", json={"message": "coffee", "lat": 32.08, "lon": 34.78})
+
+    assert resp.status_code == 200
+    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3)
+
+
+def test_chat_endpoint_fresh_match_includes_offset_for_future_followups(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
+    monkeypatch.setattr(
+        llm,
+        "parse_food_request",
+        AsyncMock(
+            return_value={"category": "coffee", "clarifying_question": None, "any_category": False, "is_followup": False}
+        ),
+    )
+    place_2 = SAMPLE_PLACE.model_copy(update={"name": "Other Cafe", "distance": 900})
+    monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE, place_2]))
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300, 400]))
+    monkeypatch.setattr(db, "record_category_request", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/chat", json={"message": "coffee", "lat": 32.08, "lon": 34.78})
+
+    assert resp.json()["offset"] == 2

@@ -63,6 +63,16 @@ class ChatRequest(BaseModel):
     lon: float
     mode: Literal["walking", "driving"] = "walking"
     lang: Literal["en", "he"] = "en"
+    # Just enough of the previous turn for the LLM to recognize a refinement
+    # ("something else", "another one") without real conversation history -
+    # held entirely on the frontend (derived from the last places result),
+    # not a server-side session, so it's naturally short-lived (gone on
+    # reload). previous_category=None with has_previous_context=True means
+    # the previous turn was "any category" (surprise me), not "no previous
+    # turn at all" - that distinction is what has_previous_context is for.
+    previous_category: str | None = None
+    previous_offset: int = 0
+    has_previous_context: bool = False
 
 
 class LocationLinkRequest(BaseModel):
@@ -92,6 +102,7 @@ REPLIES = {
         "empty_db": "The places database is empty. Run `python -m scripts.sync_places` to load places first.",
         "no_category_fallback": "Not sure what you're craving - can you tell me a type of food?",
         "no_matches": "I don't have any {label} spots saved yet.",
+        "no_more_matches": "That's all the {label} spots I have saved for now.",
         "matched": "Here are the closest {category} spots:",
         "surprise": "Surprise! Here are the closest spots overall:",
         "any_label": "any",
@@ -100,6 +111,7 @@ REPLIES = {
         "empty_db": "מסד הנתונים של המקומות ריק. הרץ `python -m scripts.sync_places` כדי לטעון מקומות קודם.",
         "no_category_fallback": "לא ברור לי מה מתחשק לך - תוכל לספר לי איזה סוג אוכל?",
         "no_matches": "עדיין אין לי מקומות מסוג {label} שמורים.",
+        "no_more_matches": "אלה כל המקומות מסוג {label} ששמורים אצלי כרגע.",
         "matched": "הנה המקומות הכי קרובים מסוג {category}:",
         "surprise": "הפתעה! הנה המקומות הכי קרובים בסך הכל:",
         "any_label": "כלשהו",
@@ -109,6 +121,19 @@ REPLIES = {
 
 def replies_for(lang: str) -> dict:
     return REPLIES.get(lang, REPLIES["en"])
+
+
+def _places_reply(category: str | None, any_category: bool, matches: list, etas: list, offset: int, replies: dict) -> dict:
+    reply = replies["surprise"] if any_category else replies["matched"].format(category=category)
+    return {
+        "reply": reply,
+        "places": [format_place(p, eta) for p, eta in zip(matches, etas)],
+        # Echoed back so the frontend can ask for more of the same query
+        # (via /api/more-places, or a natural-language follow-up like
+        # "something else") without re-running the LLM categorization.
+        "category": category,
+        "offset": offset,
+    }
 
 
 def format_place(place: PlaceResult, eta_seconds: float | None) -> dict:
@@ -170,7 +195,36 @@ async def chat(request: Request, req: ChatRequest):
     if not known_categories:
         return {"reply": replies["empty_db"], "places": []}
 
-    extraction = await llm.parse_food_request(req.message, known_categories, req.lang)
+    extraction = await llm.parse_food_request(
+        req.message,
+        known_categories,
+        req.lang,
+        previous_category=req.previous_category,
+        has_previous_context=req.has_previous_context,
+    )
+
+    # A refinement of the previous turn ("something else", "another one") -
+    # keep the same category (or "any", if that's what the previous turn
+    # was) and continue past what was already shown, rather than treating
+    # this message as its own fresh, independent request.
+    if req.has_previous_context and extraction["is_followup"]:
+        category = req.previous_category
+        await db.record_category_request(category or db.ANY_CATEGORY_KEY)
+        matches = await db.find_nearest(category, req.lat, req.lon, limit=PAGE_SIZE, offset=req.previous_offset)
+        if not matches:
+            label = category or replies["any_label"]
+            return {
+                "reply": replies["no_more_matches"].format(label=label),
+                "places": [],
+                "category": category,
+                "offset": req.previous_offset,
+            }
+        etas = await routing.get_eta_seconds_batch(
+            req.mode,
+            (req.lat, req.lon),
+            [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
+        )
+        return _places_reply(category, category is None, matches, etas, req.previous_offset + len(matches), replies)
 
     if not extraction["any_category"] and not extraction["category"]:
         await db.log_unmatched_query(req.message)
@@ -196,15 +250,7 @@ async def chat(request: Request, req: ChatRequest):
         (req.lat, req.lon),
         [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
     )
-
-    reply = replies["surprise"] if extraction["any_category"] else replies["matched"].format(category=category)
-    return {
-        "reply": reply,
-        "places": [format_place(p, eta) for p, eta in zip(matches, etas)],
-        # Echoed back so the frontend can ask for more of the same query
-        # (via /api/more-places) without re-running the LLM categorization.
-        "category": category,
-    }
+    return _places_reply(category, extraction["any_category"], matches, etas, len(matches), replies)
 
 
 @app.post("/api/more-places")

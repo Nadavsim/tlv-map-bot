@@ -8,6 +8,14 @@ export interface ChatRequest {
   lon: number
   mode: TransportMode
   lang: Lang
+  // Just enough of the previous turn for the backend/LLM to recognize a
+  // refinement ("something else", "another one") - see App.tsx's
+  // getPreviousContext. previousCategory=null with hasPreviousContext=true
+  // means the previous turn was "any category" (surprise me), not "no
+  // previous turn at all".
+  previous_category: string | null
+  previous_offset: number
+  has_previous_context: boolean
 }
 
 export interface Place {
@@ -23,6 +31,7 @@ export interface ChatResponse {
   reply: string
   places: Place[]
   category: string | null
+  offset: number
 }
 
 export interface MorePlacesRequest {

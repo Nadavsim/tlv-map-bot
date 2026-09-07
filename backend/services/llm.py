@@ -29,6 +29,20 @@ _TOOLS = [
                         "or if nothing matches well."
                     ),
                 },
+                "is_followup": {
+                    "type": "boolean",
+                    "description": (
+                        "True ONLY if the message does not name any specific category "
+                        "on its own and is clearly building on the previous request "
+                        "mentioned below - e.g. 'something else', 'another one', 'what "
+                        "else do you have', 'closer', 'cheaper' (even if a quality like "
+                        "price can't actually be filtered on). False if there's no "
+                        "previous request, or if the message names or clearly implies "
+                        "any category from the list - even a brief one like 'pizza' or "
+                        "'actually sushi' - since that's a new, distinct request, not a "
+                        "continuation, regardless of how it's phrased."
+                    ),
+                },
                 "clarifying_question": {
                     "type": "string",
                     "description": (
@@ -38,7 +52,7 @@ _TOOLS = [
                     ),
                 },
             },
-            "required": ["any_category", "matched_category", "clarifying_question"],
+            "required": ["any_category", "matched_category", "is_followup", "clarifying_question"],
         },
     }
 ]
@@ -60,19 +74,41 @@ def _get_client() -> anthropic.AsyncAnthropic:
     return _client
 
 
-async def parse_food_request(message: str, categories: list[str], language: str = "en") -> dict:
+async def parse_food_request(
+    message: str,
+    categories: list[str],
+    language: str = "en",
+    previous_category: str | None = None,
+    has_previous_context: bool = False,
+) -> dict:
     """Ask Claude to match free text against the known categories.
 
-    Returns {"category": str|None, "clarifying_question": str|None, "any_category": bool}.
-    "any_category" True means "surprise me" - ignore "category" and search all places.
-    On any API failure, degrades to a clarifying-question response instead of raising -
+    Returns {"category": str|None, "clarifying_question": str|None,
+    "any_category": bool, "is_followup": bool}. "any_category" True means
+    "surprise me" - ignore "category" and search all places. On any API
+    failure, degrades to a clarifying-question response instead of raising -
     a chat turn failing outright is worse than asking the user to retry.
 
     `language` only affects the free-text clarifying_question Claude writes -
     matched_category is always copied verbatim from the given category list
     (which stays in its original, e.g. English, form regardless of language).
+
+    `has_previous_context`/`previous_category` carry just enough of the prior
+    turn for Claude to recognize a refinement ("something else", "another
+    one") without needing real conversation history - previous_category=None
+    with has_previous_context=True means the previous turn was "any category"
+    (surprise me), not "no previous turn at all".
     """
     language_name = _LANGUAGE_NAMES.get(language, _LANGUAGE_NAMES["en"])
+    context_sentence = ""
+    if has_previous_context:
+        context_sentence = (
+            " The user's previous request in this conversation was categorized as "
+            f"{previous_category or 'any category (surprise me)'}. Set is_followup to true only "
+            "when the message doesn't name a category itself and is just building on that "
+            "previous request. The moment the message names a different category, even briefly, "
+            "that overrides any previous request - it is not a followup."
+        )
     try:
         response = await _get_client().messages.create(
             model=MODEL,
@@ -80,7 +116,8 @@ async def parse_food_request(message: str, categories: list[str], language: str 
             system=(
                 "You help match a user's food craving to one category from this "
                 f"list of known categories: {', '.join(categories)}. "
-                f"Write any clarifying_question in {language_name}. "
+                f"Write any clarifying_question in {language_name}."
+                f"{context_sentence} "
                 "Always call the extract_food_request tool."
             ),
             tools=_TOOLS,
@@ -91,9 +128,23 @@ async def parse_food_request(message: str, categories: list[str], language: str 
         result = tool_use.input
     except (anthropic.APIError, StopIteration):
         fallback = _FALLBACK_QUESTIONS.get(language, _FALLBACK_QUESTIONS["en"])
-        return {"category": None, "clarifying_question": fallback, "any_category": False}
+        return {"category": None, "clarifying_question": fallback, "any_category": False, "is_followup": False}
 
     any_category = bool(result.get("any_category"))
     category = None if any_category else (result.get("matched_category") or None)
     question = result.get("clarifying_question") or None
-    return {"category": category, "clarifying_question": question, "any_category": any_category}
+    is_followup = bool(result.get("is_followup")) and has_previous_context
+    # Deterministic safety net: matched_category only ever comes from the
+    # known category list (never freeform), so if the model both extracted
+    # an explicit category AND that category differs from the one being
+    # followed up on, that's unambiguous evidence of a genuinely new
+    # request - don't rely on the model to have self-corrected is_followup
+    # to match (it doesn't always, e.g. "actually, pizza" after "coffee").
+    if category is not None and category != previous_category:
+        is_followup = False
+    return {
+        "category": category,
+        "clarifying_question": question,
+        "any_category": any_category,
+        "is_followup": is_followup,
+    }
