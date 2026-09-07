@@ -134,9 +134,22 @@ def test_resolve_location_endpoint_returns_coords_for_maps_link(monkeypatch):
     assert resp.json() == {"lat": 32.0653, "lon": 34.7739}
 
 
+def test_resolve_location_endpoint_falls_back_to_geocoding_a_plain_address(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(location, "resolve_maps_link", lambda text: None)
+    monkeypatch.setattr(location, "geocode_address", lambda text: (32.0627450, 34.7704470))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/resolve-location", json={"text": "Rothschild 12"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"lat": 32.0627450, "lon": 34.7704470}
+
+
 def test_resolve_location_endpoint_returns_nulls_when_unresolved(monkeypatch):
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
     monkeypatch.setattr(location, "resolve_maps_link", lambda text: None)
+    monkeypatch.setattr(location, "geocode_address", lambda text: None)
 
     with TestClient(app_module.app) as client:
         resp = client.post("/api/resolve-location", json={"text": "not a link"})

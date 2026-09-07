@@ -31,7 +31,7 @@ export default function App() {
       {
         id: makeEntryId(),
         kind: 'bot-text',
-        text: "No worries - please enable location access, or paste a Google Maps link or your coordinates below and I'll use that instead.",
+        text: "No worries - please enable location access, or enter an address, a Google Maps link, or your coordinates below and I'll use that instead.",
       },
     ])
   }

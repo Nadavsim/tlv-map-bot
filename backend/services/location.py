@@ -40,3 +40,40 @@ def resolve_maps_link(text: str) -> tuple[float, float] | None:
         return extract_coords_from_url(resp.url)
     except requests.RequestException:
         return None
+
+
+# Nominatim's usage policy requires a real identifying User-Agent (not the
+# default requests one) and caps usage at ~1 req/sec - not a concern at this
+# app's personal-project volume, so no explicit throttling needed here.
+_NOMINATIM_HEADERS = {"User-Agent": "tlv-bot (personal project - github.com/Nadavsim/tlv-whatsapp-map-bot)"}
+
+
+def geocode_address(text: str) -> tuple[float, float] | None:
+    """Free-text address/landmark -> (lat, lon) via Nominatim (OpenStreetMap's
+    free geocoder, no API key/billing). "Tel Aviv-Yafo" (the official
+    municipality name) is appended to the query - plain "Tel Aviv" or no
+    city at all is genuinely ambiguous in Israel (e.g. "Rothschild" is also
+    a street name in Holon and Bat Yam), and this app's entire domain is
+    Tel Aviv anyway, so it's a safe, deliberate bias rather than a
+    restriction - the full text is still sent, so an address that already
+    names a different city still resolves there."""
+    params = {
+        "q": f"{text.strip()}, Tel Aviv-Yafo",
+        "format": "json",
+        "limit": 1,
+        "countrycodes": "il",
+    }
+    try:
+        resp = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params=params,
+            headers=_NOMINATIM_HEADERS,
+            timeout=5,
+        )
+        resp.raise_for_status()
+        results = resp.json()
+        if not results:
+            return None
+        return float(results[0]["lat"]), float(results[0]["lon"])
+    except (requests.RequestException, KeyError, IndexError, ValueError):
+        return None

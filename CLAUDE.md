@@ -92,6 +92,15 @@ See `README.md` for setup/run instructions and the full directory structure.
   enabling location again" button that re-attempts geolocation on demand;
   a repeated failure updates the status line rather than spamming another
   chat bubble each time.
+- Plan-ahead / typed-address geocoding (`services/location.geocode_address`,
+  free via Nominatim, no key/billing) - `/api/resolve-location` now tries
+  Maps-link extraction first, then falls back to geocoding the text as a
+  free-form address/landmark. Deliberately appends "Tel Aviv-Yafo" (the
+  official municipality name) to every query: verified live that a bare
+  city-less or "Tel Aviv"-only query is genuinely ambiguous in Israel (e.g.
+  "Rothschild 12" alone resolved to a same-named street in Holon, not the
+  actual Rothschild Blvd) - the full official name disambiguates reliably
+  without restricting results to a hard bounding box.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
@@ -101,9 +110,7 @@ See `README.md` for setup/run instructions and the full directory structure.
 1. ~~Rate limiting on `/api/chat`~~ - done, see above.
 2. ~~Improved icons~~ - done, see above.
 3. ~~WhatsApp export/share button~~ - done, see above.
-4. Plan-ahead / typed-address geocoding (free via Nominatim) as a
-   friendlier alternative to pasting a Maps link or raw coordinates -
-   small addition to the existing `services/location.py`.
+4. ~~Plan-ahead / typed-address geocoding~~ - done, see above.
 5. Scheduled auto-sync (a cron job, e.g. GitHub Actions, running
    `scripts.sync_places` automatically instead of by hand) - no UI needed.
 6. "Show more" pagination beyond the top 3 results - small extension of

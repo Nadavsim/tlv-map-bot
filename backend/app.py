@@ -92,7 +92,12 @@ async def index():
 
 @app.post("/api/resolve-location")
 async def resolve_location(req: LocationLinkRequest):
-    coords = await asyncio.to_thread(location.resolve_maps_link, req.text.strip())
+    text = req.text.strip()
+    coords = await asyncio.to_thread(location.resolve_maps_link, text)
+    if not coords:
+        # Not a coordinate pair or a Maps link (or the link didn't resolve) -
+        # try it as a free-text address/landmark instead.
+        coords = await asyncio.to_thread(location.geocode_address, text)
     if not coords:
         return {"lat": None, "lon": None}
     lat, lon = coords

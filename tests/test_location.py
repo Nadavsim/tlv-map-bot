@@ -81,3 +81,52 @@ def test_resolve_maps_link_returns_none_on_request_failure(monkeypatch):
     monkeypatch.setattr(requests, "get", raise_error)
 
     assert location.resolve_maps_link("https://maps.app.goo.gl/abc123") is None
+
+
+def test_geocode_address_returns_coords_from_first_result(monkeypatch):
+    fake_response = MagicMock()
+    fake_response.json.return_value = [{"lat": "32.0627450", "lon": "34.7704470"}]
+    fake_response.raise_for_status.return_value = None
+    monkeypatch.setattr(requests, "get", lambda url, params, headers, timeout: fake_response)
+
+    result = location.geocode_address("Rothschild 12")
+
+    assert result == (32.0627450, 34.7704470)
+
+
+def test_geocode_address_biases_the_query_toward_tel_aviv(monkeypatch):
+    captured = {}
+
+    def fake_get(url, params, headers, timeout):
+        captured["params"] = params
+        captured["headers"] = headers
+        response = MagicMock()
+        response.json.return_value = [{"lat": "32.0", "lon": "34.7"}]
+        response.raise_for_status.return_value = None
+        return response
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    location.geocode_address("Rothschild 12")
+
+    assert "Tel Aviv-Yafo" in captured["params"]["q"]
+    assert captured["params"]["countrycodes"] == "il"
+    assert "User-Agent" in captured["headers"]
+
+
+def test_geocode_address_returns_none_when_no_results(monkeypatch):
+    fake_response = MagicMock()
+    fake_response.json.return_value = []
+    fake_response.raise_for_status.return_value = None
+    monkeypatch.setattr(requests, "get", lambda url, params, headers, timeout: fake_response)
+
+    assert location.geocode_address("asdkfjaslkdfj nonsense") is None
+
+
+def test_geocode_address_returns_none_on_request_failure(monkeypatch):
+    def raise_error(*args, **kwargs):
+        raise requests.RequestException("boom")
+
+    monkeypatch.setattr(requests, "get", raise_error)
+
+    assert location.geocode_address("Rothschild 12") is None
