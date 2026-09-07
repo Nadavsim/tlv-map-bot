@@ -4,7 +4,7 @@ import { type ChatEntry, makeEntryId } from './chatTypes'
 import { ChatInput } from './components/ChatInput'
 import { ChatLog } from './components/ChatLog'
 import { Header } from './components/Header'
-import { t } from './i18n'
+import { t, type StringKey } from './i18n'
 import { loadLang, loadTheme, saveLang, saveTheme } from './preferences'
 import type { Coordinates, Lang, Theme, TransportMode } from './types'
 import { PAGE_SIZE } from './types'
@@ -16,13 +16,21 @@ import './styles/App.css'
 // bot expects this one command in.
 const HELP_COMMANDS = ['help', 'עזרה']
 
+// The location status line is live UI chrome (like the Walk/Drive labels),
+// not a chat message - it should always reflect the *current* language, not
+// whatever language was active the moment it was last set. Storing the i18n
+// key (not the already-translated text) and translating it at render time
+// is what makes that happen automatically on a language switch.
+type LocationStatusKey = Extract<
+  StringKey,
+  'locationRequesting' | 'locationSet' | 'locationDenied' | 'locationRetryFailed' | 'locationUnsupported'
+>
+
 export default function App() {
   const [lang, setLang] = useState<Lang>(() => loadLang())
   const [theme, setTheme] = useState<Theme>(() => loadTheme())
-  const [entries, setEntries] = useState<ChatEntry[]>(() => [
-    { id: makeEntryId(), kind: 'bot-text', text: t(loadLang(), 'greeting') },
-  ])
-  const [locationStatus, setLocationStatus] = useState(() => t(loadLang(), 'locationRequesting'))
+  const [entries, setEntries] = useState<ChatEntry[]>([])
+  const [locationStatusKey, setLocationStatusKey] = useState<LocationStatusKey>('locationRequesting')
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
   const [showLocationForm, setShowLocationForm] = useState(false)
   const [isRequestingLocation, setIsRequestingLocation] = useState(false)
@@ -41,8 +49,8 @@ export default function App() {
     saveTheme(theme)
   }, [theme])
 
-  function offerManualLocation(statusText: string) {
-    setLocationStatus(statusText)
+  function offerManualLocation(statusKey: LocationStatusKey) {
+    setLocationStatusKey(statusKey)
     setShowLocationForm(true)
     setEntries((prev) => [
       ...prev,
@@ -58,7 +66,7 @@ export default function App() {
   // updates the status line instead of spamming another chat bubble.
   function requestLocation(isRetry: boolean) {
     if (!navigator.geolocation) {
-      if (!isRetry) offerManualLocation(t(lang, 'locationUnsupported'))
+      if (!isRetry) offerManualLocation('locationUnsupported')
       return
     }
 
@@ -66,16 +74,16 @@ export default function App() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
-        setLocationStatus(t(lang, 'locationSet'))
+        setLocationStatusKey('locationSet')
         setShowLocationForm(false)
         setIsRequestingLocation(false)
       },
       () => {
         setIsRequestingLocation(false)
         if (isRetry) {
-          setLocationStatus(t(lang, 'locationRetryFailed'))
+          setLocationStatusKey('locationRetryFailed')
         } else {
-          offerManualLocation(t(lang, 'locationDenied'))
+          offerManualLocation('locationDenied')
         }
       },
       { enableHighAccuracy: true, timeout: 10000 },
@@ -88,7 +96,7 @@ export default function App() {
 
   function handleLocationSet(coords: Coordinates) {
     setUserLocation(coords)
-    setLocationStatus(t(lang, 'locationSet'))
+    setLocationStatusKey('locationSet')
     setShowLocationForm(false)
   }
 
@@ -222,7 +230,7 @@ export default function App() {
   return (
     <div className="app">
       <Header
-        locationStatus={locationStatus}
+        locationStatus={t(lang, locationStatusKey)}
         mode={mode}
         onModeChange={setMode}
         onHelp={() => showHelp(null)}
@@ -232,6 +240,7 @@ export default function App() {
         onThemeChange={setTheme}
       />
       <ChatLog
+        greeting={t(lang, 'greeting')}
         entries={entries}
         isWaitingForReply={isWaitingForReply}
         showLocationForm={showLocationForm}

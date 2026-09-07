@@ -7,6 +7,7 @@ import { LocationForm } from './LocationForm'
 import type { Coordinates, Lang } from '../types'
 
 interface ChatLogProps {
+  greeting: string
   entries: ChatEntry[]
   isWaitingForReply: boolean
   showLocationForm: boolean
@@ -20,6 +21,7 @@ interface ChatLogProps {
 }
 
 export function ChatLog({
+  greeting,
   entries,
   isWaitingForReply,
   showLocationForm,
@@ -40,6 +42,9 @@ export function ChatLog({
 
   return (
     <main className="chat-log" aria-live="polite" ref={logRef}>
+      {/* Pinned "instructions" bubble, not conversation history - always
+          shows in the current language, unlike everything below it. */}
+      <ChatBubble role="bot" text={greeting} />
       {entries.map((entry) => {
         switch (entry.kind) {
           case 'bot-text':
