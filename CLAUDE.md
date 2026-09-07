@@ -101,6 +101,13 @@ See `README.md` for setup/run instructions and the full directory structure.
   "Rothschild 12" alone resolved to a same-named street in Holon, not the
   actual Rothschild Blvd) - the full official name disambiguates reliably
   without restricting results to a hard bounding box.
+- Scheduled auto-sync (`.github/workflows/sync_places.yml`) - runs
+  `scripts.sync_places` daily via GitHub Actions cron (4am UTC), plus a
+  `workflow_dispatch` trigger for on-demand manual runs. Credentials
+  (`MONGODB_URI`, `MONGODB_DB_NAME`, `MYMAPS_ID`) live in GitHub repo
+  secrets, never in the workflow file. Verified live with a manual run
+  against the real database - correctly parsed the live map and reconciled
+  the DB (removed a place no longer on the map, landed at the right total).
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
@@ -111,8 +118,7 @@ See `README.md` for setup/run instructions and the full directory structure.
 2. ~~Improved icons~~ - done, see above.
 3. ~~WhatsApp export/share button~~ - done, see above.
 4. ~~Plan-ahead / typed-address geocoding~~ - done, see above.
-5. Scheduled auto-sync (a cron job, e.g. GitHub Actions, running
-   `scripts.sync_places` automatically instead of by hand) - no UI needed.
+5. ~~Scheduled auto-sync~~ - done, see above.
 6. "Show more" pagination beyond the top 3 results - small extension of
    the existing nearest-match query.
 7. PWA support (add-to-home-screen, app-like icon) - builds directly on
