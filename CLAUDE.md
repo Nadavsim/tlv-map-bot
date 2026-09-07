@@ -86,22 +86,38 @@ See `README.md` for setup/run instructions and the full directory structure.
 - PWA support (add-to-home-screen, app-like icon)
 - Kosher/dietary tags and filtering (locally relevant for Tel Aviv)
 
+### Visual upgrades
+- Improved icons - replace the plain emoji (📍🚶🚗🗺️📱) with a proper icon
+  set. Emoji render inconsistently across platforms/OS; a real icon library
+  gives a more consistent, professional look.
+- Map view - a visible map showing the recommended place(s), on top of the
+  existing chat/list view (the original "chat now, map later" plan from
+  early in the project).
+
 ### Bigger builds - user system (sequenced, not started)
-Goal: real accounts (JWT + bcrypt, matching prior hands-on experience from a
-university project), usable by friends and family now, with an eye toward a
+Goal: real accounts usable by friends and family now, with an eye toward a
 full product later.
-1. Auth core - register/login/refresh/logout. Access token in memory (not
+1. Auth core - **Google Sign-In (OAuth)** as the actual front door, not
+   self-managed passwords - delegates credential security (storage, breach
+   detection, reset flows) entirely to Google, which is the right call for a
+   personal project two-plus people are trusting with their data. Paired
+   with the app's own short-lived JWT access/refresh session layer
+   (matching prior hands-on experience from a university project), issued
+   after verifying the Google ID token once: access token in memory (not
    localStorage), refresh token in an `httpOnly`/`Secure`/`SameSite=Strict`
-   cookie, bcrypt cost factor 12, rate-limited login attempts, revocable
-   refresh tokens (a stored token version/hash per user).
+   cookie, revocable (a stored token version/hash per user). Testing doesn't
+   need real OAuth - mint a JWT directly for a test user in test setup, since
+   what's being tested is "does the app handle this token correctly," not
+   "does Google's login page work."
 2. Favorites (save spots from the list)
 3. Ratings
-4. User map uploads + switching between multiple maps/datasets - needs the
+4. User-suggested new places, with a moderation queue (never auto-publish
+   user input to the shared list) - simpler than map uploads, so it comes
+   first
+5. User map uploads + switching between multiple maps/datasets - needs the
    KML parser hardened first (`defusedxml`, size caps, per-user namespacing,
    since `xml.etree.ElementTree` is vulnerable to entity-expansion attacks on
    untrusted input)
-5. User-suggested new places, with a moderation queue (never auto-publish
-   user input to the shared list)
 
 One flagged tradeoff: growing past personal/occasional friends-and-family
 traffic will eventually outgrow the Azure App Service Free (F1) tier's
