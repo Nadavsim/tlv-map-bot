@@ -62,14 +62,20 @@ See `README.md` for setup/run instructions and the full directory structure.
 
 ## To-do list
 
+### Done since the priority ordering
+- Rate limiting on `/api/chat` (`slowapi`, per-IP, 20/minute + 200/day) -
+  protects the budget goal against abuse/automated hammering. In-memory
+  (single App Service instance, no shared store needed). Tests disable it
+  via an autouse `conftest.py` fixture (`TestClient` requests all share one
+  fake IP, so without this the limit would accumulate across the whole test
+  session instead of resetting per test).
+
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
   tradeoff vs. the free OSRM walk/drive ETAs already in place)
 
 ### Scoped, not yet built (priority order)
-1. Rate limiting on `/api/chat` - protects the budget goal against
-   abuse/automated hammering, currently nothing stops it. Do this before
-   anything below that increases traffic/exposure (e.g. the share button).
+1. ~~Rate limiting on `/api/chat`~~ - done, see above.
 2. Improved icons - replace the plain emoji (📍🚶🚗🗺️📱) with a proper icon
    set. Emoji render inconsistently across platforms/OS; a real icon
    library gives a more consistent, professional look, and directly

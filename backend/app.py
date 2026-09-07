@@ -4,10 +4,13 @@ from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from . import db
 from .models import PlaceResult
@@ -19,6 +22,14 @@ load_dotenv()
 # by frontend/'s Vite build) sits at the repo root, a sibling of backend/.
 BASE_DIR = Path(__file__).parent.parent
 
+# Protects the project's budget goal: /api/chat is the expensive route (one
+# Anthropic call + Mongo + OSRM per request), and until now nothing stopped
+# repeated/automated hits from running up real cost. Per-IP, in-memory (this
+# runs as a single Azure App Service instance, so no shared store needed).
+# 20/minute allows a real rapid back-and-forth conversation; 200/day is a
+# backstop for a shared IP (e.g. a household) without allowing sustained abuse.
+limiter = Limiter(key_func=get_remote_address)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -27,6 +38,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
@@ -92,7 +105,8 @@ async def categories():
 
 
 @app.post("/api/chat")
-async def chat(req: ChatRequest):
+@limiter.limit("20/minute;200/day")
+async def chat(request: Request, req: ChatRequest):
     known_categories = await db.get_categories()
     if not known_categories:
         return {

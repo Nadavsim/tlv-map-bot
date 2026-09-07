@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { postChat } from './api'
+import { ApiError, postChat } from './api'
 import { type ChatEntry, makeEntryId } from './chatTypes'
 import { ChatInput } from './components/ChatInput'
 import { ChatLog } from './components/ChatLog'
@@ -67,11 +67,12 @@ export default function App() {
         }
         return next
       })
-    } catch {
-      setEntries((prev) => [
-        ...prev,
-        { id: makeEntryId(), kind: 'bot-text', text: "Couldn't reach the server - check your connection." },
-      ])
+    } catch (err) {
+      const text =
+        err instanceof ApiError && err.status === 429
+          ? "You're sending messages a bit fast - give it a moment and try again."
+          : "Couldn't reach the server - check your connection."
+      setEntries((prev) => [...prev, { id: makeEntryId(), kind: 'bot-text', text }])
     } finally {
       setIsWaitingForReply(false)
     }

@@ -1,5 +1,15 @@
 import type { ChatRequest, ChatResponse, ResolveLocationResponse } from './types'
 
+export class ApiError extends Error {
+  status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
 async function postJSON<TResponse>(url: string, body: unknown): Promise<TResponse> {
   const res = await fetch(url, {
     method: 'POST',
@@ -7,7 +17,7 @@ async function postJSON<TResponse>(url: string, body: unknown): Promise<TRespons
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    throw new Error(`Request to ${url} failed with status ${res.status}`)
+    throw new ApiError(res.status, `Request to ${url} failed with status ${res.status}`)
   }
   return res.json() as Promise<TResponse>
 }

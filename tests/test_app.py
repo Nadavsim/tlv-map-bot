@@ -166,6 +166,36 @@ def test_chat_endpoint_defaults_to_walking_mode(monkeypatch):
     assert args[0] == "walking"
 
 
+def test_chat_endpoint_rate_limits_after_too_many_requests(monkeypatch):
+    from backend.app import limiter
+
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
+    monkeypatch.setattr(
+        llm,
+        "parse_food_request",
+        AsyncMock(
+            return_value={"category": "coffee", "clarifying_question": None, "any_category": False}
+        ),
+    )
+    monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE]))
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300]))
+
+    limiter.enabled = True
+    try:
+        with TestClient(app_module.app) as client:
+            responses = [
+                client.post("/api/chat", json={"message": "coffee", "lat": 32.08, "lon": 34.78})
+                for _ in range(21)
+            ]
+    finally:
+        limiter.enabled = False
+        limiter.reset()
+
+    assert [r.status_code for r in responses[:20]] == [200] * 20
+    assert responses[20].status_code == 429
+
+
 def test_chat_endpoint_requests_one_batched_eta_call_for_multiple_places(monkeypatch):
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
     monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
