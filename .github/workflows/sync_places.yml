@@ -1,0 +1,30 @@
+name: Sync places from Google My Maps
+
+on:
+  schedule:
+    # 4am UTC daily - low-traffic time, and new pins added during the day
+    # show up in the app the next morning without anyone running this by hand.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run sync
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB_NAME: ${{ secrets.MONGODB_DB_NAME }}
+          MYMAPS_ID: ${{ secrets.MYMAPS_ID }}
+        run: python -m scripts.sync_places
