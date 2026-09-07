@@ -68,6 +68,20 @@ class LocationLinkRequest(BaseModel):
     text: str
 
 
+class MorePlacesRequest(BaseModel):
+    category: str | None = None
+    lat: float
+    lon: float
+    mode: Literal["walking", "driving"] = "walking"
+    offset: int
+
+
+# Matches the top-N shown per request on both the initial match and each
+# "show more" page - the frontend uses it to detect "that was the last page"
+# (a page shorter than this means there's nothing left to fetch).
+PAGE_SIZE = 3
+
+
 def format_place(place: PlaceResult, eta_seconds: float | None) -> dict:
     distance_km = place.distance / 1000
     distance_str = f"{distance_km:.2f} km" if distance_km < 1 else f"{distance_km:.1f} km"
@@ -129,12 +143,13 @@ async def chat(request: Request, req: ChatRequest):
         }
 
     category = extraction["category"]
-    matches = await db.find_nearest(category, req.lat, req.lon, limit=3)
+    matches = await db.find_nearest(category, req.lat, req.lon, limit=PAGE_SIZE)
     if not matches:
         label = category or "any"
         return {
             "reply": f"I don't have any {label} spots saved yet.",
             "places": [],
+            "category": category,
         }
 
     etas = await routing.get_eta_seconds_batch(
@@ -151,4 +166,22 @@ async def chat(request: Request, req: ChatRequest):
     return {
         "reply": reply,
         "places": [format_place(p, eta) for p, eta in zip(matches, etas)],
+        # Echoed back so the frontend can ask for more of the same query
+        # (via /api/more-places) without re-running the LLM categorization.
+        "category": category,
     }
+
+
+@app.post("/api/more-places")
+@limiter.limit("20/minute;200/day")
+async def more_places(request: Request, req: MorePlacesRequest):
+    matches = await db.find_nearest(req.category, req.lat, req.lon, limit=PAGE_SIZE, offset=req.offset)
+    if not matches:
+        return {"places": []}
+
+    etas = await routing.get_eta_seconds_batch(
+        req.mode,
+        (req.lat, req.lon),
+        [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
+    )
+    return {"places": [format_place(p, eta) for p, eta in zip(matches, etas)]}

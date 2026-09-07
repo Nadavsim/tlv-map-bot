@@ -14,6 +14,8 @@ interface ChatLogProps {
   onLocationError: (message: string) => void
   onRetryLocation: () => void
   isRequestingLocation: boolean
+  onShowMore: (entryId: string) => void
+  loadingMoreId: string | null
 }
 
 export function ChatLog({
@@ -24,6 +26,8 @@ export function ChatLog({
   onLocationError,
   onRetryLocation,
   isRequestingLocation,
+  onShowMore,
+  loadingMoreId,
 }: ChatLogProps) {
   const logRef = useRef<HTMLElement>(null)
 
@@ -41,7 +45,15 @@ export function ChatLog({
           case 'user-text':
             return <ChatBubble key={entry.id} role="user" text={entry.text} />
           case 'places':
-            return <PlaceCards key={entry.id} places={entry.places} />
+            return (
+              <PlaceCards
+                key={entry.id}
+                places={entry.places}
+                hasMore={entry.hasMore}
+                isLoadingMore={loadingMoreId === entry.id}
+                onShowMore={() => onShowMore(entry.id)}
+              />
+            )
         }
       })}
       {showLocationForm && (

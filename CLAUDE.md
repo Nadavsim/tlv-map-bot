@@ -108,6 +108,16 @@ See `README.md` for setup/run instructions and the full directory structure.
   secrets, never in the workflow file. Verified live with a manual run
   against the real database - correctly parsed the live map and reconciled
   the DB (removed a place no longer on the map, landed at the right total).
+- "Show more" pagination beyond the top 3 results - `/api/chat` now echoes
+  back the matched `category` (null for "surprise me"), which the frontend
+  stashes on the results entry and replays to a new `/api/more-places`
+  endpoint with an increasing `offset`, so a repeat click fetches the next
+  page of the same query without re-running the LLM categorization (cheap:
+  no Anthropic call, just Mongo + OSRM). `db.find_nearest`/`build_geo_pipeline`
+  gained an `offset` param that adds a `$skip` stage after `$geoNear`. The
+  button hides itself once a page comes back shorter than the page size.
+  Verified live against the real DB through several consecutive clicks
+  (3 -> 6 -> 9 -> 12 -> 15 coffee spots), correctly sorted, no duplicates.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
@@ -119,8 +129,7 @@ See `README.md` for setup/run instructions and the full directory structure.
 3. ~~WhatsApp export/share button~~ - done, see above.
 4. ~~Plan-ahead / typed-address geocoding~~ - done, see above.
 5. ~~Scheduled auto-sync~~ - done, see above.
-6. "Show more" pagination beyond the top 3 results - small extension of
-   the existing nearest-match query.
+6. ~~"Show more" pagination beyond the top 3 results~~ - done, see above.
 7. PWA support (add-to-home-screen, app-like icon) - builds directly on
    the icons from #2.
 8. Light usage stats - category-level demand counters + a log of unmatched

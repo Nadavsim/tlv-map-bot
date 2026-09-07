@@ -90,6 +90,7 @@ def test_chat_endpoint_returns_nearest_places_on_match(monkeypatch):
     assert "coffee" in body["reply"]
     assert body["places"][0]["name"] == "Cafelix"
     assert body["places"][0]["eta"] == "5 min"
+    assert body["category"] == "coffee"
 
 
 def test_chat_endpoint_handles_any_category_surprise_me(monkeypatch):
@@ -108,7 +109,9 @@ def test_chat_endpoint_handles_any_category_surprise_me(monkeypatch):
         resp = client.post("/api/chat", json={"message": "surprise me", "lat": 32.08, "lon": 34.78})
 
     assert resp.status_code == 200
-    assert "Surprise" in resp.json()["reply"]
+    body = resp.json()
+    assert "Surprise" in body["reply"]
+    assert body["category"] is None
     find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3)
 
 
@@ -231,3 +234,46 @@ def test_chat_endpoint_requests_one_batched_eta_call_for_multiple_places(monkeyp
     body = resp.json()
     assert body["places"][0]["eta"] == "2 min"
     assert body["places"][1]["eta"] == "4 min"
+
+
+def test_more_places_endpoint_passes_offset_through_to_find_nearest(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    find_nearest_mock = AsyncMock(return_value=[SAMPLE_PLACE])
+    monkeypatch.setattr(db, "find_nearest", find_nearest_mock)
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300]))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/more-places", json={"category": "coffee", "lat": 32.08, "lon": 34.78, "offset": 3}
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["places"][0]["name"] == "Cafelix"
+    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3, offset=3)
+
+
+def test_more_places_endpoint_supports_any_category_with_null_category(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    find_nearest_mock = AsyncMock(return_value=[SAMPLE_PLACE])
+    monkeypatch.setattr(db, "find_nearest", find_nearest_mock)
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300]))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/more-places", json={"category": None, "lat": 32.08, "lon": 34.78, "offset": 3})
+
+    assert resp.status_code == 200
+    find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3, offset=3)
+
+
+def test_more_places_endpoint_returns_empty_list_when_no_more_matches(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[]))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/more-places", json={"category": "coffee", "lat": 32.08, "lon": 34.78, "offset": 9}
+        )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"places": []}

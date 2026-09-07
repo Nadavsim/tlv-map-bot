@@ -254,6 +254,32 @@ header h1 svg {
   transform: scale(0.97);
 }
 
+.show-more-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.show-more-button:active {
+  transform: scale(0.97);
+}
+
+.show-more-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .location-fallback {
   display: flex;
   flex-direction: column;

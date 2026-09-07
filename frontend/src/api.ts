@@ -1,4 +1,10 @@
-import type { ChatRequest, ChatResponse, ResolveLocationResponse } from './types'
+import type {
+  ChatRequest,
+  ChatResponse,
+  MorePlacesRequest,
+  MorePlacesResponse,
+  ResolveLocationResponse,
+} from './types'
 
 export class ApiError extends Error {
   status: number
@@ -24,6 +30,10 @@ async function postJSON<TResponse>(url: string, body: unknown): Promise<TRespons
 
 export function postChat(body: ChatRequest): Promise<ChatResponse> {
   return postJSON<ChatResponse>('/api/chat', body)
+}
+
+export function postMorePlaces(body: MorePlacesRequest): Promise<MorePlacesResponse> {
+  return postJSON<MorePlacesResponse>('/api/more-places', body)
 }
 
 export function resolveLocation(text: string): Promise<ResolveLocationResponse> {

@@ -132,10 +132,14 @@ async def get_categories() -> list[str]:
     return _categories_cache
 
 
-def build_geo_pipeline(category: str | None, lat: float, lon: float, limit: int = 3) -> list[dict]:
+def build_geo_pipeline(
+    category: str | None, lat: float, lon: float, limit: int = 3, offset: int = 0
+) -> list[dict]:
     """Pure function (no I/O) so the query shape can be unit tested without a
-    real MongoDB connection. category=None means "any category" (surprise me)."""
-    return [
+    real MongoDB connection. category=None means "any category" (surprise me).
+    offset supports "show more" - skipping past results already shown for the
+    same query rather than re-fetching and re-displaying the top matches."""
+    pipeline = [
         {
             "$geoNear": {
                 "near": {"type": "Point", "coordinates": [lon, lat]},
@@ -144,13 +148,18 @@ def build_geo_pipeline(category: str | None, lat: float, lon: float, limit: int 
                 "query": {"category": category} if category else {},
             }
         },
-        {"$limit": limit},
     ]
+    if offset:
+        pipeline.append({"$skip": offset})
+    pipeline.append({"$limit": limit})
+    return pipeline
 
 
-async def find_nearest(category: str | None, lat: float, lon: float, limit: int = 3) -> list[PlaceResult]:
+async def find_nearest(
+    category: str | None, lat: float, lon: float, limit: int = 3, offset: int = 0
+) -> list[PlaceResult]:
     places = get_places_collection()
-    pipeline = build_geo_pipeline(category, lat, lon, limit)
+    pipeline = build_geo_pipeline(category, lat, lon, limit, offset)
     return [PlaceResult(**doc) async for doc in places.aggregate(pipeline)]
 
 

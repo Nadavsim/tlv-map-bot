@@ -61,6 +61,18 @@ def test_geo_pipeline_respects_limit():
     assert pipeline[1] == {"$limit": 5}
 
 
+def test_geo_pipeline_has_no_skip_stage_when_offset_is_zero():
+    pipeline = build_geo_pipeline("coffee", lat=32.08, lon=34.78, limit=3, offset=0)
+    assert {"$skip": 0} not in pipeline
+    assert pipeline == [pipeline[0], {"$limit": 3}]
+
+
+def test_geo_pipeline_skips_past_already_shown_results_for_show_more():
+    pipeline = build_geo_pipeline("coffee", lat=32.08, lon=34.78, limit=3, offset=3)
+    assert pipeline[1] == {"$skip": 3}
+    assert pipeline[2] == {"$limit": 3}
+
+
 def test_geo_pipeline_is_spherical():
     pipeline = build_geo_pipeline("coffee", lat=32.08, lon=34.78, limit=3)
     assert pipeline[0]["$geoNear"]["spherical"] is True

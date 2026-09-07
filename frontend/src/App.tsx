@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { ApiError, postChat } from './api'
+import { ApiError, postChat, postMorePlaces } from './api'
 import { type ChatEntry, makeEntryId } from './chatTypes'
 import { ChatInput } from './components/ChatInput'
 import { ChatLog } from './components/ChatLog'
 import { Header } from './components/Header'
 import type { Coordinates, TransportMode } from './types'
+import { PAGE_SIZE } from './types'
 import './styles/theme.css'
 import './styles/App.css'
 
@@ -22,6 +23,7 @@ export default function App() {
   const [isRequestingLocation, setIsRequestingLocation] = useState(false)
   const [mode, setMode] = useState<TransportMode>('walking')
   const [isWaitingForReply, setIsWaitingForReply] = useState(false)
+  const [loadingMoreId, setLoadingMoreId] = useState<string | null>(null)
 
   function offerManualLocation(statusText: string) {
     setLocationStatus(statusText)
@@ -93,7 +95,14 @@ export default function App() {
       setEntries((prev) => {
         const next: ChatEntry[] = [...prev, { id: makeEntryId(), kind: 'bot-text', text: data.reply }]
         if (data.places.length) {
-          next.push({ id: makeEntryId(), kind: 'places', places: data.places })
+          next.push({
+            id: makeEntryId(),
+            kind: 'places',
+            places: data.places,
+            category: data.category,
+            offset: data.places.length,
+            hasMore: data.places.length >= PAGE_SIZE,
+          })
         }
         return next
       })
@@ -105,6 +114,38 @@ export default function App() {
       setEntries((prev) => [...prev, { id: makeEntryId(), kind: 'bot-text', text }])
     } finally {
       setIsWaitingForReply(false)
+    }
+  }
+
+  async function handleShowMore(entryId: string) {
+    const entry = entries.find((e) => e.id === entryId)
+    if (!entry || entry.kind !== 'places' || !userLocation) return
+
+    setLoadingMoreId(entryId)
+    try {
+      const data = await postMorePlaces({
+        category: entry.category,
+        lat: userLocation.lat,
+        lon: userLocation.lon,
+        mode,
+        offset: entry.offset,
+      })
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.id === entryId && e.kind === 'places'
+            ? {
+                ...e,
+                places: [...e.places, ...data.places],
+                offset: e.offset + data.places.length,
+                hasMore: data.places.length >= PAGE_SIZE,
+              }
+            : e,
+        ),
+      )
+    } catch {
+      // Leave hasMore as-is so the button stays put and the user can retry.
+    } finally {
+      setLoadingMoreId(null)
     }
   }
 
@@ -121,6 +162,8 @@ export default function App() {
         onLocationError={handleLocationError}
         onRetryLocation={() => requestLocation(true)}
         isRequestingLocation={isRequestingLocation}
+        onShowMore={handleShowMore}
+        loadingMoreId={loadingMoreId}
       />
       <ChatInput disabled={chatDisabled} onSend={handleSend} />
     </div>
