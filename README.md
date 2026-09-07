@@ -142,10 +142,13 @@ python -m uvicorn app:app --host 0.0.0.0 --port 8000
 
 ```
 app.py, db.py, llm.py, location.py,   FastAPI app + its modules. Kept at
-  parser.py, routing.py                 repo root - Azure's startup command
+  parser.py, routing.py, models.py      repo root - Azure's startup command
                                          and Oryx's build both target this
                                          layout directly; moving it means
                                          updating the Azure Portal too.
+                                         models.py is the schema (Pydantic) -
+                                         single source of truth for what a
+                                         place document looks like.
 scripts/                                Maintenance CLI scripts, run as
   sync_places.py                          python -m scripts.sync_places
   seed_instagram_from_csv.py              python -m scripts.seed_instagram_from_csv

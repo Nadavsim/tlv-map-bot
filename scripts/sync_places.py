@@ -6,6 +6,7 @@ import requests
 from dotenv import load_dotenv
 
 from db import ensure_indexes, find_nearby, get_places_collection, invalidate_categories_cache
+from models import GeoPoint, Place
 from parser import parse_kml_text
 
 load_dotenv()
@@ -68,10 +69,18 @@ async def sync() -> None:
     not_yet_touched_this_run = {"last_synced_at": {"$ne": sync_time}}
 
     for place in places:
-        location_doc = {
-            "type": "Point",
-            "coordinates": [place["longitude"], place["latitude"]],
-        }
+        # Validated against models.Place before it ever reaches Mongo - catches
+        # a malformed parsed place (wrong type, missing field) here, with a
+        # clear error, rather than writing bad data silently.
+        validated = Place(
+            name=place["name"],
+            category=place["category"],
+            location=GeoPoint(coordinates=(place["longitude"], place["latitude"])),
+            instagram_url=place["instagram_url"],
+            last_synced_at=sync_time,
+        )
+        location_doc = validated.location.model_dump()
+
         # Matched by physical proximity, not name - a renamed pin is still
         # "the same place" and keeps its _id (and any manually-backfilled
         # instagram_url), instead of looking like a delete+insert. Excluding
@@ -86,21 +95,21 @@ async def sync() -> None:
                 {"_id": existing["_id"]},
                 {
                     "$set": {
-                        "name": place["name"],
-                        "category": place["category"],
+                        "name": validated.name,
+                        "category": validated.category,
                         "location": location_doc,
-                        "last_synced_at": sync_time,
+                        "last_synced_at": validated.last_synced_at,
                     }
                 },
             )
         else:
             await collection.insert_one(
                 {
-                    "name": place["name"],
-                    "category": place["category"],
+                    "name": validated.name,
+                    "category": validated.category,
                     "location": location_doc,
-                    "instagram_url": place["instagram_url"],
-                    "last_synced_at": sync_time,
+                    "instagram_url": validated.instagram_url,
+                    "last_synced_at": validated.last_synced_at,
                 }
             )
 

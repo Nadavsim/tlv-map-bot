@@ -8,14 +8,15 @@ import llm
 import location
 import routing
 from app import format_place
+from models import GeoPoint, PlaceResult
 
-SAMPLE_PLACE = {
-    "name": "Cafelix",
-    "category": "coffee",
-    "distance": 850,
-    "instagram_url": None,
-    "location": {"type": "Point", "coordinates": [34.77, 32.06]},
-}
+SAMPLE_PLACE = PlaceResult(
+    name="Cafelix",
+    category="coffee",
+    distance=850,
+    instagram_url=None,
+    location=GeoPoint(coordinates=(34.77, 32.06)),
+)
 
 
 def test_format_place_shows_meters_as_km_with_two_decimals_under_1km():
@@ -24,13 +25,13 @@ def test_format_place_shows_meters_as_km_with_two_decimals_under_1km():
 
 
 def test_format_place_shows_one_decimal_over_1km():
-    place = {**SAMPLE_PLACE, "distance": 16500}
+    place = SAMPLE_PLACE.model_copy(update={"distance": 16500})
     formatted = format_place(place, eta_seconds=None)
     assert formatted["distance"] == "16.5 km"
 
 
 def test_format_place_builds_keyless_maps_deep_link():
-    place = {**SAMPLE_PLACE, "instagram_url": "https://www.instagram.com/cafelix/"}
+    place = SAMPLE_PLACE.model_copy(update={"instagram_url": "https://www.instagram.com/cafelix/"})
     formatted = format_place(place, eta_seconds=None)
     assert formatted["maps_url"] == "https://www.google.com/maps/dir/?api=1&destination=32.06,34.77"
     assert formatted["instagram_url"] == "https://www.instagram.com/cafelix/"
@@ -177,7 +178,7 @@ def test_chat_endpoint_requests_one_batched_eta_call_for_multiple_places(monkeyp
             return_value={"category": "coffee", "clarifying_question": None, "any_category": False}
         ),
     )
-    place_2 = {**SAMPLE_PLACE, "name": "Other Cafe", "distance": 900}
+    place_2 = SAMPLE_PLACE.model_copy(update={"name": "Other Cafe", "distance": 900})
     monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE, place_2]))
     eta_mock = AsyncMock(return_value=[120, 240])
     monkeypatch.setattr(routing, "get_eta_seconds_batch", eta_mock)

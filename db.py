@@ -3,6 +3,9 @@ import time
 
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.errors import OperationFailure
+
+from models import PlaceResult
 
 load_dotenv()
 
@@ -10,6 +13,34 @@ MONGODB_URI = os.environ.get("MONGODB_URI", "")
 MONGODB_DB_NAME = os.environ.get("MONGODB_DB_NAME", "tlvbot")
 
 CATEGORIES_CACHE_TTL_SECONDS = 300
+
+# Mirrors models.Place - kept as a plain dict (rather than derived from the
+# Pydantic model) because Mongo's $jsonSchema dialect (bsonType, etc.) isn't
+# the same vocabulary as Pydantic's JSON Schema export, so auto-translating
+# would be more fragile than just stating it twice.
+PLACES_JSON_SCHEMA = {
+    "bsonType": "object",
+    "required": ["name", "category", "location"],
+    "properties": {
+        "name": {"bsonType": "string"},
+        "category": {"bsonType": "string"},
+        "location": {
+            "bsonType": "object",
+            "required": ["type", "coordinates"],
+            "properties": {
+                "type": {"enum": ["Point"]},
+                "coordinates": {
+                    "bsonType": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {"bsonType": ["double", "int"]},
+                },
+            },
+        },
+        "instagram_url": {"bsonType": ["string", "null"]},
+        "last_synced_at": {"bsonType": ["date", "null"]},
+    },
+}
 
 _client: AsyncIOMotorClient | None = None
 _categories_cache: list[str] | None = None
@@ -44,6 +75,40 @@ async def ensure_indexes() -> None:
 
     await places.create_index("name")
     await places.create_index("category")
+
+    await _ensure_schema_validator(places)
+
+
+async def _ensure_schema_validator(places) -> None:
+    """Defense-in-depth: enforce PLACES_JSON_SCHEMA at the database layer
+    itself, so a malformed document gets caught regardless of what wrote it
+    (a bad script, a manual Compass edit) - not just whatever happens to run
+    it through models.Place first.
+
+    validationAction "warn" only logs a violation to the Atlas server log
+    instead of rejecting the write. "error" would be stricter, but risks
+    locking out a legitimate write if this schema ever drifts even slightly
+    from what the app actually writes - start permissive and only tighten to
+    "error" once it's been observed running clean for a while."""
+    database = places.database
+    validator = {"$jsonSchema": PLACES_JSON_SCHEMA}
+    try:
+        await database.command(
+            {
+                "collMod": "places",
+                "validator": validator,
+                "validationLevel": "moderate",
+                "validationAction": "warn",
+            }
+        )
+    except OperationFailure:
+        # collMod fails if the collection doesn't exist yet (fresh database).
+        await database.create_collection(
+            "places",
+            validator=validator,
+            validationLevel="moderate",
+            validationAction="warn",
+        )
 
 
 def invalidate_categories_cache() -> None:
@@ -83,10 +148,10 @@ def build_geo_pipeline(category: str | None, lat: float, lon: float, limit: int 
     ]
 
 
-async def find_nearest(category: str | None, lat: float, lon: float, limit: int = 3) -> list[dict]:
+async def find_nearest(category: str | None, lat: float, lon: float, limit: int = 3) -> list[PlaceResult]:
     places = get_places_collection()
     pipeline = build_geo_pipeline(category, lat, lon, limit)
-    return [doc async for doc in places.aggregate(pipeline)]
+    return [PlaceResult(**doc) async for doc in places.aggregate(pipeline)]
 
 
 def build_proximity_pipeline(

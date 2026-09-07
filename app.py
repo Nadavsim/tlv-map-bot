@@ -13,6 +13,7 @@ import db
 import llm
 import location
 import routing
+from models import PlaceResult
 
 load_dotenv()
 
@@ -54,19 +55,19 @@ class LocationLinkRequest(BaseModel):
     text: str
 
 
-def format_place(place: dict, eta_seconds: float | None) -> dict:
-    distance_km = place["distance"] / 1000
+def format_place(place: PlaceResult, eta_seconds: float | None) -> dict:
+    distance_km = place.distance / 1000
     distance_str = f"{distance_km:.2f} km" if distance_km < 1 else f"{distance_km:.1f} km"
 
-    lon, lat = place["location"]["coordinates"]
+    lon, lat = place.location.coordinates
     maps_url = f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}"
 
     return {
-        "name": place["name"],
-        "category": place["category"],
+        "name": place.name,
+        "category": place.category,
         "distance": distance_str,
         "eta": routing.format_duration(eta_seconds) if eta_seconds is not None else None,
-        "instagram_url": place.get("instagram_url"),
+        "instagram_url": place.instagram_url,
         "maps_url": maps_url,
     }
 
@@ -95,7 +96,7 @@ async def chat(req: ChatRequest):
     known_categories = await db.get_categories()
     if not known_categories:
         return {
-            "reply": "The places database is empty. Run sync_places.py to load places from the map first.",
+            "reply": "The places database is empty. Run `python -m scripts.sync_places` to load places first.",
             "places": [],
         }
 
@@ -120,7 +121,7 @@ async def chat(req: ChatRequest):
     etas = await routing.get_eta_seconds_batch(
         req.mode,
         (req.lat, req.lon),
-        [(p["location"]["coordinates"][1], p["location"]["coordinates"][0]) for p in matches],
+        [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
     )
 
     reply = (

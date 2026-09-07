@@ -5,6 +5,7 @@ import pytest
 
 import db
 from db import build_geo_pipeline, build_proximity_pipeline
+from models import PlaceResult
 
 
 @pytest.fixture(autouse=True)
@@ -12,6 +13,30 @@ def reset_categories_cache():
     db.invalidate_categories_cache()
     yield
     db.invalidate_categories_cache()
+
+
+@pytest.mark.asyncio
+async def test_find_nearest_parses_documents_into_place_results(monkeypatch):
+    async def fake_aggregate(pipeline):
+        yield {
+            "name": "Cafelix",
+            "category": "coffee",
+            "location": {"type": "Point", "coordinates": [34.77, 32.06]},
+            "instagram_url": None,
+            "distance": 123.4,
+        }
+
+    fake_collection = MagicMock()
+    fake_collection.aggregate = fake_aggregate
+    monkeypatch.setattr(db, "get_places_collection", lambda: fake_collection)
+
+    results = await db.find_nearest("coffee", lat=32.08, lon=34.78, limit=3)
+
+    assert len(results) == 1
+    assert isinstance(results[0], PlaceResult)
+    assert results[0].name == "Cafelix"
+    assert results[0].distance == 123.4
+    assert results[0].location.coordinates == (34.77, 32.06)
 
 
 def test_geo_pipeline_uses_geojson_lon_lat_order():
