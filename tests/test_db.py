@@ -145,3 +145,30 @@ async def test_invalidate_categories_cache_forces_refetch(monkeypatch):
     await db.get_categories()
 
     assert fake_collection.distinct.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_record_category_request_upserts_an_incrementing_counter(monkeypatch):
+    fake_collection = MagicMock()
+    fake_collection.update_one = AsyncMock()
+    monkeypatch.setattr(db, "get_category_stats_collection", lambda: fake_collection)
+
+    await db.record_category_request("coffee")
+
+    fake_collection.update_one.assert_awaited_once_with(
+        {"_id": "coffee"}, {"$inc": {"count": 1}}, upsert=True
+    )
+
+
+@pytest.mark.asyncio
+async def test_log_unmatched_query_inserts_text_and_timestamp(monkeypatch):
+    fake_collection = MagicMock()
+    fake_collection.insert_one = AsyncMock()
+    monkeypatch.setattr(db, "get_unmatched_queries_collection", lambda: fake_collection)
+
+    await db.log_unmatched_query("sushi near me")
+
+    fake_collection.insert_one.assert_awaited_once()
+    (inserted,), _ = fake_collection.insert_one.call_args
+    assert inserted["text"] == "sushi near me"
+    assert "created_at" in inserted

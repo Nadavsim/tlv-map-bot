@@ -154,6 +154,20 @@ See `README.md` for setup/run instructions and the full directory structure.
   live, always-current category list rather than hardcoding one that would
   drift from the real data. Verified live both ways (button, and typing
   "help") - confirmed only `/api/categories` fires, never `/api/chat`.
+- Light usage stats - two new collections, written from inside `/api/chat`
+  (`backend/db.py`'s `record_category_request`/`log_unmatched_query`): a
+  `category_stats` demand counter (`$inc` per category, plus
+  `ANY_CATEGORY_KEY`/`UNMATCHED_KEY` buckets for "surprise me" and "nothing
+  matched"), and an `unmatched_queries` log of the raw text whenever the LLM
+  can't match anything - the actually useful part for curation, since it
+  shows what people want that the map doesn't have yet. `unmatched_queries`
+  has a TTL index (90 days) so it can't grow the free-tier database
+  unbounded. Deliberately no new endpoint or UI - read both collections
+  directly in Atlas (Compass or the web UI) when curious; not worth
+  building and securing an API route for a personal curation tool. Verified
+  live against the real DB (one matched "coffee" request, one nonsense
+  query) - counters and the log entry landed correctly, then cleaned up
+  since this was verification data, not real usage.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
@@ -167,10 +181,7 @@ See `README.md` for setup/run instructions and the full directory structure.
 5. ~~Scheduled auto-sync~~ - done, see above.
 6. ~~"Show more" pagination beyond the top 3 results~~ - done, see above.
 7. ~~PWA support~~ - done, see above.
-8. Light usage stats - category-level demand counters + a log of unmatched
-   queries, to inform which categories to add/refine/drop (My Maps caps
-   out around 10 layers, so this matters for curation decisions). Real
-   value, but not an urgent decision yet.
+8. ~~Light usage stats~~ - done, see above.
 9. Conversational refinement / short-lived session memory (so "something
    cheaper" or "further is fine" can build on the last answer instead of
    every message being stateless) - meaningfully bigger than anything

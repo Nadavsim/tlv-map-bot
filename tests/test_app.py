@@ -59,14 +59,20 @@ def test_chat_endpoint_returns_clarifying_question_when_llm_finds_no_match(monke
             }
         ),
     )
+    log_unmatched_mock = AsyncMock()
+    monkeypatch.setattr(db, "log_unmatched_query", log_unmatched_mock)
+    record_stat_mock = AsyncMock()
+    monkeypatch.setattr(db, "record_category_request", record_stat_mock)
 
     with TestClient(app_module.app) as client:
-        resp = client.post("/api/chat", json={"message": "surprise me", "lat": 32.08, "lon": 34.78})
+        resp = client.post("/api/chat", json={"message": "asdkfjalskdjf", "lat": 32.08, "lon": 34.78})
 
     assert resp.status_code == 200
     body = resp.json()
     assert body["reply"] == "What are you craving?"
     assert body["places"] == []
+    log_unmatched_mock.assert_awaited_once_with("asdkfjalskdjf")
+    record_stat_mock.assert_awaited_once_with(db.UNMATCHED_KEY)
 
 
 def test_chat_endpoint_returns_nearest_places_on_match(monkeypatch):
@@ -81,6 +87,8 @@ def test_chat_endpoint_returns_nearest_places_on_match(monkeypatch):
     )
     monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE]))
     monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300]))
+    record_stat_mock = AsyncMock()
+    monkeypatch.setattr(db, "record_category_request", record_stat_mock)
 
     with TestClient(app_module.app) as client:
         resp = client.post("/api/chat", json={"message": "flat white", "lat": 32.08, "lon": 34.78})
@@ -91,6 +99,7 @@ def test_chat_endpoint_returns_nearest_places_on_match(monkeypatch):
     assert body["places"][0]["name"] == "Cafelix"
     assert body["places"][0]["eta"] == "5 min"
     assert body["category"] == "coffee"
+    record_stat_mock.assert_awaited_once_with("coffee")
 
 
 def test_chat_endpoint_handles_any_category_surprise_me(monkeypatch):
@@ -104,6 +113,8 @@ def test_chat_endpoint_handles_any_category_surprise_me(monkeypatch):
     find_nearest_mock = AsyncMock(return_value=[SAMPLE_PLACE])
     monkeypatch.setattr(db, "find_nearest", find_nearest_mock)
     monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[None]))
+    record_stat_mock = AsyncMock()
+    monkeypatch.setattr(db, "record_category_request", record_stat_mock)
 
     with TestClient(app_module.app) as client:
         resp = client.post("/api/chat", json={"message": "surprise me", "lat": 32.08, "lon": 34.78})
@@ -113,6 +124,7 @@ def test_chat_endpoint_handles_any_category_surprise_me(monkeypatch):
     assert "Surprise" in body["reply"]
     assert body["category"] is None
     find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3)
+    record_stat_mock.assert_awaited_once_with(db.ANY_CATEGORY_KEY)
 
 
 def test_chat_endpoint_handles_empty_database(monkeypatch):
@@ -174,6 +186,7 @@ def test_chat_endpoint_defaults_to_walking_mode(monkeypatch):
     monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE]))
     eta_mock = AsyncMock(return_value=[None])
     monkeypatch.setattr(routing, "get_eta_seconds_batch", eta_mock)
+    monkeypatch.setattr(db, "record_category_request", AsyncMock())
 
     with TestClient(app_module.app) as client:
         client.post("/api/chat", json={"message": "flat white", "lat": 32.08, "lon": 34.78})
@@ -196,6 +209,7 @@ def test_chat_endpoint_rate_limits_after_too_many_requests(monkeypatch):
     )
     monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE]))
     monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300]))
+    monkeypatch.setattr(db, "record_category_request", AsyncMock())
 
     limiter.enabled = True
     try:
@@ -226,6 +240,7 @@ def test_chat_endpoint_requests_one_batched_eta_call_for_multiple_places(monkeyp
     monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE, place_2]))
     eta_mock = AsyncMock(return_value=[120, 240])
     monkeypatch.setattr(routing, "get_eta_seconds_batch", eta_mock)
+    monkeypatch.setattr(db, "record_category_request", AsyncMock())
 
     with TestClient(app_module.app) as client:
         resp = client.post("/api/chat", json={"message": "coffee", "lat": 32.08, "lon": 34.78})

@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -13,6 +14,17 @@ MONGODB_URI = os.environ.get("MONGODB_URI", "")
 MONGODB_DB_NAME = os.environ.get("MONGODB_DB_NAME", "tlvbot")
 
 CATEGORIES_CACHE_TTL_SECONDS = 300
+
+# Buckets for record_category_request() that aren't a real category name -
+# kept as constants so app.py and db.py agree on the exact strings.
+ANY_CATEGORY_KEY = "any_category"
+UNMATCHED_KEY = "unmatched"
+
+# How long a raw unmatched-query log entry sticks around before Mongo's TTL
+# index auto-deletes it - long enough to review periodically for curation
+# ideas, short enough not to grow the (free-tier, size-capped) database
+# unbounded.
+UNMATCHED_QUERIES_TTL_SECONDS = 90 * 24 * 60 * 60
 
 # Mirrors models.Place - kept as a plain dict (rather than derived from the
 # Pydantic model) because Mongo's $jsonSchema dialect (bsonType, etc.) isn't
@@ -47,7 +59,7 @@ _categories_cache: list[str] | None = None
 _categories_cache_expires_at: float = 0.0
 
 
-def get_places_collection():
+def _get_collection(name: str):
     """Lazily create the Mongo client so importing this module never requires
     MONGODB_URI to be set (needed for tests / tools that don't touch the DB)."""
     global _client
@@ -55,7 +67,19 @@ def get_places_collection():
         if not MONGODB_URI:
             raise RuntimeError("MONGODB_URI is not set")
         _client = AsyncIOMotorClient(MONGODB_URI)
-    return _client[MONGODB_DB_NAME]["places"]
+    return _client[MONGODB_DB_NAME][name]
+
+
+def get_places_collection():
+    return _get_collection("places")
+
+
+def get_category_stats_collection():
+    return _get_collection("category_stats")
+
+
+def get_unmatched_queries_collection():
+    return _get_collection("unmatched_queries")
 
 
 async def ensure_indexes() -> None:
@@ -77,6 +101,9 @@ async def ensure_indexes() -> None:
     await places.create_index("category")
 
     await _ensure_schema_validator(places)
+
+    unmatched_queries = get_unmatched_queries_collection()
+    await unmatched_queries.create_index("created_at", expireAfterSeconds=UNMATCHED_QUERIES_TTL_SECONDS)
 
 
 async def _ensure_schema_validator(places) -> None:
@@ -130,6 +157,25 @@ async def get_categories() -> list[str]:
     _categories_cache = sorted(await places.distinct("category"))
     _categories_cache_expires_at = now + CATEGORIES_CACHE_TTL_SECONDS
     return _categories_cache
+
+
+async def record_category_request(key: str) -> None:
+    """Bumps a demand counter for a category (or ANY_CATEGORY_KEY /
+    UNMATCHED_KEY) - a lightweight, curation-facing signal for which
+    categories are actually wanted, read directly in Atlas rather than
+    through any app UI (see log_unmatched_query for the companion "what
+    exactly did they ask for" detail)."""
+    stats = get_category_stats_collection()
+    await stats.update_one({"_id": key}, {"$inc": {"count": 1}}, upsert=True)
+
+
+async def log_unmatched_query(text: str) -> None:
+    """Logs the raw text of a query the LLM couldn't match to any known
+    category, so it can be read later (directly in Atlas) for ideas on
+    which categories to add. Auto-expires via the TTL index set up in
+    ensure_indexes() - see UNMATCHED_QUERIES_TTL_SECONDS."""
+    queries = get_unmatched_queries_collection()
+    await queries.insert_one({"text": text, "created_at": datetime.now(timezone.utc)})
 
 
 def build_geo_pipeline(

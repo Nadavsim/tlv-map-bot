@@ -145,6 +145,8 @@ async def chat(request: Request, req: ChatRequest):
     extraction = await llm.parse_food_request(req.message, known_categories)
 
     if not extraction["any_category"] and not extraction["category"]:
+        await db.log_unmatched_query(req.message)
+        await db.record_category_request(db.UNMATCHED_KEY)
         return {
             "reply": extraction["clarifying_question"]
             or "Not sure what you're craving - can you tell me a type of food?",
@@ -152,6 +154,7 @@ async def chat(request: Request, req: ChatRequest):
         }
 
     category = extraction["category"]
+    await db.record_category_request(category or db.ANY_CATEGORY_KEY)
     matches = await db.find_nearest(category, req.lat, req.lon, limit=PAGE_SIZE)
     if not matches:
         label = category or "any"
