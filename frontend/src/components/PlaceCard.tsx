@@ -4,7 +4,7 @@ import type { Lang, Place } from '../types'
 
 export function PlaceCard({ place, lang }: { place: Place; lang: Lang }) {
   return (
-    <div className="place-card" dir="auto">
+    <div className="place-card">
       <div className="name">{place.name}</div>
       <div className="meta">
         <span className="category-chip">{place.category}</span>

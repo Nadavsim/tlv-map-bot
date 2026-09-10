@@ -530,6 +530,42 @@ In order:
   than hand-edited out (no CLI command removes a single ignore-value entry,
   and the config file isn't meant to be hand-edited) - it's inert now that
   nothing in the CSS matches "bounce" anymore, not incorrect.
+- Re-ran `/impeccable critique` (2026-09-10, second snapshot:
+  `.impeccable/critique/2026-09-10T19-29-46Z__frontend-src-app-tsx.md`) to
+  verify the harden-pass fixes rather than taking them on faith. Score moved
+  31 -> 28/40 - a real drop, not noise: the dual-agent re-run (fresh design
+  review + detector/browser evidence, isolated and parallel, same as the
+  first run) independently measured and confirmed all 5 previous fixes held
+  up (real pixel measurements on touch targets, real contrast ratios, real
+  DOM inspection of a Hebrew-named place card from live data), but also
+  found a genuine regression the harden pass introduced: moving
+  `dir="auto"` from just `.name` to the whole `.place-card` fixed the
+  original single-card misalignment, but made each card's *entire layout*
+  (not just its text) follow its own place name's script independently -
+  so a mixed-language results list (normal for this dataset) had the
+  Navigate/Instagram buttons visibly swap sides card-to-card while
+  scrolling. Fixed by dropping `dir="auto"` from `.place-card` entirely
+  (`PlaceCard.tsx`) - every card in a list now follows the *page's* own
+  language consistently (all cards left-align together in English UI, all
+  right-align together in Hebrew UI, regardless of which script an
+  individual name is in), trading "each name aligns per its own script"
+  for "every card in a list looks the same" - the user confirmed this
+  tradeoff explicitly before it was implemented. A Hebrew name's own
+  characters still render in correct reading order via standard Unicode
+  bidi even without the dir override; only the block-level alignment/button
+  position is now uniform. Verified live via DOM measurement
+  (`getBoundingClientRect`) in both languages: all cards in one list now
+  agree on which side the Navigate button sits, including a genuinely
+  Hebrew-named result ("קפה אחד העם") sitting next to English-named ones
+  in the same scroll. `.distance-eta`'s `dir="ltr"` pin was untouched (not
+  part of the regression).
+  The re-critique also surfaced 3 issues not yet acted on, deliberately
+  scoped out of this pass at the user's direction (P1-only again): a
+  destructive "New Conversation" with no confirmation/undo sitting ~4.8px
+  from Theme/Help; three icon-only header buttons (Theme, Reset, Help)
+  with no visible label; and a weaker keyboard-focus ring on the two text
+  inputs than every button in the app. See that snapshot file for the full
+  writeup if picking these up later.
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a
