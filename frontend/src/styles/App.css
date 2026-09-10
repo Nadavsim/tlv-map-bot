@@ -523,6 +523,12 @@ header h1 svg {
   color: var(--fg);
   font-family: inherit;
   font-size: 0.95rem;
+  /* The placeholder is long enough to clip mid-word on narrow phones -
+     an ellipsis reads as intentional truncation instead. Typed text
+     itself is short-lived per keystroke, so this never affects real input. */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .chat-form input:focus-visible {

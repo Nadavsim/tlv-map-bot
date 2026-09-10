@@ -244,12 +244,22 @@ In order:
     themselves (from the DB) are deliberately left untranslated even in
     Hebrew replies/help text - a maintained EN->HE category mapping would
     go stale exactly like the help command's live category list was built
-    to avoid. Each `ChatBubble` (and place-card name) gets `dir="auto"` so
-    a message's own text decides its alignment independent of the page's
-    current direction - old English messages don't flip to right-aligned
-    just because the UI language was switched to Hebrew afterward, and
-    vice versa. Typing "help" or "עזרה" both trigger the local help flow
-    regardless of current UI language. Verified live end-to-end: toggling
+    to avoid. Each `ChatBubble` gets `dir="auto"` so a message's own text
+    decides its alignment independent of the page's current direction -
+    old English messages don't flip to right-aligned just because the UI
+    language was switched to Hebrew afterward, and vice versa.
+    Place-card names deliberately do NOT get this treatment (see the
+    "Production/staging environment split" era's RTL fixes below for why -
+    short version: per-name `dir="auto"` was tried and reverted twice,
+    since it either misaligns a name against its own card's chips/buttons,
+    or - if applied to the whole card - makes cards in the same list flip
+    layout differently depending on each name's own script. Uniform,
+    page-language-consistent card layout was chosen over per-name
+    correctness, confirmed again in the 2026-09-10 fourth critique re-run
+    when this exact gap was flagged and the user re-confirmed the
+    trade-off rather than re-litigating it). Typing "help" or "עזרה" both
+    trigger the local help flow regardless of current UI language.
+    Verified live end-to-end: toggling
     language mirrors the whole layout correctly, a Hebrew query ("קפה")
     round-trips through the real LLM and gets a real Hebrew reply
     ("הנה המקומות הכי קרובים מסוג coffee:"), and switching back to English
@@ -675,6 +685,41 @@ In order:
   unrepresentative read - see the earlier focus-ring entry above) across
   the language toggle, theme toggle, and a place-card's Navigate link -
   all three render the identical ring as the text inputs.
+- Re-ran `/impeccable critique` a fourth time (snapshot
+  `.impeccable/critique/2026-09-10T21-29-56Z__frontend-src-app-tsx.md`).
+  Score trend: 31 -> 28 -> 34 -> 36/40 - the best yet, and every one of
+  the third critique's 3 fixes was independently re-verified with hard
+  numbers (9.59px header gaps in both languages, byte-identical
+  focus-ring `box-shadow` across a button/link/input, confirmed real
+  rendered text - not just `aria-label` - on the reset button). This run
+  found two smaller things:
+  - **Place-card names skip `ChatBubble`'s `dir="auto"` treatment** -
+    genuinely true, and CLAUDE.md's own Hebrew-support writeup above was
+    stale on this point (it used to say place-card names got the same
+    treatment, back when they did - see "Production/staging environment
+    split" below for the two rounds where that was tried and reverted).
+    Presented the tradeoff directly rather than picking a side: fixing
+    it naively (adding `dir="auto"` back to just `.name`) would reintroduce
+    a milder version of the very first RTL bug, since the name would
+    text-align differently from its own card's chips/buttons. The user
+    confirmed leaving it as-is - the documentation above is now corrected
+    to explain why, so a future pass doesn't "fix" this same thing a
+    third time.
+  - **Chat placeholder truncated mid-word on narrow phones** (375px,
+    320px) - "What are you craving? e.g. 'ramen' or 'surprise me'" clipped
+    to "...e.g. 'rame" with no ellipsis. Fixed with a standard
+    `overflow: hidden; white-space: nowrap; text-overflow: ellipsis;` on
+    `.chat-form input` (`App.css`) - reads as intentional truncation
+    instead of a mid-word chop, in both languages (confirmed the ellipsis
+    renders on the correct/start side under Hebrew's RTL too). Doesn't
+    affect real typed input, which is always short-lived per keystroke.
+  Also surfaced, not confirmed: both this run and the third independently
+  found that pressing Enter in the chat input doesn't submit the form
+  (only clicking Send does) - `ChatInput.tsx` is a completely standard
+  `<form onSubmit>` with a `type="submit"` button and no code-level
+  reason was found for this, so it's suspected to be an artifact of the
+  sandboxed browser pane's synthetic keypresses rather than a real bug.
+  Worth a real-device check before treating it as confirmed.
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a
