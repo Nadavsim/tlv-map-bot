@@ -4,10 +4,8 @@ import type { Lang, Place } from '../types'
 
 export function PlaceCard({ place, lang }: { place: Place; lang: Lang }) {
   return (
-    <div className="place-card">
-      <div className="name" dir="auto">
-        {place.name}
-      </div>
+    <div className="place-card" dir="auto">
+      <div className="name">{place.name}</div>
       <div className="meta">
         <span className="category-chip">{place.category}</span>
         {place.dietary_tags.map((tag) => (
@@ -15,7 +13,7 @@ export function PlaceCard({ place, lang }: { place: Place; lang: Lang }) {
             {tag}
           </span>
         ))}
-        <span className="distance-eta">
+        <span className="distance-eta" dir="ltr">
           {place.eta ? `${place.distance} · ${place.eta}` : place.distance}
         </span>
       </div>

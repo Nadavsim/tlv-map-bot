@@ -442,6 +442,52 @@ In order:
   as a generic pattern, but replacing it with a settings dropdown would be
   a real usability regression at this app's mobile-first, low-chrome
   scale - a tradeoff, not a clear defect).
+- Impeccable design critique + hardening pass (2026-09-10) - once the user
+  installed the "Impeccable" skill themselves (its own installer is blocked
+  by this environment's sandbox, same as the earlier Taste Skill attempt;
+  see the Roadmap), ran `/impeccable critique` as a genuine second design
+  pass on top of the Taste Skill polish above. Dual-agent review (isolated
+  design read + a deterministic anti-pattern scan plus live-browser
+  evidence) scored the app 31/40 ("Good") - the full report is persisted at
+  `.impeccable/critique/2026-09-10T18-00-25Z__frontend-src-app-tsx.md`.
+  Of the 5 findings (2 P1, 2 P2, 1 P3), fixed the two P1s via
+  `/impeccable harden` (the user's explicit scope for this pass - the P2s
+  and P3 are deliberately still open, see that snapshot file):
+  - **RTL bidi bug + misaligned Hebrew-name cards** - real, live-reproduced
+    on actual data (a Hebrew-named place, "קפליקס" at critique time):
+    `PlaceCard`'s `.distance-eta` span had no explicit `dir`, so the
+    Unicode bidi algorithm visually reordered "0.24 km · 4 min" into
+    "km · 4 min 0.24" even in an English-language card; separately, only
+    the `.name` div had `dir="auto"`, so a Hebrew name floated top-right
+    while the rest of the card (chips, buttons) stayed left-aligned
+    underneath it. Fixed by moving `dir="auto"` up to the whole
+    `.place-card` (so every child follows the name's own resolved
+    direction consistently, not just the name text itself) and pinning
+    `.distance-eta` to `dir="ltr"` unconditionally, since it's always
+    digits and Latin units regardless of the name's script or the UI
+    language. Verified live in Hebrew UI, light and dark, desktop and
+    mobile: a Hebrew-named result card now aligns name/chips/buttons to
+    the same edge, and the distance/ETA text reads correctly regardless.
+  - **Light-mode contrast failures** - `--muted` (location status line,
+    every place-card's distance/ETA text, tag chips) computed to ~3.5:1
+    against `--bg`, and white button/bubble text on `--accent` computed to
+    ~3.1:1 - both below WCAG AA's 4.5:1 for normal text. Fixed by darkening
+    both in `theme.css`'s light-mode `:root` block only (dark mode wasn't
+    flagged and is untouched): `--muted` `#a97c64` → `#8a5c42` (~5.4:1),
+    `--accent` `#ff5a36` → `#c23f19` (already present in the palette as
+    `--chip-fg`, so not a new color - ~4.6-5.2:1 across every context it's
+    used in as text, and as a background under white text). `--bubble-user`
+    - a separate token that happened to share the old accent's exact hex
+      value by design - got the identical fix for the identical reason
+      (white message text on a user's own chat bubble is the single most
+      visible surface this bug touched, even though it's technically a
+      different CSS variable from `--accent`).
+  Deliberately not run yet: `/impeccable polish` as a broader pass (the
+  skill's own closing step after a harden) - the source diff for these two
+  fixes was already clean (no accidental churn), so there was nothing left
+  for a broader polish pass to do within this scope; re-run
+  `/impeccable critique` before addressing the remaining P2s/P3 to confirm
+  the score improved first.
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a

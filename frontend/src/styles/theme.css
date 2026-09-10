@@ -2,13 +2,23 @@
   color-scheme: light dark;
   --bg: #fff8f2;
   --fg: #2a1b12;
-  --muted: #a97c64;
+  /* Darkened from #a97c64 (2026-09-10, Impeccable critique P1): the lighter
+     value only hit ~3.5:1 against --bg, below WCAG AA's 4.5:1 for normal
+     text - and this token drives the location status line and every
+     place-card's distance/ETA text, i.e. exactly the info that makes the
+     app useful. */
+  --muted: #8a5c42;
   --bubble-bot: #ffffff;
-  --bubble-user: #ff5a36;
+  /* Darkened from #ff5a36 (2026-09-10, Impeccable critique P1) to the same
+     shade already used as --chip-fg elsewhere in this palette, rather than
+     an unrelated color - the lighter value failed AA both as text-on-cream
+     (~3:1) and as a button fill under white text (~3.1:1); this shade
+     clears 4.5:1 in both directions. */
+  --bubble-user: #c23f19;
   --bubble-user-fg: #ffffff;
   --card-bg: #ffffff;
   --border: #f0dccb;
-  --accent: #ff5a36;
+  --accent: #c23f19;
   --accent-fg: #ffffff;
   --chip-bg: #ffede3;
   --chip-fg: #c23f19;
