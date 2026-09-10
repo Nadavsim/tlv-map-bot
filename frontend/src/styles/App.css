@@ -71,7 +71,7 @@ header h1 svg {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.6rem;
   /* Keeps this pinned to the same edge it had inside header-top even when
      it wraps onto its own row on narrow screens (the New Conversation
      label made this row wider than the title can always share space with). */

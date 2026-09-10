@@ -643,13 +643,21 @@ In order:
   375px in both languages: title and actions each stay on one line,
   wrapping cleanly onto two rows instead of squeezing or breaking mid-
   phrase, and the action row keeps its RTL/LTR-correct edge either way.
-  Two P-issues remain open from this snapshot, deliberately deferred per
-  the user's chosen scope (P1-only again): the header icon gap itself is
-  still ~4.8px (the label fix addressed discoverability, not the tap
-  target spacing), and buttons/links still use the browser's bare default
-  focus outline while text inputs now get the custom accent ring - two
-  different focus styles in one app. See that snapshot file for the full
-  writeup if picking those up later.
+  One P-issue remains open from this snapshot, deliberately deferred per
+  the user's chosen scope at the time (P1-only): buttons/links still use
+  the browser's bare default focus outline while text inputs now get the
+  custom accent ring - two different focus styles in one app. See that
+  snapshot file for the full writeup if picking that up later.
+- Fixed the header-icon-gap P2 from the same (third) re-critique -
+  `.header-actions`'s `gap` was still `0.3rem` (~4.8px between adjacent
+  44x44 touch targets), unchanged by the label fix above, which addressed
+  discoverability but not the tap-target spacing that made an accidental
+  Reset tap easy in the first place. Widened to `0.6rem` (`App.css`),
+  landing in the critique's own suggested 8-12px range. Verified live via
+  `getBoundingClientRect()` on all four header buttons: every adjacent
+  gap now measures exactly 9.6px, in both languages and at both mobile
+  (375px) and desktop widths, with no wrapping regression from the
+  now-slightly-wider header-actions row.
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a
