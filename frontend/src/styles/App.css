@@ -9,13 +9,12 @@
   }
 }
 
-@keyframes bounce {
+@keyframes rise-fall {
   0%,
-  60%,
   100% {
     transform: translateY(0);
   }
-  30% {
+  50% {
     transform: translateY(-4px);
   }
 }
@@ -211,7 +210,10 @@ header h1 svg {
   height: 6px;
   border-radius: 50%;
   background: var(--muted);
-  animation: bounce 1.1s ease-in-out infinite;
+  /* Exponential ease-out (a single decelerating curve, symmetric keyframes)
+     instead of the previous asymmetric bounce - reads as a dot settling,
+     not rebounding. Swapped 2026-09-10 after the user compared both live. */
+  animation: rise-fall 1.1s cubic-bezier(0.16, 1, 0.3, 1) infinite;
 }
 
 .typing-indicator span:nth-child(2) {

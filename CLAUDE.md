@@ -515,6 +515,21 @@ In order:
   This closes all 5 findings from the 2026-09-10 critique snapshot - next
   step, if wanted, is re-running `/impeccable critique` to confirm the
   score improved from 31/40.
+  Separately, the typing-indicator's `bounce-easing` detector finding
+  (App.css, `.typing-indicator span`) - the one the user had explicitly
+  chosen to keep as a deliberate chat-app idiom - got revisited once seen
+  side-by-side: built a live comparison widget of the current bounce
+  against a suggested exponential-ease-out alternative, and the user
+  preferred the suggested version after actually seeing both. Swapped the
+  keyframes from an asymmetric `0%/30%/60%/100%` bounce under `ease-in-out`
+  to a symmetric `0%/50%/100%` `rise-fall` under
+  `cubic-bezier(0.16, 1, 0.3, 1)` (ease-out-expo) - same 1.1s duration and
+  0.15s/0.3s per-dot stagger, so only the curve shape changed. Verified live
+  via `getComputedStyle` mid-animation. The now-stale `bounce-easing=bounce`
+  ignore-list entry in `.impeccable/config.json` was left in place rather
+  than hand-edited out (no CLI command removes a single ignore-value entry,
+  and the config file isn't meant to be hand-edited) - it's inert now that
+  nothing in the CSS matches "bounce" anymore, not incorrect.
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a
