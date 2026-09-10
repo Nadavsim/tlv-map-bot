@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ApiError, getCategories, postChat, postMorePlaces } from './api'
 import { type ChatEntry, makeEntryId } from './chatTypes'
 import { ChatInput } from './components/ChatInput'
@@ -15,6 +15,9 @@ import './styles/App.css'
 // current UI language - a user shouldn't need to guess which language the
 // bot expects this one command in.
 const HELP_COMMANDS = ['help', 'עזרה']
+
+// How long an accidental "New Conversation" tap stays undoable.
+const UNDO_WINDOW_MS = 5000
 
 // The location status line is live UI chrome (like the Walk/Drive labels),
 // not a chat message - it should always reflect the *current* language, not
@@ -37,6 +40,14 @@ export default function App() {
   const [mode, setMode] = useState<TransportMode>('walking')
   const [isWaitingForReply, setIsWaitingForReply] = useState(false)
   const [loadingMoreId, setLoadingMoreId] = useState<string | null>(null)
+  const [clearedEntries, setClearedEntries] = useState<ChatEntry[] | null>(null)
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     document.documentElement.lang = lang
@@ -151,6 +162,11 @@ export default function App() {
   async function handleSend(message: string) {
     if (!userLocation) return
 
+    // Continuing the conversation forfeits any pending undo - restoring the
+    // cleared history at this point would silently discard whatever the user
+    // just sent instead.
+    dismissUndo()
+
     // Answered locally - free, instant, no LLM call needed for a fixed command.
     if (HELP_COMMANDS.includes(message.trim().toLowerCase())) {
       await showHelp(message)
@@ -230,11 +246,31 @@ export default function App() {
     }
   }
 
+  function dismissUndo() {
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current)
+      undoTimerRef.current = null
+    }
+    setClearedEntries(null)
+  }
+
   // Clears the conversation only - location/theme/language are separate
   // state and deliberately untouched, so "starting over" doesn't also throw
-  // away location permission or preferences.
+  // away location permission or preferences. The cleared history is kept
+  // around briefly so an accidental tap (the header icons sit close
+  // together) can be undone instead of silently losing results.
   function handleNewConversation() {
+    if (entries.length === 0) return
+    setClearedEntries(entries)
     setEntries([])
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = setTimeout(() => setClearedEntries(null), UNDO_WINDOW_MS)
+  }
+
+  function handleUndoClear() {
+    if (!clearedEntries) return
+    setEntries(clearedEntries)
+    dismissUndo()
   }
 
   const chatDisabled = !userLocation || isWaitingForReply
@@ -265,6 +301,14 @@ export default function App() {
         loadingMoreId={loadingMoreId}
         lang={lang}
       />
+      {clearedEntries && (
+        <div className="undo-toast" role="status">
+          <span>{t(lang, 'conversationCleared')}</span>
+          <button type="button" onClick={handleUndoClear}>
+            {t(lang, 'undo')}
+          </button>
+        </div>
+      )}
       <ChatInput disabled={chatDisabled} onSend={handleSend} lang={lang} />
     </div>
   )

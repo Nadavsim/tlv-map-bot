@@ -559,13 +559,31 @@ In order:
   Hebrew-named result ("קפה אחד העם") sitting next to English-named ones
   in the same scroll. `.distance-eta`'s `dir="ltr"` pin was untouched (not
   part of the regression).
-  The re-critique also surfaced 3 issues not yet acted on, deliberately
-  scoped out of this pass at the user's direction (P1-only again): a
-  destructive "New Conversation" with no confirmation/undo sitting ~4.8px
-  from Theme/Help; three icon-only header buttons (Theme, Reset, Help)
-  with no visible label; and a weaker keyboard-focus ring on the two text
-  inputs than every button in the app. See that snapshot file for the full
-  writeup if picking these up later.
+  The re-critique also surfaced 3 issues, of which one is now fixed (see
+  below) and 2 remain open: three icon-only header buttons (Theme, Reset,
+  Help) with no visible label, and a weaker keyboard-focus ring on the two
+  text inputs than every button in the app. See that snapshot file for the
+  full writeup if picking these up later.
+- Fixed the destructive "New Conversation" P2 from the same re-critique -
+  clicking it wiped the chat log instantly with no confirmation or undo,
+  ~4.8px from Theme/Help in the header's icon row (an easy mis-tap on
+  mobile). Chose the undo-toast option over widening the button gap or
+  adding a confirmation dialog (the user's call): `handleNewConversation`
+  (`App.tsx`) now stashes the just-cleared `entries` in a new
+  `clearedEntries` state instead of discarding them, clears the visible
+  log, and starts a 5s timer (`UNDO_WINDOW_MS`); a bar above the composer
+  (`.undo-toast`, styled from the existing chip/pill tokens) offers "Undo"
+  for that window. Two deliberate guards beyond the timer: clicking Reset
+  on an already-empty log is a no-op (nothing to stash, per the critique's
+  own suggested fix), and sending a new message immediately forfeits any
+  pending undo (`dismissUndo()` at the top of `handleSend`) - otherwise a
+  stale Undo click after continuing the conversation would silently
+  discard whatever the user just sent, trading one data-loss bug for
+  another. Verified live in both languages: clear -> undo restores all
+  3 cards and hides the toast; clear -> wait 5s auto-dismisses; clear ->
+  send a new message immediately hides the toast (no dangling undo); RTL
+  mirrors correctly (label right, Undo button left, matching the app's
+  existing RTL flow).
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a
