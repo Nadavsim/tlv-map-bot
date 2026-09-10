@@ -559,10 +559,8 @@ In order:
   Hebrew-named result ("קפה אחד העם") sitting next to English-named ones
   in the same scroll. `.distance-eta`'s `dir="ltr"` pin was untouched (not
   part of the regression).
-  The re-critique also surfaced 3 issues, of which 2 are now fixed (see
-  below) and 1 remains open: a weaker keyboard-focus ring on the two text
-  inputs than every button in the app. See that snapshot file for the full
-  writeup if picking that up later.
+  The re-critique also surfaced 3 issues, all now fixed (see below and the
+  snapshot file for the full original writeups).
 - Fixed the destructive "New Conversation" P2 from the same re-critique -
   clicking it wiped the chat log instantly with no confirmation or undo,
   ~4.8px from Theme/Help in the header's icon row (an easy mis-tap on
@@ -602,6 +600,22 @@ In order:
   languages that `title` now matches `aria-label` exactly on all three
   buttons, and that the language toggle correctly has no `title` (it
   already carries a visible label).
+- Fixed the input-focus-ring P3 from the same re-critique, closing out all
+  5 of its findings - `.chat-form input:focus` and `.location-form-row
+  input:focus` explicitly set `outline: none` and substituted only a
+  1.5px border-color shift, a visibly weaker cue than every button's
+  native focus outline. Added `box-shadow: 0 0 0 3px color-mix(in srgb,
+  var(--accent) 35%, transparent)` alongside the existing border-color
+  change on both rules (`App.css`) - a `color-mix()`-derived accent-tinted
+  ring rather than a hardcoded rgba, so it automatically follows whichever
+  `--accent` value is active (rust in light mode, lime in dark) with no
+  per-theme override needed. `document.hasFocus()` is false in this
+  sandbox's automated browser pane by default (it isn't the OS-focused
+  window), which silently suppresses `:focus` entirely regardless of CSS -
+  a real synthetic keyboard event (Tab) rather than a programmatic
+  `.focus()` call was needed to get a trustworthy read; confirmed via
+  `getComputedStyle` afterward that both inputs, in both themes, correctly
+  resolve the ring to a real color (not `none` or invalid).
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a

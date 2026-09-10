@@ -431,6 +431,7 @@ header h1 svg {
 .location-form-row input:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .location-form-row button {
@@ -506,6 +507,7 @@ header h1 svg {
 .chat-form input:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .chat-form button {
