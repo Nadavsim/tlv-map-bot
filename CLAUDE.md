@@ -93,26 +93,56 @@ In order:
    on top of it. Revisit later if it starts to matter (e.g. once the app
    is shared more widely, or for OAuth redirect URI aesthetics during auth
    work) - nothing about the current setup blocks adding one later.
-2. Install the "Impeccable" design skill for a second design pass (its
-   installer was blocked by the sandbox's safety classifier in the session
-   that tried it - needs to be run by the user in their own terminal:
-   `npx impeccable install`). The "Taste Skill" skills are already installed
-   (`.claude/skills/`) and were used once already (see "Visual upgrades").
-3. A few minor clarity/completeness features - privacy policy, custom 404,
-   etc. (see "Strategic Omissions" - things AI-built apps typically forget -
-   in the redesign-existing-projects skill for a fuller checklist).
+2. ~~Install the "Impeccable" design skill for a second design pass~~ -
+   done: installed by the user (its own installer was blocked by this
+   sandbox's safety classifier, same as the earlier Taste Skill attempt),
+   then run through four full critique-and-fix rounds on 2026-09-10 (see
+   "Visual upgrades" below) - score went 31 -> 28 -> 34 -> 36/40, every
+   flagged issue either fixed or resolved as a documented tradeoff.
+3. A few minor clarity/completeness features - scoped 2026-09-11:
+   - **Privacy policy** - genuinely needed now, not just nice-to-have:
+     real people's location (per query), chat text (sent to the Anthropic
+     API), and dietary/category stats are already processed and stored,
+     and Google Sign-In (item 5 below) adds account data on top. A real
+     page, not boilerplate - covering what's collected and where it goes
+     (Anthropic API for NLU, MongoDB Atlas for storage).
+   - **Custom 404 page** - branded instead of a bare framework error page.
+   - **A basic React error boundary** - right now an unhandled render
+     error would show a blank white screen with no recovery path; a
+     simple "something broke, refresh" boundary is cheap insurance.
+   - **`robots.txt` disallowing crawling** - this app is for friends and
+     family, not public discovery; nothing about it should end up indexed.
+   - Considered and deliberately left out for now: formal terms of use,
+     and a self-serve data-export/delete-my-data flow - reasonable to skip
+     at friends-and-family scale; revisit once real auth/accounts (item 5)
+     make this less informal.
 4. ~~Set up separate production and test/staging environments~~ - done
    2026-09-10, see "Production/staging environment split" above (under
    Done) for the full story, gotchas included. Ended up costing real money
    (~$14.45/month for production's Basic tier) rather than staying free,
    after the free-tier approach caused a real production outage during
    setup - see that entry for why. Budget raised to $15/month accordingly.
-5. Implement auth and the user system - see "Bigger builds - user system"
+5. Manual-location as a real mode, not just a permission fallback -
+   raised 2026-09-10 by the user, moved up ahead of auth on 2026-09-11:
+   right now `/api/resolve-location`'s typed-address/Maps-link/coordinates
+   path only ever appears when live geolocation is denied or unavailable.
+   There's no way to plan ahead - e.g. "I'm home right now (location works
+   fine) but want recommendations near where I'm headed later." The
+   user's own suggested shape: a toggle alongside Walk/Drive (not another
+   fallback state) that lets a manual address override live location on
+   demand, even when live location is working. Not yet scoped - open
+   questions for whenever this gets picked up: does switching back to
+   "live" re-request geolocation or reuse the last known fix; does the
+   manual address persist across messages the same way mode/theme/lang
+   do; does it interact with the existing `locationFallbackMessage`/retry
+   flow or replace part of it. A natural follow-on once this exists:
+   saved/frequent addresses (see "Scoped, not yet built" below).
+6. Implement auth and the user system - see "Bigger builds - user system"
    below for the already-sequenced plan (Google Sign-In + JWT session layer
    first, then favorites, ratings, user-suggested spots, map uploads). Now
    safe to build/test against the staging environment from step 4 rather
    than production.
-6. Add the map view visual feature (see "Visual upgrades" below).
+7. Add the map view visual feature (see "Visual upgrades" below).
 
 ## To-do list
 
@@ -409,30 +439,53 @@ In order:
 9. ~~Conversational refinement / short-lived session memory~~ - done, see
    above.
 10. ~~Kosher/dietary tags and filtering~~ - done, see above.
-11. Shorten/change the Azure URL (custom domain, or rename the App
-    Service) - lowest urgency, purely cosmetic, and needs a decision
-    (buy a domain vs. just live with a renamed App Service) before it's
-    even scoped.
-12. Manual-location as a real mode, not just a permission fallback -
-    raised 2026-09-10 by the user: right now `/api/resolve-location`'s
-    typed-address/Maps-link/coordinates path (item 4 above) only ever
-    appears when live geolocation is denied or unavailable. There's no
-    way to plan ahead - e.g. "I'm home right now (location works fine)
-    but want recommendations near where I'm headed later." The user's own
-    suggested shape: a toggle alongside Walk/Drive (not another fallback
-    state) that lets a manual address override live location on demand,
-    even when live location is working. Not yet scoped - open questions
-    for whenever this gets picked up: does switching back to "live"
-    re-request geolocation or reuse the last known fix; does the manual
-    address persist across messages the same way mode/theme/lang do; does
-    it interact with the existing `locationFallbackMessage`/retry flow or
-    replace part of it.
+11. Feedback option for bad data - a lightweight "this place closed" /
+    "wrong category" action from a place card, feeding curation the same
+    way `unmatched_queries` already does (see "Light usage stats" above)
+    rather than a moderation queue - that's already sequenced separately
+    for user-suggested places under "Bigger builds" below, once real
+    accounts exist to attribute submissions to.
+12. Saved/frequent addresses - a natural follow-on once manual-location
+    mode (Roadmap item 5 above) exists. Explicit constraint from the user
+    (2026-09-11): no semantic labels like "Home" or "Work" - those would
+    let anyone (including the app operator) infer where a specific user
+    actually lives or works, which this app has no business collecting.
+    Generic saved entries (a nickname the user picks, or just a plain
+    recency-ordered list) only.
+
+Explicitly considered and left out for now (2026-09-11): a persistent
+dietary/category filter UI (vs. today's conversational, per-query
+filtering) - revisit once favorites/the user system make session-level
+state worth adding.
 
 ### Visual upgrades
 - Map view - a visible map showing the recommended place(s), on top of the
   existing chat/list view (the original "chat now, map later" plan from
   early in the project). (Improved icons moved into the priority list
   above, at #2.)
+- Category icons on the chips (2026-09-11, not yet built) - a small icon
+  per category (coffee cup, pizza slice, etc.) next to the existing text
+  in `.category-chip`, using the lucide-react set already depended on
+  everywhere else in the app, so a result list is scannable at a glance
+  rather than read word by word.
+- Plan ahead for the header before it's forced (2026-09-11, not yet
+  built) - the header already carries 4 icon buttons plus the Walk/Drive
+  toggle, and it took real design work this session just to fit a single
+  visible text label on one of them (see the fourth critique-round fixes
+  below). Both auth (a profile/avatar control) and manual-location mode
+  (Roadmap item 5) will likely want their own header presence next -
+  worth designing that next header state deliberately rather than letting
+  two unrelated features independently fight for the same cramped row.
+- Run `/impeccable document` to generate a formal `DESIGN.md` (2026-09-11,
+  not yet done) - the actual design system (two deliberate palettes, the
+  pill/radius system, the RTL patterns) currently only lives as prose
+  scattered across this file. Worth codifying now that it's been through
+  four critique rounds, so future visual work (map view, auth UI) starts
+  from a real spec instead of re-deriving conventions from old commit
+  messages.
+- Considered and declined for now (2026-09-11): a distinct visual badge
+  for "surprise me" results (e.g. marking those cards differently from a
+  normal category match) - not needed at this scale.
 - Design polish pass, done via the third-party "Taste Skill" project skills
   (`.claude/skills/`, installed via `npx skills add Leonxlnx/taste-skill` -
   a separate "Impeccable" skill was tried too but its installer was blocked
