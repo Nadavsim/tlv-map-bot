@@ -413,6 +413,20 @@ In order:
     Service) - lowest urgency, purely cosmetic, and needs a decision
     (buy a domain vs. just live with a renamed App Service) before it's
     even scoped.
+12. Manual-location as a real mode, not just a permission fallback -
+    raised 2026-09-10 by the user: right now `/api/resolve-location`'s
+    typed-address/Maps-link/coordinates path (item 4 above) only ever
+    appears when live geolocation is denied or unavailable. There's no
+    way to plan ahead - e.g. "I'm home right now (location works fine)
+    but want recommendations near where I'm headed later." The user's own
+    suggested shape: a toggle alongside Walk/Drive (not another fallback
+    state) that lets a manual address override live location on demand,
+    even when live location is working. Not yet scoped - open questions
+    for whenever this gets picked up: does switching back to "live"
+    re-request geolocation or reuse the last known fix; does the manual
+    address persist across messages the same way mode/theme/lang do; does
+    it interact with the existing `locationFallbackMessage`/retry flow or
+    replace part of it.
 
 ### Visual upgrades
 - Map view - a visible map showing the recommended place(s), on top of the
