@@ -25,12 +25,18 @@ project with real (if modest) usage, not a toy or a tutorial exercise.
   decision (auth, data model, hosting) is made with this trajectory in mind —
   not over-built for a hypothetical scale, but not so disposable it needs a
   rewrite the moment a second real user shows up.
-- **Stay cheap, deliberately.** Hosting/DB/API costs are capped at **$12/month**
-  even though there's a $100 Azure credit (GitHub Student pack) available —
-  the credit is a cushion, not a budget. In practice this runs at roughly
-  $1-2/month by leaning on free tiers (MongoDB Atlas M0, Azure App Service
-  F1, free public OSRM routing) and a cheap, fast LLM (Claude Haiku 4.5) for
-  the one paid dependency. Any new feature or dependency should be evaluated
+- **Stay cheap, deliberately.** Hosting/DB/API costs are capped at **$15/month**
+  (raised 2026-09-10 from the original $12 specifically to afford a dedicated
+  Azure App Service plan for production — see "Production/staging environment
+  split" below for why the Free tier alone stopped being viable) even though
+  there's a $100 Azure credit (GitHub Student pack) available — the credit is
+  a cushion, not a budget. In practice this runs at roughly $14-15/month:
+  production's Basic (B1) App Service plan (~$14.45/month) is the one real
+  line item; everything else is still free (MongoDB Atlas M0 hosts both the
+  production and staging databases at no extra cost, staging's own App
+  Service stays on the Free F1 tier, OSRM routing is free) or the one other
+  paid dependency, a cheap fast LLM (Claude Haiku 4.5, a few dollars/month at
+  personal-project volume). Any new feature or dependency should be evaluated
   against this constraint, not just "does it work."
 - **Keep the data source easy to maintain.** The place list is curated by
   hand in Google My Maps (the format the creator already uses day to day) -
@@ -45,26 +51,48 @@ project with real (if modest) usage, not a toy or a tutorial exercise.
   `routing.py` for OSRM ETAs, `location.py` for Google Maps link resolution).
 - **Frontend:** React + TypeScript, in `frontend/`, built with Vite straight
   into `static/` for FastAPI to serve.
-- **Database:** MongoDB Atlas, free M0 tier. Places are matched by physical
-  proximity (not name) so renaming a pin on the map doesn't look like a
-  delete+recreate. A `$jsonSchema` validator runs in `warn` mode as
-  defense-in-depth alongside the Pydantic models.
+- **Database:** MongoDB Atlas, free M0 tier, one cluster hosting two
+  databases — `tlvbot` (production, real data) and `tlvbot_staging`
+  (staging, an isolated copy, not auto-synced — see below). Places are
+  matched by physical proximity (not name) so renaming a pin on the map
+  doesn't look like a delete+recreate. A `$jsonSchema` validator runs in
+  `warn` mode as defense-in-depth alongside the Pydantic models.
 - **NLU:** Claude Haiku 4.5, one tool-call per chat message to match
   free text to a known category.
 - **Routing:** free public OSRM instances (routing.openstreetmap.de) for
   real walking/driving ETAs - no API key, no billing.
-- **Hosting:** Azure App Service, Free (F1) tier. Deployed via GitHub Actions
-  on every push to `main` (builds the frontend, then the Python app).
+- **Hosting:** Azure App Service, split into two environments (see
+  "Production/staging environment split" under Done below for the full
+  story of why and the gotchas hit setting it up):
+  - **Production** — App Service `Nadavbot-TLV`, Basic (B1) tier, its own
+    dedicated App Service Plan (`nadav-bot-plan`) and resource group
+    (`tlv-bot-prod-rg`). Deploys via `.github/workflows/deploy-production.yml`
+    on every push to `main`.
+  - **Staging** — App Service `nadav-tlv-bot` (the original app, repurposed),
+    Free (F1) tier, its own App Service Plan, resource group `tlv-bot-rg`.
+    Deploys via `.github/workflows/deploy-staging.yml` on every push to a
+    `staging` branch. Points at the `tlvbot_staging` database.
+  - Both currently sit on Azure's auto-generated hostnames (e.g.
+    `nadavbot-tlv-<random>.israelcentral-01.azurewebsites.net` - Azure
+    appends a random suffix + region to new App Service default hostnames
+    for global-uniqueness reasons, so this isn't fixable by renaming). A
+    custom domain was considered and explicitly deferred - see the Roadmap.
 - **Data source:** a Google My Maps custom map, shared publicly, synced via
-  `scripts/sync_places.py`.
+  `scripts/sync_places.py`. The scheduled sync workflow only updates
+  production; staging's data is a one-time seed, manually re-run when
+  wanted (`MONGODB_DB_NAME=tlvbot_staging python -m scripts.sync_places`).
 
 See `README.md` for setup/run instructions and the full directory structure.
 
 ## Roadmap (agreed 2026-09-08, milestone: base app ready for friends/family)
 
 In order:
-1. Buy a custom domain (the user's call - not something Claude can purchase;
-   see item 11 in the to-do list below for the Azure-side half of this).
+1. ~~Buy a custom domain~~ - explicitly declined for now (2026-09-10): once
+   the production Basic-tier upgrade was decided anyway (see below), a
+   clean URL was judged purely cosmetic and not worth the added cost/setup
+   on top of it. Revisit later if it starts to matter (e.g. once the app
+   is shared more widely, or for OAuth redirect URI aesthetics during auth
+   work) - nothing about the current setup blocks adding one later.
 2. Install the "Impeccable" design skill for a second design pass (its
    installer was blocked by the sandbox's safety classifier in the session
    that tried it - needs to be run by the user in their own terminal:
@@ -73,17 +101,17 @@ In order:
 3. A few minor clarity/completeness features - privacy policy, custom 404,
    etc. (see "Strategic Omissions" - things AI-built apps typically forget -
    in the redesign-existing-projects skill for a fuller checklist).
-4. Set up separate production and test/staging environments before auth
-   work begins - real accounts/sessions are exactly the kind of thing that
-   shouldn't be debugged live. Cheap to do: a second free Azure App Service
-   plus a second database *name* inside the same free MongoDB Atlas cluster
-   (no second cluster needed) - stays within the $12/month budget. Pair
-   this with a `staging` git branch (deploys to the test environment) job
-   alongside `main` (deploys to production, as today) - simple two-branch
-   model, not a full gitflow, appropriate for a solo project.
+4. ~~Set up separate production and test/staging environments~~ - done
+   2026-09-10, see "Production/staging environment split" above (under
+   Done) for the full story, gotchas included. Ended up costing real money
+   (~$14.45/month for production's Basic tier) rather than staying free,
+   after the free-tier approach caused a real production outage during
+   setup - see that entry for why. Budget raised to $15/month accordingly.
 5. Implement auth and the user system - see "Bigger builds - user system"
    below for the already-sequenced plan (Google Sign-In + JWT session layer
-   first, then favorites, ratings, user-suggested spots, map uploads).
+   first, then favorites, ratings, user-suggested spots, map uploads). Now
+   safe to build/test against the staging environment from step 4 rather
+   than production.
 6. Add the map view visual feature (see "Visual upgrades" below).
 
 ## To-do list
@@ -307,6 +335,53 @@ In order:
   exhausting the one vegan result replied "That's all the vegan coffee
   spots I have saved for now." rather than silently dropping the tag -
   then reverted the temporary tag.
+- Production/staging environment split (2026-09-10) - see the Hosting
+  entry under Architecture above for the resulting shape. Done ahead of
+  auth work specifically, since real sessions/accounts are exactly the
+  kind of thing that shouldn't be debugged against production. The path
+  to get there was rockier than expected and worth remembering:
+  - **A new App Service was created for production** (`Nadavbot-TLV`) so
+    the *old* app (`nadav-tlv-bot`) could be repurposed as staging rather
+    than standing up a third app - reused its existing GitHub secret and
+    avoided an unnecessary Azure rename (Azure doesn't support in-place
+    App Service renames anyway - the "new app, old app becomes staging"
+    approach sidesteps that entirely).
+  - **Azure for Students allows only one Free-tier App Service Plan per
+    region per subscription.** Creating a second Free plan for the new app
+    hit a quota error immediately - had to share `nadav-tlv-bot`'s existing
+    plan at first.
+  - **Sharing a plan between production and staging is actively dangerous,
+    not just inelegant** - proven live, not hypothetical: this session's
+    own deploy/restart churn on the shared plan burned through the Free
+    tier's 60 CPU-minutes/day cap and took the real production app down
+    for actual users, right in the middle of setting up the thing meant to
+    prevent exactly that. Directly motivated paying for Basic (B1) on
+    production instead of continuing to share.
+  - **You cannot migrate an App Service to a plan in a different resource
+    group** ("Cannot change the site ... due to hosting constraints" is
+    Azure's error for this, confirmed via the Activity Log - a generic
+    message that also gets thrown for a couple of unrelated conditions, so
+    don't assume it always means this). The Portal's own "Change App
+    Service plan" dialog doesn't support attaching to a plan by name either
+    - it only creates new ones. Once a plan is created in the right
+    resource group up front, this whole class of problem disappears - the
+    working fix here was deleting and recreating the App Service directly
+    in the target resource group with the existing plan selected at
+    creation time, rather than trying to migrate an existing app into place.
+  - **A manually-created App Service doesn't get `SCM_DO_BUILD_DURING_
+    DEPLOYMENT=true` automatically** - only Azure's own "set up CI/CD from
+    the Portal" wizard adds that app setting for you. Without it, Oryx
+    never runs `pip install` server-side, so the deployed app has no
+    dependencies at all (`No module named uvicorn` in the Log stream, not
+    a crash or a timeout - a genuinely different symptom worth recognizing
+    quickly rather than assuming it's just still cold-starting). Any App
+    Service created by hand needs this setting added explicitly.
+  - Custom domain purchase (originally item 1 on the Roadmap below) was
+    explicitly declined once it became clear the Basic-tier upgrade could
+    stand alone - a clean URL was judged purely cosmetic against getting a
+    working prod/staging split, so the app stays on Azure's own
+    auto-generated hostnames for now (see the Hosting entry above for why
+    those aren't easily prettied up either way).
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
@@ -393,7 +468,12 @@ full product later.
    since `xml.etree.ElementTree` is vulnerable to entity-expansion attacks on
    untrusted input)
 
-One flagged tradeoff: growing past personal/occasional friends-and-family
-traffic will eventually outgrow the Azure App Service Free (F1) tier's
-60 CPU-minutes/day cap - the next tier up (~$13/month) alone would just
-about break the $12/month budget. Not a problem yet: worth watching.
+Update (2026-09-10): the tradeoff flagged here already happened, sooner
+than expected - not from real friends-and-family traffic, but from this
+session's own deploy/restart activity while setting up the environment
+split (see "Production/staging environment split" above). Production is
+now on Basic (B1), which has no CPU-minute cap at all, so this specific
+risk is resolved for production going forward. Staging remains on Free
+F1 and could in principle hit the same cap under heavy test traffic, but
+that's a much lower-stakes failure mode now that it's fully isolated from
+production.

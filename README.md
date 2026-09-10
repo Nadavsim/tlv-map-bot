@@ -33,13 +33,21 @@ lightweight web app so it can run for well under $12/month.
 * **NLU:** Anthropic API, `claude-haiku-4-5` - one small tool-call per chat
   message to match free text to a known category. At personal-project volume
   this runs about $1-2/month.
-* **Hosting:** Azure App Service, Free (F1) tier - $0/month, deployed via the
-  existing GitHub Actions workflow in `.github/workflows/`.
+* **Hosting:** Azure App Service, split into a production and a staging
+  environment (see `CLAUDE.md` for the full story and setup gotchas).
+  Production runs on a dedicated Basic (B1) plan (~$14.45/month - the
+  Free tier's 60 CPU-minute/day cap isn't viable for a live app people
+  actually use); staging runs on a separate Free (F1) plan with its own
+  isolated database, for testing risky changes (like auth) before they
+  touch real data. Each deploys from its own branch (`main` -> production,
+  `staging` -> staging) via `.github/workflows/`.
 * **Data source:** a Google My Maps custom map, shared publicly, exported as
   KML on demand via its stable `mid=` URL.
 
-Total running cost at personal-project scale: well under $1/month typically,
-comfortably inside a $12/month budget with room to spare.
+Total running cost at personal-project scale: ~$14-15/month - production's
+Basic-tier App Service plan is the one real line item; everything else
+(MongoDB Atlas, staging's Free-tier App Service, OSRM routing) is free or
+close to it, plus a few dollars/month for the Anthropic API.
 
 ## 🚀 Setup
 
@@ -129,10 +137,32 @@ Open `http://localhost:8000`.
 
 ### 9. Deploy
 
-`.github/workflows/main_nadav-tlv-bot.yml` builds the frontend (Node) and then
-the Python app, on every push to `main` - no manual steps needed there. Just
-make sure the four env vars above are set in the App Service's Configuration ->
-Application settings, and set the startup command to:
+Two environments, each with its own App Service and its own GitHub Actions
+workflow - both build the frontend (Node) and then the Python app, no manual
+build steps needed:
+
+- `.github/workflows/deploy-production.yml` - deploys on every push to
+  `main`, to the production App Service.
+- `.github/workflows/deploy-staging.yml` - deploys on every push to a
+  `staging` branch, to a separate App Service pointed at an isolated
+  database (`MONGODB_DB_NAME` set differently there - see `CLAUDE.md`).
+
+For either App Service, in its Configuration (or "Environment variables" in
+newer Portal versions) -> Application settings, set the same four env vars
+as above, **plus**:
+
+```
+SCM_DO_BUILD_DURING_DEPLOYMENT=true
+```
+
+This one is easy to miss if you ever set up an App Service by hand instead
+of through Azure's own "set up CI/CD" Portal wizard (which adds it for you
+automatically) - without it, Azure's Oryx build system never runs `pip
+install` server-side, and the app fails to start with `No module named
+uvicorn` in the Log stream, not an obvious "missing config" error. Ask me
+about this if it comes up again; there's a longer writeup in `CLAUDE.md`.
+
+Then set the startup command (General settings tab, same Configuration page):
 
 ```
 python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000
