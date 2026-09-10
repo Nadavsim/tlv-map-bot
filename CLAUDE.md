@@ -559,11 +559,10 @@ In order:
   Hebrew-named result ("קפה אחד העם") sitting next to English-named ones
   in the same scroll. `.distance-eta`'s `dir="ltr"` pin was untouched (not
   part of the regression).
-  The re-critique also surfaced 3 issues, of which one is now fixed (see
-  below) and 2 remain open: three icon-only header buttons (Theme, Reset,
-  Help) with no visible label, and a weaker keyboard-focus ring on the two
-  text inputs than every button in the app. See that snapshot file for the
-  full writeup if picking these up later.
+  The re-critique also surfaced 3 issues, of which 2 are now fixed (see
+  below) and 1 remains open: a weaker keyboard-focus ring on the two text
+  inputs than every button in the app. See that snapshot file for the full
+  writeup if picking that up later.
 - Fixed the destructive "New Conversation" P2 from the same re-critique -
   clicking it wiped the chat log instantly with no confirmation or undo,
   ~4.8px from Theme/Help in the header's icon row (an easy mis-tap on
@@ -584,6 +583,25 @@ In order:
   send a new message immediately hides the toast (no dangling undo); RTL
   mirrors correctly (label right, Undo button left, matching the app's
   existing RTL flow).
+- Fixed the unlabeled-header-buttons P2 from the same re-critique - Theme,
+  Reset, and Help were icon-only with no visible label or tooltip (only
+  the language toggle pairs icon+text), so a first-time user had to tap
+  and see to learn what a button did - risky for Reset given it's
+  destructive. Added a native `title` attribute to each of the three
+  (`Header.tsx`), mirroring its existing `aria-label` so the hover tooltip
+  and the screen-reader name always say the same thing in the current
+  language. Deliberately the lighter of the critique's two suggested
+  fixes (tooltip vs. promoting all three to visible icon+text labels like
+  the language toggle) - full labels would widen an already-flagged
+  6-control header on narrow mobile viewports, going against this
+  project's earlier explicit call to keep the header icon-only rather
+  than add a settings dropdown (see "Visual upgrades" below). Screen
+  readers already had the destructive Reset button's name via
+  `aria-label`, and it's no longer a silent, unrecoverable action either
+  - the undo toast above covers that risk directly. Verified live in both
+  languages that `title` now matches `aria-label` exactly on all three
+  buttons, and that the language toggle correctly has no `title` (it
+  already carries a visible label).
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a

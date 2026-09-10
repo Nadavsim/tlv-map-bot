@@ -47,6 +47,7 @@ export function Header({
             className="icon-button"
             onClick={() => onThemeChange(theme === 'light' ? 'dark' : 'light')}
             aria-label={theme === 'light' ? t(lang, 'themeToggleToDark') : t(lang, 'themeToggleToLight')}
+            title={theme === 'light' ? t(lang, 'themeToggleToDark') : t(lang, 'themeToggleToLight')}
           >
             {theme === 'light' ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}
           </button>
@@ -55,10 +56,17 @@ export function Header({
             className="icon-button"
             onClick={onNewConversation}
             aria-label={t(lang, 'newConversation')}
+            title={t(lang, 'newConversation')}
           >
             <RotateCcw size={18} aria-hidden="true" />
           </button>
-          <button type="button" className="icon-button" onClick={onHelp} aria-label={t(lang, 'help')}>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onHelp}
+            aria-label={t(lang, 'help')}
+            title={t(lang, 'help')}
+          >
             <CircleHelp size={20} aria-hidden="true" />
           </button>
         </div>
