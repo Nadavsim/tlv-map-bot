@@ -713,13 +713,12 @@ In order:
     instead of a mid-word chop, in both languages (confirmed the ellipsis
     renders on the correct/start side under Hebrew's RTL too). Doesn't
     affect real typed input, which is always short-lived per keystroke.
-  Also surfaced, not confirmed: both this run and the third independently
-  found that pressing Enter in the chat input doesn't submit the form
-  (only clicking Send does) - `ChatInput.tsx` is a completely standard
-  `<form onSubmit>` with a `type="submit"` button and no code-level
-  reason was found for this, so it's suspected to be an artifact of the
-  sandboxed browser pane's synthetic keypresses rather than a real bug.
-  Worth a real-device check before treating it as confirmed.
+  Also surfaced by both this run and the third: pressing Enter appeared
+  not to submit the chat form in the sandboxed browser pane. Confirmed a
+  false alarm after deploying to staging and testing on a real device -
+  Enter-to-send works correctly; the automation environment's synthetic
+  keypresses just weren't a faithful stand-in for a real Enter press in
+  this case. No code change was needed.
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a
