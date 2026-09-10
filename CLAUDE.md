@@ -643,11 +643,6 @@ In order:
   375px in both languages: title and actions each stay on one line,
   wrapping cleanly onto two rows instead of squeezing or breaking mid-
   phrase, and the action row keeps its RTL/LTR-correct edge either way.
-  One P-issue remains open from this snapshot, deliberately deferred per
-  the user's chosen scope at the time (P1-only): buttons/links still use
-  the browser's bare default focus outline while text inputs now get the
-  custom accent ring - two different focus styles in one app. See that
-  snapshot file for the full writeup if picking that up later.
 - Fixed the header-icon-gap P2 from the same (third) re-critique -
   `.header-actions`'s `gap` was still `0.3rem` (~4.8px between adjacent
   44x44 touch targets), unchanged by the label fix above, which addressed
@@ -658,6 +653,28 @@ In order:
   gap now measures exactly 9.6px, in both languages and at both mobile
   (375px) and desktop widths, with no wrapping regression from the
   now-slightly-wider header-actions row.
+- Fixed the inconsistent-focus-ring P3 from the same (third) re-critique,
+  closing out all 3 of its findings - buttons and links still relied on
+  the browser's bare default outline while text inputs had a custom
+  accent `box-shadow` ring, so the indicator's character changed
+  depending on what kind of element you tabbed onto. Added one global
+  rule (`.app button:focus-visible, .app a:focus-visible`, `App.css`)
+  using the same `color-mix()`-based accent ring already on the inputs,
+  and switched the two existing input rules from `:focus` to
+  `:focus-visible` so every interactive element in the app is now
+  governed by the same pseudo-class, not just visually matching under
+  different trigger conditions. `:focus-visible`'s own browser heuristic
+  does the right thing here for free - it only engages for keyboard-driven
+  focus on buttons/links (confirmed live: a mouse click on a button does
+  NOT trigger the ring, `el.matches(':focus-visible')` correctly `false`),
+  while text inputs still show it on any focus method (browsers always
+  treat text fields as wanting a visible indicator) - so switching their
+  rule to `:focus-visible` changed nothing about when their ring appears,
+  only which selector governs it. Verified live via real keyboard Tab
+  presses (not programmatic `.focus()`, which can produce an
+  unrepresentative read - see the earlier focus-ring entry above) across
+  the language toggle, theme toggle, and a place-card's Navigate link -
+  all three render the identical ring as the text inputs.
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a

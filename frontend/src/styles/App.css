@@ -27,6 +27,16 @@
   stroke-width: 2.5;
 }
 
+/* One focus treatment for every interactive element - buttons and links
+   previously fell back to the browser's bare default outline while text
+   inputs got a custom accent ring below, so the indicator's character
+   changed depending on what kind of element you tabbed onto. */
+.app button:focus-visible,
+.app a:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
 .app {
   max-width: 560px;
   margin: 0 auto;
@@ -439,7 +449,7 @@ header h1 svg {
   font-size: 0.95rem;
 }
 
-.location-form-row input:focus {
+.location-form-row input:focus-visible {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
@@ -515,7 +525,7 @@ header h1 svg {
   font-size: 0.95rem;
 }
 
-.chat-form input:focus {
+.chat-form input:focus-visible {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
