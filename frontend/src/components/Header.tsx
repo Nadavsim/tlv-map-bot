@@ -1,4 +1,4 @@
-import { Car, CircleHelp, Footprints, Languages, MapPin, Moon, Sun } from 'lucide-react'
+import { Car, CircleHelp, Footprints, Languages, MapPin, Moon, RotateCcw, Sun } from 'lucide-react'
 import { t } from '../i18n'
 import type { Lang, Theme, TransportMode } from '../types'
 
@@ -7,6 +7,7 @@ interface HeaderProps {
   mode: TransportMode
   onModeChange: (mode: TransportMode) => void
   onHelp: () => void
+  onNewConversation: () => void
   lang: Lang
   onLangChange: (lang: Lang) => void
   theme: Theme
@@ -18,6 +19,7 @@ export function Header({
   mode,
   onModeChange,
   onHelp,
+  onNewConversation,
   lang,
   onLangChange,
   theme,
@@ -47,6 +49,14 @@ export function Header({
             aria-label={theme === 'light' ? t(lang, 'themeToggleToDark') : t(lang, 'themeToggleToLight')}
           >
             {theme === 'light' ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onNewConversation}
+            aria-label={t(lang, 'newConversation')}
+          >
+            <RotateCcw size={18} aria-hidden="true" />
           </button>
           <button type="button" className="icon-button" onClick={onHelp} aria-label={t(lang, 'help')}>
             <CircleHelp size={20} aria-hidden="true" />

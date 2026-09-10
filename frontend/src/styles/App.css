@@ -78,6 +78,12 @@ header h1 svg {
   justify-content: center;
   gap: 0.3rem;
   padding: 0.3rem 0.45rem;
+  /* Padding alone leaves the icon-only buttons (theme/reset/help) around
+     28-32px per side - below the 44x44 comfortable mobile touch target.
+     min-width/min-height grow the invisible hit area without enlarging the
+     icon itself. */
+  min-width: 44px;
+  min-height: 44px;
   border: none;
   background: transparent;
   color: var(--muted);

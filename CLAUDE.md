@@ -485,9 +485,36 @@ In order:
   Deliberately not run yet: `/impeccable polish` as a broader pass (the
   skill's own closing step after a harden) - the source diff for these two
   fixes was already clean (no accidental churn), so there was nothing left
-  for a broader polish pass to do within this scope; re-run
-  `/impeccable critique` before addressing the remaining P2s/P3 to confirm
-  the score improved first.
+  for a broader polish pass to do within this scope.
+  Followed up the same day with the P2s and P3 from the same critique
+  snapshot:
+  - **"Surprise me" was undiscoverable without finding Help first** - the
+    chat input placeholder swapped its second example from a mundane
+    category ("coffee") to the actually-novel feature: `chatPlaceholder`
+    now reads "...e.g. 'ramen' or 'surprise me'" (Hebrew: "תפתיע אותי",
+    reusing the exact phrase already established in the help text) in
+    `i18n.ts`. Deliberately a placeholder swap, not an extra greeting
+    bubble - always visible without adding conversation noise.
+  - **No way to reset a conversation** - a `RotateCcw` icon button
+    ("New conversation" / "שיחה חדשה") added to the header's icon row
+    (`Header.tsx`, between theme and help), wired to a new
+    `handleNewConversation` in `App.tsx` that calls `setEntries([])` and
+    nothing else - deliberately leaves `userLocation`, `theme`, and `lang`
+    untouched, so starting over doesn't also discard location permission
+    or re-prompt for it. Verified live: sent a query, got real results,
+    clicked reset (log cleared back to just the pinned greeting), sent a
+    second query immediately after with no location form appearing -
+    confirming location state survived the reset.
+  - **Undersized header touch targets** - `.icon-button` (theme, the new
+    reset button, and help - all icon-only) computed to ~28-32px per side,
+    under the 44x44px comfortable mobile target. Added `min-width: 44px` /
+    `min-height: 44px` in `App.css` - grows the invisible hit area only,
+    icon visual size unchanged. Verified live via `getBoundingClientRect()`
+    on all four header buttons: all now exactly 44px tall, 44-54px wide
+    (the language toggle is wider because of its "EN"/"עברית" text label).
+  This closes all 5 findings from the 2026-09-10 critique snapshot - next
+  step, if wanted, is re-running `/impeccable critique` to confirm the
+  score improved from 31/40.
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a

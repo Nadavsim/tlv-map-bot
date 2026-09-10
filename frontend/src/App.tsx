@@ -230,6 +230,13 @@ export default function App() {
     }
   }
 
+  // Clears the conversation only - location/theme/language are separate
+  // state and deliberately untouched, so "starting over" doesn't also throw
+  // away location permission or preferences.
+  function handleNewConversation() {
+    setEntries([])
+  }
+
   const chatDisabled = !userLocation || isWaitingForReply
 
   return (
@@ -239,6 +246,7 @@ export default function App() {
         mode={mode}
         onModeChange={setMode}
         onHelp={() => showHelp(null)}
+        onNewConversation={handleNewConversation}
         lang={lang}
         onLangChange={setLang}
         theme={theme}
