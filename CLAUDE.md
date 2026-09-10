@@ -616,6 +616,40 @@ In order:
   `.focus()` call was needed to get a trustworthy read; confirmed via
   `getComputedStyle` afterward that both inputs, in both themes, correctly
   resolve the ring to a real color (not `none` or invalid).
+- Re-ran `/impeccable critique` a third time (2026-09-10, snapshot
+  `.impeccable/critique/2026-09-10T20-45-17Z__frontend-src-app-tsx.md`) to
+  verify the second harden pass. Score trend: 31 -> 28 -> 34/40 - all 4
+  issues from the second critique were independently re-verified with
+  strong evidence (byte-identical undo restore, identical bounding-rect
+  positions across mixed-language cards, exact tooltip/aria-label matches,
+  a real `getComputedStyle` focus-ring read backed by a genuine
+  `document.hasFocus() === true` this time). But the `title`-tooltip fix
+  for unlabeled header icons turned out to only partially work: `title`
+  only ever surfaces on mouse hover, which does nothing for a touchscreen
+  - and this is explicitly a mobile-first app (the PWA work earlier was
+  built specifically for phone installs). Fixed by giving the "New
+  Conversation" button specifically (the one destructive action among the
+  three) a visible text label matching the language toggle's existing
+  icon+text pattern (`Header.tsx`) - Theme and Help stay icon-only with
+  their `title` tooltip, per the user's explicit choice to label only the
+  destructive one rather than all three. This widened that button enough
+  to break the header's layout at narrow mobile widths (the title and the
+  action row started fighting for space, wrapping "New conversation" mid-
+  phrase) - fixed by letting `.header-top` wrap onto two rows
+  (`flex-wrap: wrap`) with `white-space: nowrap` on the title so it wraps
+  as a whole unit instead of mid-word, and `margin-inline-start: auto` on
+  `.header-actions` so the action row stays pinned to the same edge
+  whether or not it's sharing a row with the title. Verified live at
+  375px in both languages: title and actions each stay on one line,
+  wrapping cleanly onto two rows instead of squeezing or breaking mid-
+  phrase, and the action row keeps its RTL/LTR-correct edge either way.
+  Two P-issues remain open from this snapshot, deliberately deferred per
+  the user's chosen scope (P1-only again): the header icon gap itself is
+  still ~4.8px (the label fix addressed discoverability, not the tap
+  target spacing), and buttons/links still use the browser's bare default
+  focus outline while text inputs now get the custom accent ring - two
+  different focus styles in one app. See that snapshot file for the full
+  writeup if picking those up later.
 
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a

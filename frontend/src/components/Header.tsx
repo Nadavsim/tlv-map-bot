@@ -51,14 +51,9 @@ export function Header({
           >
             {theme === 'light' ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}
           </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={onNewConversation}
-            aria-label={t(lang, 'newConversation')}
-            title={t(lang, 'newConversation')}
-          >
+          <button type="button" className="icon-button" onClick={onNewConversation} aria-label={t(lang, 'newConversation')}>
             <RotateCcw size={18} aria-hidden="true" />
+            <span>{t(lang, 'newConversation')}</span>
           </button>
           <button
             type="button"

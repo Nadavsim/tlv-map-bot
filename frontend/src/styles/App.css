@@ -48,6 +48,8 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 0.4rem;
 }
 
 header h1 {
@@ -58,6 +60,7 @@ header h1 {
   font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 header h1 svg {
@@ -69,6 +72,14 @@ header h1 svg {
   display: flex;
   align-items: center;
   gap: 0.3rem;
+  /* Keeps this pinned to the same edge it had inside header-top even when
+     it wraps onto its own row on narrow screens (the New Conversation
+     label made this row wider than the title can always share space with). */
+  margin-inline-start: auto;
+}
+
+.icon-button span {
+  white-space: nowrap;
 }
 
 .icon-button {
