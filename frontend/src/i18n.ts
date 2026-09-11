@@ -53,7 +53,7 @@ const STRINGS = {
     helpCraving: 'Tell me what you\'re craving - e.g. "ramen" or "coffee" - and I\'ll find the closest match from my curated Tel Aviv map.',
     helpSurprise: 'Say "surprise me" or "anything" for the closest spot no matter the category.',
     helpResults:
-      'Each answer shows distance, ETA, a one-tap navigation link, and Instagram when I have it. Tap "Show more" for further matches, or "Share" to send them to WhatsApp.',
+      'Each answer shows distance, ETA, price range when I have it, a one-tap navigation link, and Instagram when I have it. Tap "Show more" for further matches, or "Share" to send them to WhatsApp.',
     helpMode: 'Use the Walk / Drive toggle up top to switch how ETAs are calculated.',
     helpLocation:
       'Type an address, a Google Maps link, or coordinates below - or switch the Live / Custom toggle up top to share your current location instead.',
@@ -111,7 +111,7 @@ const STRINGS = {
     helpIntro: 'הנה איך אני עובד:',
     helpCraving: 'ספר לי מה מתחשק לך - למשל "ראמן" או "קפה" - ואמצא את ההתאמה הכי קרובה מהמפה המוקפדת שלי בתל אביב.',
     helpSurprise: 'תגיד "תפתיע אותי" או "כל דבר" בשביל המקום הכי קרוב בלי קשר לקטגוריה.',
-    helpResults: 'כל תשובה מציגה מרחק, זמן הגעה, קישור ניווט בלחיצה אחת, ואינסטגרם כשיש לי. לחץ על "הצג עוד" להתאמות נוספות, או "שתף" כדי לשלוח לוואטסאפ.',
+    helpResults: 'כל תשובה מציגה מרחק, זמן הגעה, טווח מחירים כשיש לי, קישור ניווט בלחיצה אחת, ואינסטגרם כשיש לי. לחץ על "הצג עוד" להתאמות נוספות, או "שתף" כדי לשלוח לוואטסאפ.',
     helpMode: 'השתמש במתג הליכה / נסיעה למעלה כדי לשנות איך זמני ההגעה מחושבים.',
     helpLocation:
       'הקלד כתובת, קישור לגוגל מפות, או קואורדינטות למטה - או עבור למצב "נוכחי" למעלה כדי לשתף את המיקום הנוכחי שלך.',

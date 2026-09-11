@@ -11,7 +11,19 @@ export function PlaceCard({ place, lang }: { place: Place; lang: Lang }) {
         {place.price_tier && (
           // A distinct icon (not shared with category/tag chips) so it
           // reads as a different kind of fact at a glance, not another tag.
-          <span className="price-chip" title={t(lang, 'priceLabel')}>
+          // aria-label (not just title, which never fires on touch) gives
+          // screen readers a real accessible name instead of reading the
+          // bare "$" characters as unexplained punctuation. dir="ltr"
+          // mirrors .distance-eta just below - today's $/$$/$$$ glyphs are
+          // palindromic so it's not visibly broken without this, but it's
+          // the same class of RTL-in-a-bidi-document content that caused
+          // this project's first-ever RTL bug.
+          <span
+            className="price-chip"
+            title={t(lang, 'priceLabel')}
+            aria-label={`${t(lang, 'priceLabel')}: ${place.price_tier}`}
+            dir="ltr"
+          >
             <Banknote size={12} aria-hidden="true" />
             {place.price_tier}
           </span>
