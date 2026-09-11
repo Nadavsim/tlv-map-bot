@@ -415,48 +415,50 @@ In order:
   address/Maps-link/coordinates path only ever appeared as a fallback
   when live geolocation failed; there was no way to plan ahead for a
   different address while live location was working fine. Added a
-  Live/Custom toggle (`Header.tsx`, styled identically to Walk/Drive)
-  that's always visible, independent of whether live geolocation ever
-  succeeded:
-  - `App.tsx` now tracks `liveLocation` and `manualLocation` as separate
+  Live/Custom toggle (`Header.tsx`, styled identically to Walk/Drive):
+  - `App.tsx` tracks `liveLocation` and `manualLocation` as separate
     state (previously one `userLocation`), plus `manualLocationLabel` (the
     raw text the user typed, echoed back verbatim - not translated, same
     reasoning as place names) and a `locationMode: 'live' | 'manual'`
     flag. `activeLocation` (whichever the mode points at) is what
     actually gets sent to `/api/chat`/`/api/more-places` - no backend
     changes needed, since both endpoints already just take `lat`/`lon`.
-  - Clicking **Live**: reuses the last known geolocation fix instantly if
-    one exists (no re-prompting the browser's permission dialog just for
-    flipping a toggle); if none exists yet, triggers a fresh request
-    (reusing the existing retry path) - and critically, a failure there
-    only updates the status line, it never disables chat or yanks the
-    user out of a working manual session in the background. Clicking
-    **Custom**: reactivates the last-used manual location instantly if
-    one exists; otherwise opens the same address-entry form the fallback
-    flow already used. A "Change" link appears next to the status line
-    once a manual location is active, since reactivating a manual mode
-    already in use doesn't reopen the form on its own - the only other
-    way to update it.
-  - The existing permission-denied fallback flow (explanatory chat
-    bubble, "Try enabling location again" button, inline address form)
-    is unchanged in isolation and still fires exactly as before - it's
-    just that submitting that form now flows through the same
-    `handleLocationSet` as the toggle's own form, unifying what were
-    conceptually two paths to the same result (a manual location) into
-    one. Guarded with a `locationModeRef` (not the `locationMode` closed
-    over at mount) so a late-resolving initial geolocation failure can't
-    interrupt an already-working manual session with an unprompted
-    "location denied" bubble - a real race if the user manually overrides
-    faster than the browser's geolocation prompt resolves.
-  Verified live in both languages and themes, desktop and mobile: set a
-  manual location while live was denied (status correctly read "Using:
-  <exact typed text>"), sent a real chat query and confirmed results
-  matched the manual coordinates, clicked Live with no fix available and
-  confirmed it failed silently without disabling chat or losing the
-  active manual location, used "Change" to update the manual address and
-  confirmed the label updated, and confirmed "New Conversation" left all
-  location state untouched. No mobile layout regression from the new
-  toggle row (375px, both languages).
+  - **Custom is the default**, not Live - live geolocation is never
+    requested automatically on load; the address form just starts open.
+    Clicking **Live** is what triggers the browser's permission prompt,
+    reusing the last known fix instantly if one already exists. Clicking
+    **Custom** reactivates the last-used manual location instantly if one
+    exists, otherwise opens the address form. A "Change" link next to the
+    status line is the way to update an already-active manual location.
+  - The first version of this shipped with the opposite default (Live
+    first, matching the old behavior) and two real bugs the user caught
+    on a real device that this session's own sandboxed testing missed:
+    (1) clicking a toggle option didn't visually highlight it if that
+    branch's code path forgot to call `setLocationMode` before doing
+    anything async - fixed by making `handleLocationModeChange` call
+    `setLocationMode(newMode)` unconditionally and immediately, before
+    any geolocation request, so the toggle always reflects the click
+    instantly regardless of what happens next; (2) `LocationForm`'s "Try
+    enabling location again" button/copy is unconditionally part of the
+    form, so proactively choosing Custom mode (nothing had failed) showed
+    error-flavored copy implying something had gone wrong. Both prompted
+    the bigger redesign above (Custom-by-default) rather than patching
+    the symptom - once Live only ever triggers a request in direct
+    response to a click, there's no more "silent automatic attempt vs.
+    explicit retry" distinction to get wrong, and the button's copy was
+    reframed positively as "Use my current location" (`locationUseLiveButton`
+    in `i18n.ts`) so it reads correctly in every context it can appear in,
+    not just a failure. This also let a whole guard (`locationModeRef`,
+    protecting a race that no longer exists once nothing calls
+    `requestLocation` on mount) come back out.
+  Verified live in both languages, both themes, desktop and mobile: fresh
+  load shows Custom active by default with no location-denied chat bubble
+  or error-flavored copy anywhere; clicking Live immediately highlights it
+  and requests geolocation (denied in this sandbox, confirmed the status
+  line updates without disabling chat or losing the active manual
+  location); switching back to Custom instantly restores the manual
+  location and its label with no re-typing; a real chat query against the
+  manual location returned correct results; no mobile layout regression.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup

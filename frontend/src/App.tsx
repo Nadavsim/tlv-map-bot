@@ -26,19 +26,23 @@ const UNDO_WINDOW_MS = 5000
 // is what makes that happen automatically on a language switch.
 type LocationStatusKey = Extract<
   StringKey,
-  'locationRequesting' | 'locationSet' | 'locationDenied' | 'locationRetryFailed' | 'locationUnsupported'
+  'locationNotSet' | 'locationRequesting' | 'locationSet' | 'locationDenied' | 'locationUnsupported'
 >
 
 export default function App() {
   const [lang, setLang] = useState<Lang>(() => loadLang())
   const [theme, setTheme] = useState<Theme>(() => loadTheme())
   const [entries, setEntries] = useState<ChatEntry[]>([])
-  const [locationStatusKey, setLocationStatusKey] = useState<LocationStatusKey>('locationRequesting')
+  const [locationStatusKey, setLocationStatusKey] = useState<LocationStatusKey>('locationNotSet')
   const [liveLocation, setLiveLocation] = useState<Coordinates | null>(null)
   const [manualLocation, setManualLocation] = useState<Coordinates | null>(null)
   const [manualLocationLabel, setManualLocationLabel] = useState<string | null>(null)
-  const [locationMode, setLocationMode] = useState<LocationMode>('live')
-  const [showLocationForm, setShowLocationForm] = useState(false)
+  // Custom is the default - no browser permission prompt until the user
+  // deliberately asks for Live, rather than firing one automatically on
+  // load. The address form starts open to match: there's nothing to enter
+  // yet either way.
+  const [locationMode, setLocationMode] = useState<LocationMode>('manual')
+  const [showLocationForm, setShowLocationForm] = useState(true)
   const [isRequestingLocation, setIsRequestingLocation] = useState(false)
   const [mode, setMode] = useState<TransportMode>('walking')
   const [isWaitingForReply, setIsWaitingForReply] = useState(false)
@@ -52,16 +56,6 @@ export default function App() {
     }
   }, [])
 
-  // The initial geolocation attempt is async and can resolve well after the
-  // user has already switched to a manual location by hand - read via a ref
-  // (not the `locationMode` closed over at mount) so that late failure
-  // doesn't interrupt an already-working manual session with an unprompted
-  // "location denied" bubble.
-  const locationModeRef = useRef<LocationMode>('live')
-  useEffect(() => {
-    locationModeRef.current = locationMode
-  }, [locationMode])
-
   useEffect(() => {
     document.documentElement.lang = lang
     document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr'
@@ -73,28 +67,19 @@ export default function App() {
     saveTheme(theme)
   }, [theme])
 
-  function offerManualLocation(statusKey: LocationStatusKey) {
-    setLocationStatusKey(statusKey)
-    setShowLocationForm(true)
-    setEntries((prev) => [
-      ...prev,
-      { id: makeEntryId(), kind: 'bot-text', text: t(lang, 'locationFallbackMessage') },
-    ])
-  }
-
-  // isRetry=false (initial mount attempt): a failure pushes the full
-  // explanatory chat message + shows the manual-entry form. isRetry=true
-  // (the "try again" button, after the form is already showing - e.g. the
-  // user enabled location in settings after initially denying it, which
-  // otherwise required a page reload to take effect): a failure just
-  // updates the status line instead of spamming another chat bubble.
-  function requestLocation(isRetry: boolean) {
+  // Only ever called in direct response to the user asking for Live (the
+  // toggle, or the form's "Use my current location" button) - there's no
+  // silent background attempt to distinguish from a retry anymore, since
+  // Custom is the default and nothing requests geolocation on its own.
+  function requestLocation() {
     if (!navigator.geolocation) {
-      if (!isRetry && locationModeRef.current !== 'manual') offerManualLocation('locationUnsupported')
+      setLocationStatusKey('locationUnsupported')
+      setShowLocationForm(true)
       return
     }
 
     setIsRequestingLocation(true)
+    setLocationStatusKey('locationRequesting')
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLiveLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
@@ -105,24 +90,18 @@ export default function App() {
       },
       () => {
         setIsRequestingLocation(false)
-        if (isRetry) {
-          setLocationStatusKey('locationRetryFailed')
-        } else if (locationModeRef.current !== 'manual') {
-          offerManualLocation('locationDenied')
-        }
+        setLocationStatusKey('locationDenied')
+        setShowLocationForm(true)
       },
       { enableHighAccuracy: true, timeout: 10000 },
     )
   }
 
-  useEffect(() => {
-    requestLocation(false)
-  }, [])
-
   // Fires whenever the address/Maps-link/coordinates form is submitted -
-  // whether it was shown as a permission-denied fallback or opened
-  // deliberately via the Live/Custom toggle below. Either way, the result
-  // is the same: a manual location, now active.
+  // whether it's showing by default, because a Live attempt failed, or
+  // because the user deliberately opened it via the Live/Custom toggle or
+  // "Change" below. Either way, the result is the same: a manual location,
+  // now active.
   function handleLocationSet(coords: Coordinates, label: string) {
     setManualLocation(coords)
     setManualLocationLabel(label)
@@ -130,27 +109,25 @@ export default function App() {
     setShowLocationForm(false)
   }
 
+  // The toggle always reflects the click immediately - `setLocationMode`
+  // fires unconditionally before anything else, so it never waits on an
+  // async result (a pending geolocation request) to look pressed.
   // Live: reuse the last known fix instantly if there is one, otherwise
-  // request a fresh one (mirrors the "try again" retry path - a failure
-  // just updates the status line rather than disabling chat, since a
-  // working manual location may already be active in the background).
-  // Custom: reactivate the last manual location instantly if there is one,
-  // otherwise open the form - `handleLocationSet` above is what actually
-  // flips the mode once an address is submitted.
+  // request a fresh one - the browser's permission prompt only ever
+  // appears here, never automatically. Custom: reactivate the last
+  // manual location instantly if there is one, otherwise open the form -
+  // `handleLocationSet` above is what stores a newly-submitted address.
   function handleLocationModeChange(newMode: LocationMode) {
     if (newMode === locationMode) return
+    setLocationMode(newMode)
     if (newMode === 'live') {
       if (liveLocation) {
-        setLocationMode('live')
         setShowLocationForm(false)
       } else {
-        requestLocation(true)
+        requestLocation()
       }
-    } else if (manualLocation) {
-      setLocationMode('manual')
-      setShowLocationForm(false)
     } else {
-      setShowLocationForm(true)
+      setShowLocationForm(!manualLocation)
     }
   }
 
@@ -355,7 +332,10 @@ export default function App() {
         showLocationForm={showLocationForm}
         onLocationSet={handleLocationSet}
         onLocationError={handleLocationError}
-        onRetryLocation={() => requestLocation(true)}
+        onRetryLocation={() => {
+          setLocationMode('live')
+          requestLocation()
+        }}
         isRequestingLocation={isRequestingLocation}
         onShowMore={handleShowMore}
         loadingMoreId={loadingMoreId}

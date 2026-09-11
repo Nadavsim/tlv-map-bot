@@ -60,7 +60,7 @@ export function LocationForm({
         disabled={isRequestingLocation}
       >
         <LocateFixed size={15} aria-hidden="true" />
-        {isRequestingLocation ? t(lang, 'locationRetryButtonChecking') : t(lang, 'locationRetryButton')}
+        {isRequestingLocation ? t(lang, 'locationUseLiveButtonChecking') : t(lang, 'locationUseLiveButton')}
       </button>
       <form className="location-form-row" onSubmit={handleSubmit}>
         <input
