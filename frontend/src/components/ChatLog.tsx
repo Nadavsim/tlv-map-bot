@@ -11,7 +11,7 @@ interface ChatLogProps {
   entries: ChatEntry[]
   isWaitingForReply: boolean
   showLocationForm: boolean
-  onLocationSet: (coords: Coordinates) => void
+  onLocationSet: (coords: Coordinates, label: string) => void
   onLocationError: (message: string) => void
   onRetryLocation: () => void
   isRequestingLocation: boolean

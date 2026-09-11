@@ -5,7 +5,7 @@ import { t } from '../i18n'
 import type { Coordinates, Lang } from '../types'
 
 interface LocationFormProps {
-  onLocationSet: (coords: Coordinates) => void
+  onLocationSet: (coords: Coordinates, label: string) => void
   onError: (message: string) => void
   onRetryLocation: () => void
   isRequestingLocation: boolean
@@ -29,7 +29,7 @@ export function LocationForm({
 
     const parts = text.split(',').map((s) => parseFloat(s.trim()))
     if (parts.length === 2 && !parts.some(Number.isNaN)) {
-      onLocationSet({ lat: parts[0], lon: parts[1] })
+      onLocationSet({ lat: parts[0], lon: parts[1] }, text)
       return
     }
 
@@ -43,7 +43,7 @@ export function LocationForm({
         onError(t(lang, 'locationResolveError'))
         return
       }
-      onLocationSet({ lat: data.lat, lon: data.lon })
+      onLocationSet({ lat: data.lat, lon: data.lon }, text)
     } catch {
       onError(t(lang, 'locationResolveNetworkError'))
     } finally {

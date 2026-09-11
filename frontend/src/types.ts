@@ -1,6 +1,10 @@
 export type TransportMode = 'walking' | 'driving'
 export type Lang = 'en' | 'he'
 export type Theme = 'light' | 'dark'
+// 'live' uses the browser's geolocation fix; 'manual' overrides it with a
+// user-typed address/Maps link/coordinates, independent of whether live
+// geolocation is working - lets a user plan ahead for a different spot.
+export type LocationMode = 'live' | 'manual'
 
 export interface ChatRequest {
   message: string

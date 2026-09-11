@@ -6,7 +6,7 @@ import { ChatLog } from './components/ChatLog'
 import { Header } from './components/Header'
 import { t, type StringKey } from './i18n'
 import { loadLang, loadTheme, saveLang, saveTheme } from './preferences'
-import type { Coordinates, Lang, Theme, TransportMode } from './types'
+import type { Coordinates, Lang, LocationMode, Theme, TransportMode } from './types'
 import { PAGE_SIZE } from './types'
 import './styles/theme.css'
 import './styles/App.css'
@@ -34,7 +34,10 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(() => loadTheme())
   const [entries, setEntries] = useState<ChatEntry[]>([])
   const [locationStatusKey, setLocationStatusKey] = useState<LocationStatusKey>('locationRequesting')
-  const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
+  const [liveLocation, setLiveLocation] = useState<Coordinates | null>(null)
+  const [manualLocation, setManualLocation] = useState<Coordinates | null>(null)
+  const [manualLocationLabel, setManualLocationLabel] = useState<string | null>(null)
+  const [locationMode, setLocationMode] = useState<LocationMode>('live')
   const [showLocationForm, setShowLocationForm] = useState(false)
   const [isRequestingLocation, setIsRequestingLocation] = useState(false)
   const [mode, setMode] = useState<TransportMode>('walking')
@@ -48,6 +51,16 @@ export default function App() {
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
     }
   }, [])
+
+  // The initial geolocation attempt is async and can resolve well after the
+  // user has already switched to a manual location by hand - read via a ref
+  // (not the `locationMode` closed over at mount) so that late failure
+  // doesn't interrupt an already-working manual session with an unprompted
+  // "location denied" bubble.
+  const locationModeRef = useRef<LocationMode>('live')
+  useEffect(() => {
+    locationModeRef.current = locationMode
+  }, [locationMode])
 
   useEffect(() => {
     document.documentElement.lang = lang
@@ -77,15 +90,16 @@ export default function App() {
   // updates the status line instead of spamming another chat bubble.
   function requestLocation(isRetry: boolean) {
     if (!navigator.geolocation) {
-      if (!isRetry) offerManualLocation('locationUnsupported')
+      if (!isRetry && locationModeRef.current !== 'manual') offerManualLocation('locationUnsupported')
       return
     }
 
     setIsRequestingLocation(true)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
+        setLiveLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
         setLocationStatusKey('locationSet')
+        setLocationMode('live')
         setShowLocationForm(false)
         setIsRequestingLocation(false)
       },
@@ -93,7 +107,7 @@ export default function App() {
         setIsRequestingLocation(false)
         if (isRetry) {
           setLocationStatusKey('locationRetryFailed')
-        } else {
+        } else if (locationModeRef.current !== 'manual') {
           offerManualLocation('locationDenied')
         }
       },
@@ -105,10 +119,43 @@ export default function App() {
     requestLocation(false)
   }, [])
 
-  function handleLocationSet(coords: Coordinates) {
-    setUserLocation(coords)
-    setLocationStatusKey('locationSet')
+  // Fires whenever the address/Maps-link/coordinates form is submitted -
+  // whether it was shown as a permission-denied fallback or opened
+  // deliberately via the Live/Custom toggle below. Either way, the result
+  // is the same: a manual location, now active.
+  function handleLocationSet(coords: Coordinates, label: string) {
+    setManualLocation(coords)
+    setManualLocationLabel(label)
+    setLocationMode('manual')
     setShowLocationForm(false)
+  }
+
+  // Live: reuse the last known fix instantly if there is one, otherwise
+  // request a fresh one (mirrors the "try again" retry path - a failure
+  // just updates the status line rather than disabling chat, since a
+  // working manual location may already be active in the background).
+  // Custom: reactivate the last manual location instantly if there is one,
+  // otherwise open the form - `handleLocationSet` above is what actually
+  // flips the mode once an address is submitted.
+  function handleLocationModeChange(newMode: LocationMode) {
+    if (newMode === locationMode) return
+    if (newMode === 'live') {
+      if (liveLocation) {
+        setLocationMode('live')
+        setShowLocationForm(false)
+      } else {
+        requestLocation(true)
+      }
+    } else if (manualLocation) {
+      setLocationMode('manual')
+      setShowLocationForm(false)
+    } else {
+      setShowLocationForm(true)
+    }
+  }
+
+  function handleChangeManualLocation() {
+    setShowLocationForm(true)
   }
 
   function handleLocationError(message: string) {
@@ -160,7 +207,7 @@ export default function App() {
   }
 
   async function handleSend(message: string) {
-    if (!userLocation) return
+    if (!activeLocation) return
 
     // Continuing the conversation forfeits any pending undo - restoring the
     // cleared history at this point would silently discard whatever the user
@@ -180,8 +227,8 @@ export default function App() {
       const previous = getPreviousContext()
       const data = await postChat({
         message,
-        lat: userLocation.lat,
-        lon: userLocation.lon,
+        lat: activeLocation.lat,
+        lon: activeLocation.lon,
         mode,
         lang,
         previous_category: previous?.category ?? null,
@@ -215,15 +262,15 @@ export default function App() {
 
   async function handleShowMore(entryId: string) {
     const entry = entries.find((e) => e.id === entryId)
-    if (!entry || entry.kind !== 'places' || !userLocation) return
+    if (!entry || entry.kind !== 'places' || !activeLocation) return
 
     setLoadingMoreId(entryId)
     try {
       const data = await postMorePlaces({
         category: entry.category,
         tag: entry.dietaryTag,
-        lat: userLocation.lat,
-        lon: userLocation.lon,
+        lat: activeLocation.lat,
+        lon: activeLocation.lon,
         mode,
         offset: entry.offset,
       })
@@ -273,12 +320,25 @@ export default function App() {
     dismissUndo()
   }
 
-  const chatDisabled = !userLocation || isWaitingForReply
+  // Manual mode echoes back exactly what the user typed (a location label,
+  // not a place name) rather than a translated string - deliberately
+  // unmediated, same reasoning as place names never being translated.
+  const activeLocation = locationMode === 'manual' ? manualLocation : liveLocation
+  const chatDisabled = !activeLocation || isWaitingForReply
+  const canChangeManualLocation = locationMode === 'manual' && manualLocation !== null && !showLocationForm
+  const locationStatusText =
+    locationMode === 'manual' && manualLocationLabel
+      ? `${t(lang, 'locationActiveManualPrefix')} ${manualLocationLabel}`
+      : t(lang, locationStatusKey)
 
   return (
     <div className="app">
       <Header
-        locationStatus={t(lang, locationStatusKey)}
+        locationStatus={locationStatusText}
+        locationMode={locationMode}
+        onLocationModeChange={handleLocationModeChange}
+        canChangeManualLocation={canChangeManualLocation}
+        onChangeManualLocation={handleChangeManualLocation}
         mode={mode}
         onModeChange={setMode}
         onHelp={() => showHelp(null)}

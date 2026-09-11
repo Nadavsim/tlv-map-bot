@@ -122,20 +122,9 @@ In order:
    (~$14.45/month for production's Basic tier) rather than staying free,
    after the free-tier approach caused a real production outage during
    setup - see that entry for why. Budget raised to $15/month accordingly.
-5. Manual-location as a real mode, not just a permission fallback -
-   raised 2026-09-10 by the user, moved up ahead of auth on 2026-09-11:
-   right now `/api/resolve-location`'s typed-address/Maps-link/coordinates
-   path only ever appears when live geolocation is denied or unavailable.
-   There's no way to plan ahead - e.g. "I'm home right now (location works
-   fine) but want recommendations near where I'm headed later." The
-   user's own suggested shape: a toggle alongside Walk/Drive (not another
-   fallback state) that lets a manual address override live location on
-   demand, even when live location is working. Not yet scoped - open
-   questions for whenever this gets picked up: does switching back to
-   "live" re-request geolocation or reuse the last known fix; does the
-   manual address persist across messages the same way mode/theme/lang
-   do; does it interact with the existing `locationFallbackMessage`/retry
-   flow or replace part of it. A natural follow-on once this exists:
+5. ~~Manual-location as a real mode, not just a permission fallback~~ -
+   done 2026-09-11, see "Done since the priority ordering" below for the
+   full design writeup. A natural follow-on now that this exists:
    saved/frequent addresses (see "Scoped, not yet built" below).
 6. Implement auth and the user system - see "Bigger builds - user system"
    below for the already-sequenced plan (Google Sign-In + JWT session layer
@@ -422,6 +411,52 @@ In order:
     working prod/staging split, so the app stays on Azure's own
     auto-generated hostnames for now (see the Hosting entry above for why
     those aren't easily prettied up either way).
+- Manual-location as a real mode (2026-09-11) - previously, the typed-
+  address/Maps-link/coordinates path only ever appeared as a fallback
+  when live geolocation failed; there was no way to plan ahead for a
+  different address while live location was working fine. Added a
+  Live/Custom toggle (`Header.tsx`, styled identically to Walk/Drive)
+  that's always visible, independent of whether live geolocation ever
+  succeeded:
+  - `App.tsx` now tracks `liveLocation` and `manualLocation` as separate
+    state (previously one `userLocation`), plus `manualLocationLabel` (the
+    raw text the user typed, echoed back verbatim - not translated, same
+    reasoning as place names) and a `locationMode: 'live' | 'manual'`
+    flag. `activeLocation` (whichever the mode points at) is what
+    actually gets sent to `/api/chat`/`/api/more-places` - no backend
+    changes needed, since both endpoints already just take `lat`/`lon`.
+  - Clicking **Live**: reuses the last known geolocation fix instantly if
+    one exists (no re-prompting the browser's permission dialog just for
+    flipping a toggle); if none exists yet, triggers a fresh request
+    (reusing the existing retry path) - and critically, a failure there
+    only updates the status line, it never disables chat or yanks the
+    user out of a working manual session in the background. Clicking
+    **Custom**: reactivates the last-used manual location instantly if
+    one exists; otherwise opens the same address-entry form the fallback
+    flow already used. A "Change" link appears next to the status line
+    once a manual location is active, since reactivating a manual mode
+    already in use doesn't reopen the form on its own - the only other
+    way to update it.
+  - The existing permission-denied fallback flow (explanatory chat
+    bubble, "Try enabling location again" button, inline address form)
+    is unchanged in isolation and still fires exactly as before - it's
+    just that submitting that form now flows through the same
+    `handleLocationSet` as the toggle's own form, unifying what were
+    conceptually two paths to the same result (a manual location) into
+    one. Guarded with a `locationModeRef` (not the `locationMode` closed
+    over at mount) so a late-resolving initial geolocation failure can't
+    interrupt an already-working manual session with an unprompted
+    "location denied" bubble - a real race if the user manually overrides
+    faster than the browser's geolocation prompt resolves.
+  Verified live in both languages and themes, desktop and mobile: set a
+  manual location while live was denied (status correctly read "Using:
+  <exact typed text>"), sent a real chat query and confirmed results
+  matched the manual coordinates, clicked Live with no fix available and
+  confirmed it failed silently without disabling chat or losing the
+  active manual location, used "Change" to update the manual address and
+  confirmed the label updated, and confirmed "New Conversation" left all
+  location state untouched. No mobile layout regression from the new
+  toggle row (375px, both languages).
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup

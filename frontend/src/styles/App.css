@@ -118,10 +118,33 @@ header h1 svg {
   color: var(--fg);
 }
 
+.location-status-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
 .location-status {
   margin: 0;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.change-location-button {
+  /* Padding grows the tap target (this is the only way to edit an
+     already-set manual address); the matching negative margin cancels it
+     out visually so the text still sits flush with the status line. */
+  padding: 0.3rem 0.4rem;
+  margin: -0.3rem -0.4rem;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .mode-toggle {
