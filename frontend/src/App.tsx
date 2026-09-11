@@ -26,7 +26,12 @@ const UNDO_WINDOW_MS = 5000
 // is what makes that happen automatically on a language switch.
 type LocationStatusKey = Extract<
   StringKey,
-  'locationNotSet' | 'locationRequesting' | 'locationSet' | 'locationDenied' | 'locationUnsupported'
+  | 'locationNotSet'
+  | 'locationRequesting'
+  | 'locationSet'
+  | 'locationDenied'
+  | 'locationBlocked'
+  | 'locationUnsupported'
 >
 
 export default function App() {
@@ -88,9 +93,16 @@ export default function App() {
         setShowLocationForm(false)
         setIsRequestingLocation(false)
       },
-      () => {
+      (error) => {
         setIsRequestingLocation(false)
-        setLocationStatusKey('locationDenied')
+        // A prior denial is remembered at the browser level, permanently -
+        // once that's happened, the browser silently fails every future
+        // request instead of showing the permission prompt again (a
+        // deliberate anti-annoyance measure no site can override in JS).
+        // "Try again" would just fail the same way forever, so this case
+        // needs its own message pointing at the only thing that actually
+        // works: re-enabling location for this site in browser/OS settings.
+        setLocationStatusKey(error.code === error.PERMISSION_DENIED ? 'locationBlocked' : 'locationDenied')
         setShowLocationForm(true)
       },
       { enableHighAccuracy: true, timeout: 10000 },

@@ -495,6 +495,25 @@ In order:
   round trip preserves the manual location and its label exactly as
   before; toggle alignment confirmed in the RTL screenshot (מותאם/הליכה
   share the right edge, נוכחי/נסיעה share the left).
+- Fixed a real-device report (2026-09-11): tapping "Use my current
+  location" a second time didn't show the browser's permission popup at
+  all, and seemed to require manually re-enabling location in the phone's
+  settings. Not an app bug - once a site's geolocation permission is
+  denied, browsers remember that permanently and silently fail every
+  future request instead of ever re-prompting (a deliberate anti-
+  annoyance measure no site can override from JS), so "try again" was
+  telling the user to do something that could never work. Fixed by
+  reading the `GeolocationPositionError`'s `.code` in `requestLocation`'s
+  failure callback (previously ignored entirely) and branching: a real
+  `PERMISSION_DENIED` now shows a new `locationBlocked` status
+  ("Location is blocked for this site - re-enable it in your browser or
+  phone settings, then try again, or switch to Custom") instead of the
+  generic `locationDenied` copy, which stays for the genuinely transient
+  cases (`POSITION_UNAVAILABLE`, `TIMEOUT`) where retrying can actually
+  help. Verified live: this sandbox's own denial reports `code: 1`
+  (`PERMISSION_DENIED`) too, confirming the new message - not the old
+  generic one - is what real users hit on both a first-time denial and a
+  permanently-blocked site, in both languages.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup

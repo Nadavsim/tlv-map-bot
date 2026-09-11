@@ -13,6 +13,8 @@ const STRINGS = {
     locationRequesting: 'Requesting your location...',
     locationSet: 'Location set. Ask away!',
     locationDenied: "Couldn't get your location - try again, or switch to Custom.",
+    locationBlocked:
+      "Location is blocked for this site - re-enable it in your browser or phone settings, then try again, or switch to Custom.",
     locationUnsupported: "Geolocation isn't supported in this browser.",
     locationUseLiveButton: 'Use my current location',
     locationUseLiveButtonChecking: 'Checking...',
@@ -65,6 +67,8 @@ const STRINGS = {
     locationRequesting: 'מבקש את המיקום שלך...',
     locationSet: 'המיקום נקבע. שאל בבקשה!',
     locationDenied: 'לא הצלחתי לקבל את המיקום שלך - נסה שוב, או עבור למצב מותאם.',
+    locationBlocked:
+      'הגישה למיקום חסומה עבור האתר הזה - אפשר אותה מחדש בהגדרות הדפדפן או הטלפון, ואז נסה שוב, או עבור למצב מותאם.',
     locationUnsupported: 'שירותי מיקום אינם נתמכים בדפדפן זה.',
     locationUseLiveButton: 'השתמש במיקום הנוכחי שלי',
     locationUseLiveButtonChecking: 'בודק...',
