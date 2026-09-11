@@ -495,25 +495,31 @@ In order:
   round trip preserves the manual location and its label exactly as
   before; toggle alignment confirmed in the RTL screenshot (מותאם/הליכה
   share the right edge, נוכחי/נסיעה share the left).
-- Fixed a real-device report (2026-09-11): tapping "Use my current
-  location" a second time didn't show the browser's permission popup at
-  all, and seemed to require manually re-enabling location in the phone's
-  settings. Not an app bug - once a site's geolocation permission is
-  denied, browsers remember that permanently and silently fail every
-  future request instead of ever re-prompting (a deliberate anti-
-  annoyance measure no site can override from JS), so "try again" was
-  telling the user to do something that could never work. Fixed by
-  reading the `GeolocationPositionError`'s `.code` in `requestLocation`'s
-  failure callback (previously ignored entirely) and branching: a real
-  `PERMISSION_DENIED` now shows a new `locationBlocked` status
-  ("Location is blocked for this site - re-enable it in your browser or
-  phone settings, then try again, or switch to Custom") instead of the
-  generic `locationDenied` copy, which stays for the genuinely transient
-  cases (`POSITION_UNAVAILABLE`, `TIMEOUT`) where retrying can actually
-  help. Verified live: this sandbox's own denial reports `code: 1`
-  (`PERMISSION_DENIED`) too, confirming the new message - not the old
-  generic one - is what real users hit on both a first-time denial and a
-  permanently-blocked site, in both languages.
+- Real-device report (2026-09-11): tapping "Use my current location" a
+  second time didn't show the browser's permission popup at all. First
+  attempt assumed this always means a permanent, settings-only block, and
+  shipped a `locationBlocked` status asserting exactly that whenever
+  `GeolocationPositionError.code === PERMISSION_DENIED`. That shipped fix
+  was itself wrong and got reverted the same day: researched actual
+  browser behavior (Chrome persists an explicit "Block" tap as a site
+  setting and stops re-prompting, but a mere dismissal only soft-blocks
+  temporarily after repeated attempts; Safari's behavior is murkier still,
+  and its Permissions API is independently known to misreport denied as
+  `"prompt"`) and confirmed `PERMISSION_DENIED` (code 1) is the *same*
+  code for a fresh, retriable denial, a persisted explicit block, and a
+  couple of unrelated failure modes - client-side JS cannot tell them
+  apart. Asserting "permanently blocked, go to settings" after a single
+  failure was overclaiming, and actively wrong advice on a genuinely
+  recoverable denial (it discourages a retry that might well have worked).
+  Reverted to one honest, non-committal `locationDenied` message: "try
+  again, or switch to Custom. Still stuck? Check this site's location
+  permission in your browser settings" - the settings path is offered as
+  a fallback, not asserted as the only option. `locationBlocked` and the
+  `.code` branching were removed entirely rather than kept unused.
+  Lesson for next time: don't infer permission *history* from a single
+  browser API result that's documented to collapse multiple distinct
+  causes into one code - verify the actual platform behavior before
+  shipping a message that asserts something specific about it.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
