@@ -54,6 +54,17 @@ def test_format_place_eta_is_none_when_routing_failed():
     assert formatted["eta"] is None
 
 
+def test_format_place_includes_price_tier_when_set():
+    place = SAMPLE_PLACE.model_copy(update={"price_tier": "$$"})
+    formatted = format_place(place, eta_seconds=None)
+    assert formatted["price_tier"] == "$$"
+
+
+def test_format_place_price_tier_is_none_when_unset():
+    formatted = format_place(SAMPLE_PLACE, eta_seconds=None)
+    assert formatted["price_tier"] is None
+
+
 def test_chat_endpoint_returns_clarifying_question_when_llm_finds_no_match(monkeypatch):
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
     monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee", "burger"]))

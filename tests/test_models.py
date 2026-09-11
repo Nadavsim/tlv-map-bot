@@ -26,6 +26,21 @@ def test_place_instagram_url_and_last_synced_at_default_to_none():
     assert place.last_synced_at is None
 
 
+def test_place_price_tier_defaults_to_none():
+    place = Place(name="Cafelix", category="coffee", location=GeoPoint(coordinates=(34.77, 32.06)))
+    assert place.price_tier is None
+
+
+def test_place_price_tier_rejects_values_outside_the_three_tiers():
+    with pytest.raises(ValidationError):
+        Place(
+            name="Cafelix",
+            category="coffee",
+            location=GeoPoint(coordinates=(34.77, 32.06)),
+            price_tier="$$$$",
+        )
+
+
 def test_place_ignores_unknown_fields_like_mongo_id():
     place = Place(
         name="Cafelix",

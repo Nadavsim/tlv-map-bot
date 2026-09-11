@@ -323,6 +323,19 @@ header h1 svg {
   border-radius: 999px;
 }
 
+.place-card .price-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: transparent;
+  color: var(--muted);
+  border: 1.5px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+}
+
 .place-card .distance-eta {
   font-size: 0.8rem;
   color: var(--muted);

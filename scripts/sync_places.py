@@ -84,6 +84,7 @@ async def sync() -> None:
             location=GeoPoint(coordinates=(place["longitude"], place["latitude"])),
             instagram_url=place["instagram_url"],
             dietary_tags=place["dietary_tags"],
+            price_tier=place["price_tier"],
             last_synced_at=sync_time,
         )
         location_doc = validated.location.model_dump()
@@ -106,6 +107,7 @@ async def sync() -> None:
                         "category": validated.category,
                         "location": location_doc,
                         "dietary_tags": validated.dietary_tags,
+                        "price_tier": validated.price_tier,
                         "last_synced_at": validated.last_synced_at,
                     }
                 },
@@ -118,6 +120,7 @@ async def sync() -> None:
                     "location": location_doc,
                     "instagram_url": validated.instagram_url,
                     "dietary_tags": validated.dietary_tags,
+                    "price_tier": validated.price_tier,
                     "last_synced_at": validated.last_synced_at,
                 }
             )

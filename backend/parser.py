@@ -15,13 +15,22 @@ _INSTAGRAM_RE = re.compile(r"https?://(?:www\.)?instagram\.com/\S+", re.IGNORECA
 # already spent on categories, since no new layers are needed.
 _TAG_RE = re.compile(r"#(\w+)", re.UNICODE)
 
+# Price tier, typed into the same description field as "#$$" - kept separate
+# from _TAG_RE/dietary_tags rather than folded in: "$" isn't a \w character
+# (so it wouldn't match _TAG_RE anyway), and a place has exactly one price
+# tier, not an open set of them like dietary tags. The negative lookahead
+# caps it at 1-3 signs - "#$$$$" (a likely typo) is rejected outright rather
+# than silently truncated to "$$$".
+_PRICE_RE = re.compile(r"#(\${1,3})(?!\$)")
+
 
 def parse_kml_text(kml_text: str) -> list[dict]:
     """Parse KML text (My Maps export) into a list of place dicts.
 
     Each dict has: name, category, latitude, longitude, instagram_url (may
-    be None), dietary_tags (list[str], may be empty). 'category' comes from
-    the enclosing Folder name (My Maps layers).
+    be None), dietary_tags (list[str], may be empty), price_tier (one of
+    "$"/"$$"/"$$$", may be None). 'category' comes from the enclosing
+    Folder name (My Maps layers).
     """
     root = ET.fromstring(kml_text)
     places_data = []
@@ -58,12 +67,16 @@ def parse_kml_text(kml_text: str) -> list[dict]:
 
             instagram_url = None
             dietary_tags: list[str] = []
+            price_tier = None
             desc_node = placemark.find("kml:description", _NS)
             if desc_node is not None and desc_node.text:
                 match = _INSTAGRAM_RE.search(desc_node.text)
                 if match:
                     instagram_url = match.group(0)
                 dietary_tags = sorted({tag.lower() for tag in _TAG_RE.findall(desc_node.text)})
+                price_match = _PRICE_RE.search(desc_node.text)
+                if price_match:
+                    price_tier = price_match.group(1)
 
             places_data.append(
                 {
@@ -73,6 +86,7 @@ def parse_kml_text(kml_text: str) -> list[dict]:
                     "longitude": longitude,
                     "instagram_url": instagram_url,
                     "dietary_tags": dietary_tags,
+                    "price_tier": price_tier,
                 }
             )
 

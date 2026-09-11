@@ -781,33 +781,72 @@ In order:
     actually lives or works, which this app has no business collecting.
     Generic saved entries (a nickname the user picks, or just a plain
     recency-ordered list) only.
-13. Price tag per place, requested by the user (2026-09-11) - each result
-    card should show a price indicator ($/$$/$$$) sourced from Google
-    Maps' own price-level rating for that place, alongside the existing
-    category/distance/ETA/tag chips. Not yet scoped in detail - the real
-    decision when this gets built is *how* the price level gets into the
-    DB, and it cuts against this project's "stay free/cheap" pattern
-    either way:
-    - **Google Places API lookup** (what "based on Google Maps pricing
-      rating" implies) - place_id lookup + Place Details per place
-      returns a `price_level` field. Unlike the per-query OSRM/Nominatim
-      calls elsewhere in this app, this would run once per place during
-      `scripts/sync_places.py` (price level is static data about a
-      place, not something that changes per request), so cost scales
-      with the curated list's size, not with usage - but it's still a
-      paid Google API requiring its own key/billing setup, unlike every
-      other integration this app uses so far (OSRM, Nominatim, and the
-      Google Maps *links* themselves are all free/keyless). Needs a real
-      cost check against the $15/month budget before committing to it.
-    - **Hand-tagged, like dietary tags** - reuse the same free-form
+13. ~~Price tag per place~~ - app-side implementation done 2026-09-11; the
+    real map data still needs to be hand-tagged (see below) before it
+    shows up live. Decided against the Google Places API option
+    considered below - went with the hand-tagged approach instead, priced
+    via a one-time Google Maps lookup pass rather than the paid API (see
+    "Sourcing the actual price data" below for how that lookup was done).
+    - **Hand-tagged, like dietary tags** - reuses the exact free-form
       hashtag pattern already working for `#kosher`/`#vegan` in a pin's
       My Maps description (see "Kosher/dietary tags and filtering"
-      above) - e.g. `#$$` - filled in by hand during curation, same as
-      everything else in the map. Zero new cost or integration, at the
-      expense of it being the creator's own judgment rather than
-      Google's rating specifically.
-    Revisit this tradeoff when the item comes up for real; both are
-    listed here so the decision isn't reopened from scratch later.
+      above) - `#$`, `#$$`, or `#$$$` in a pin's description. Zero new
+      cost or integration.
+    - `backend/parser.py` gained `_PRICE_RE` (`#(\${1,3})(?!\$)`), kept
+      deliberately separate from `_TAG_RE`/`dietary_tags` rather than
+      folded in - `$` isn't a `\w` character so it wouldn't match
+      `_TAG_RE` anyway, and a place has exactly one price tier, not an
+      open set like dietary tags. A price hashtag with more than 3 `$`
+      signs (a likely typo, e.g. `#$$$$`) is rejected outright rather
+      than silently truncated to `$$$`.
+    - `Place.price_tier: Literal["$", "$$", "$$$"] | None` in
+      `backend/models.py`; added to `PLACES_JSON_SCHEMA` in `backend/db.py`
+      too (the `warn`-mode validator, same defense-in-depth as every
+      other field). `scripts/sync_places.py` refreshes it on every sync,
+      following `dietary_tags`' always-overwrite behavior (not
+      `instagram_url`'s preserve-on-update behavior) - source-of-truth is
+      always the map, same reasoning as dietary tags. `format_place()` in
+      `backend/app.py` includes it in the API response.
+    - Frontend: `PlaceCard.tsx` renders a `price-chip` (a `Banknote`
+      lucide icon + the raw `$`/`$$`/`$$$` text - deliberately a
+      different icon from the plain-text category/tag chips, so it reads
+      as a distinct kind of fact at a glance rather than another tag) right
+      after the category chip, only when `price_tier` is set. No i18n
+      translation needed for the symbols themselves (universal), but added
+      a `priceLabel` i18n key ("Price range"/"טווח מחירים") as the chip's
+      `title` tooltip.
+    - Verified live (via a temporary client-side fetch-response patch,
+      since no real place has a price tag yet - see below) in both
+      languages/themes/directions and at mobile width: chip renders
+      correctly, no layout regression, RTL ordering matches the existing
+      category chip. All 129 backend tests (8 new: parser price
+      extraction incl. the "more than 3 `$`" rejection case, the model's
+      `Literal` validation, `format_place` inclusion) and the frontend
+      typecheck pass.
+    - **Sourcing the actual price data (2026-09-11)**: rather than pay for
+      the Google Places API, a background agent worked through all 166
+      places on the live map, searching each by name+coordinates on
+      Google Maps and reading off its price data (Israeli Google Maps
+      shows a shekel range like "₪1–50", not $ symbols - bucketed into
+      $/$$/$$$ by the range's low end: ≤50 -> $, 51-149 -> $$, >=150 ->
+      $$$). Ran in batches of 12 with a 150s pause between batches
+      (explicit user instruction, to avoid tripping Google's bot
+      detection) - completed all 166 with zero CAPTCHA/blocks. 158 found
+      cleanly, 6 found-but-no-Google-price-data, 2 the automated lookup
+      itself failed on (one collapsed to a generic address/building match
+      instead of the real business - the exact failure mode this
+      session's earlier manual pilot had already surfaced once; one had
+      its search term auto-corrected by Google to an unrelated chain).
+      All 8 gaps were resolved by the user by hand afterward. Real lesson
+      from the two failures: text-based name search can quietly resolve
+      to the wrong thing even for an exact name match, which is a genuine
+      argument for the real place_id-based Places API over scraping if
+      this data ever needs a bulk refresh again. The final 166-place
+      dataset (all real, this session, not yet applied to My Maps) lives
+      at `price_results.json` in this session's scratchpad - not
+      committed to the repo (scratch data, not app code) - still needs to
+      be hand-typed as `#$`/`#$$`/`#$$$` into each pin's My Maps
+      description before it actually shows up live.
 
 Explicitly considered and left out for now (2026-09-11): a persistent
 dietary/category filter UI (vs. today's conversational, per-query

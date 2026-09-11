@@ -30,6 +30,7 @@ export interface Place {
   eta: string | null
   instagram_url: string | null
   dietary_tags: string[]
+  price_tier: '$' | '$$' | '$$$' | null
   maps_url: string
 }
 

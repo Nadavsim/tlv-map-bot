@@ -228,6 +228,7 @@ def format_place(place: PlaceResult, eta_seconds: float | None) -> dict:
         "eta": routing.format_duration(eta_seconds) if eta_seconds is not None else None,
         "instagram_url": place.instagram_url,
         "dietary_tags": place.dietary_tags,
+        "price_tier": place.price_tier,
         "maps_url": maps_url,
     }
 

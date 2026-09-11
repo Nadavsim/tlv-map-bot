@@ -36,6 +36,9 @@ class Place(BaseModel):
     # set - mirrors category itself being whatever a My Maps layer is
     # named, not a hardcoded list.
     dietary_tags: list[str] = []
+    # "$"/"$$"/"$$$", typed into the pin description as "#$$" (see
+    # parser._PRICE_RE) - a place has exactly one, unlike dietary_tags.
+    price_tier: Literal["$", "$$", "$$$"] | None = None
     last_synced_at: datetime | None = None
 
 

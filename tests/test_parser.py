@@ -24,7 +24,7 @@ SAMPLE_KML = """<?xml version="1.0" encoding="UTF-8"?>
       <name>Burger</name>
       <Placemark>
         <name>Meaty Place</name>
-        <description>Solid burgers. #Kosher #Vegan-friendly #Kosher</description>
+        <description>Solid burgers. #Kosher #Vegan-friendly #Kosher #$$</description>
         <Point>
           <coordinates>34.7748345,32.0817456,0</coordinates>
         </Point>
@@ -111,6 +111,59 @@ def test_dietary_tags_empty_when_no_hashtags_in_description():
     by_name = {p["name"]: p for p in places}
     assert by_name["Cafelix"]["dietary_tags"] == []
     assert by_name["Bucke"]["dietary_tags"] == []
+
+
+def test_price_tier_extracted_from_dollar_hashtag():
+    places = parse_kml_text(SAMPLE_KML)
+    by_name = {p["name"]: p for p in places}
+    assert by_name["Meaty Place"]["price_tier"] == "$$"
+
+
+def test_price_tier_none_when_no_dollar_hashtag_in_description():
+    places = parse_kml_text(SAMPLE_KML)
+    by_name = {p["name"]: p for p in places}
+    assert by_name["Cafelix"]["price_tier"] is None
+    assert by_name["Bucke"]["price_tier"] is None
+
+
+def test_price_tier_supports_one_to_three_dollar_signs():
+    for tier in ("$", "$$", "$$$"):
+        kml = f"""<?xml version="1.0" encoding="UTF-8"?>
+        <kml xmlns="http://www.opengis.net/kml/2.2">
+          <Document>
+            <Folder>
+              <name>Coffee</name>
+              <Placemark>
+                <name>Spot</name>
+                <description>#{tier}</description>
+                <Point><coordinates>34.77,32.08,0</coordinates></Point>
+              </Placemark>
+            </Folder>
+          </Document>
+        </kml>
+        """
+        places = parse_kml_text(kml)
+        assert places[0]["price_tier"] == tier
+
+
+def test_price_tier_rejected_when_more_than_three_dollar_signs():
+    # Likely a typo - reject outright rather than silently truncate to "$$$".
+    kml = """<?xml version="1.0" encoding="UTF-8"?>
+    <kml xmlns="http://www.opengis.net/kml/2.2">
+      <Document>
+        <Folder>
+          <name>Coffee</name>
+          <Placemark>
+            <name>Spot</name>
+            <description>#$$$$</description>
+            <Point><coordinates>34.77,32.08,0</coordinates></Point>
+          </Placemark>
+        </Folder>
+      </Document>
+    </kml>
+    """
+    places = parse_kml_text(kml)
+    assert places[0]["price_tier"] is None
 
 
 def test_placemark_without_coordinates_is_skipped():

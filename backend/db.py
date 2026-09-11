@@ -51,6 +51,7 @@ PLACES_JSON_SCHEMA = {
         },
         "instagram_url": {"bsonType": ["string", "null"]},
         "dietary_tags": {"bsonType": "array", "items": {"bsonType": "string"}},
+        "price_tier": {"enum": ["$", "$$", "$$$", None]},
         "last_synced_at": {"bsonType": ["date", "null"]},
     },
 }

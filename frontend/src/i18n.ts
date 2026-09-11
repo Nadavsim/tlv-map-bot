@@ -63,6 +63,7 @@ const STRINGS = {
     appCrashedMessage: 'Something went wrong. Refreshing usually fixes it.',
     appCrashedReload: 'Refresh',
     privacyLink: 'Privacy',
+    priceLabel: 'Price range',
   },
   he: {
     greeting:
@@ -120,6 +121,7 @@ const STRINGS = {
     appCrashedMessage: 'משהו השתבש. רענון בדרך כלל פותר את זה.',
     appCrashedReload: 'רענן',
     privacyLink: 'פרטיות',
+    priceLabel: 'טווח מחירים',
   },
 } as const satisfies Record<Lang, Record<string, string>>
 
