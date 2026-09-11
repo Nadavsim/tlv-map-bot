@@ -539,6 +539,45 @@ In order:
   no further app change was made, since the app already both correctly
   detects the denial and offers Custom mode as a fully working
   alternative in the meantime.
+  That diagnosis was also wrong, disproven step by step the same day:
+  enabling Android's system Location toggle (it had been off) didn't fix
+  it; confirming Chrome's own OS-level app permission was already
+  "Allow" didn't explain it; finding no entry at all in Chrome's
+  per-site Blocked list ruled out an explicit block; a full "Delete &
+  reset" of all Chrome-stored data for the exact origin (wiping any
+  quieter, non-listed auto-mute state too) still didn't fix it;
+  confirming the URL was genuinely `https://` ruled out the
+  insecure-context explanation. Every plausible *permission*-shaped
+  explanation was individually tested and eliminated - which was the
+  signal to stop treating this as a permissions problem at all and
+  actually read the code path again. The real bug: `requestLocation`'s
+  failure callback took no error argument and collapsed all three
+  distinct `GeolocationPositionError` codes - `PERMISSION_DENIED`,
+  `POSITION_UNAVAILABLE`, and `TIMEOUT` - into one `locationDenied`
+  message that always said "check your location permission," even
+  though the latter two have nothing to do with permissions at all.
+  Combined with `enableHighAccuracy: true` and only a 10s timeout - GPS
+  routinely takes longer than that (or never gets a fix at all) indoors
+  - a plain TIMEOUT was the likely real, everyday cause, misreported as
+  a permissions issue on every single occurrence, sending the user
+  through several rounds of device-settings troubleshooting that could
+  never have fixed a GPS timeout. Fixed by reading `error.code` and
+  branching into three honest, distinct messages (`locationDenied`,
+  new `locationUnavailable`, new `locationTimeout`), and by switching to
+  `enableHighAccuracy: false` with a more generous 20s timeout - this
+  app only needs "which nearby place is closest," not GPS-grade
+  precision, so the faster, more reliable network/wifi-based fix is the
+  better trade-off and should make genuine timeouts rare going forward.
+  Verified live by mocking `navigator.geolocation.getCurrentPosition` to
+  return each of the three codes directly (can't force a real device
+  into TIMEOUT/UNAVAILABLE from this sandbox) - each now produces its
+  own distinct, accurate message in both languages, and the real
+  (unmocked) denial in this sandbox still correctly resolves to
+  `locationDenied` as before. Lesson for next time: when every
+  individually-plausible cause in one category gets ruled out one by
+  one, that is itself a strong signal to stop searching within that
+  category and re-read the actual code path instead of reaching for
+  another guess in the same direction.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup

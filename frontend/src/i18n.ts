@@ -14,6 +14,8 @@ const STRINGS = {
     locationSet: 'Location set. Ask away!',
     locationDenied:
       "Couldn't get your location - try again, or switch to Custom. Still stuck? Check this site's location permission in your browser settings.",
+    locationUnavailable: "Couldn't determine your location right now - try again in a moment, or switch to Custom.",
+    locationTimeout: 'Location took too long to respond - try again, or switch to Custom.',
     locationUnsupported: "Geolocation isn't supported in this browser.",
     locationUseLiveButton: 'Use my current location',
     locationUseLiveButtonChecking: 'Checking...',
@@ -67,6 +69,8 @@ const STRINGS = {
     locationSet: 'המיקום נקבע. שאל בבקשה!',
     locationDenied:
       'לא הצלחתי לקבל את המיקום שלך - נסה שוב, או עבור למצב מותאם. עדיין לא עובד? בדוק את הרשאת המיקום של האתר בהגדרות הדפדפן.',
+    locationUnavailable: 'לא הצלחתי לקבוע את המיקום שלך כרגע - נסה שוב בעוד רגע, או עבור למצב מותאם.',
+    locationTimeout: 'קבלת המיקום ארכה זמן רב מדי - נסה שוב, או עבור למצב מותאם.',
     locationUnsupported: 'שירותי מיקום אינם נתמכים בדפדפן זה.',
     locationUseLiveButton: 'השתמש במיקום הנוכחי שלי',
     locationUseLiveButtonChecking: 'בודק...',

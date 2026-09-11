@@ -26,7 +26,13 @@ const UNDO_WINDOW_MS = 5000
 // is what makes that happen automatically on a language switch.
 type LocationStatusKey = Extract<
   StringKey,
-  'locationNotSet' | 'locationRequesting' | 'locationSet' | 'locationDenied' | 'locationUnsupported'
+  | 'locationNotSet'
+  | 'locationRequesting'
+  | 'locationSet'
+  | 'locationDenied'
+  | 'locationUnavailable'
+  | 'locationTimeout'
+  | 'locationUnsupported'
 >
 
 export default function App() {
@@ -88,20 +94,31 @@ export default function App() {
         setShowLocationForm(false)
         setIsRequestingLocation(false)
       },
-      () => {
+      (error) => {
         setIsRequestingLocation(false)
-        // GeolocationPositionError.code === PERMISSION_DENIED covers a
-        // fresh denial a retry could still recover from, an explicit
-        // persisted block that genuinely needs a settings change, and a
-        // couple of other cases - all collapsed into the identical code,
-        // with no reliable way to tell them apart from here. Don't imply
-        // more certainty than that: this stays non-committal rather than
-        // asserting "permanently blocked" and discouraging a retry that
-        // might still work.
-        setLocationStatusKey('locationDenied')
         setShowLocationForm(true)
+        // These three codes are genuinely different problems and were
+        // previously collapsed into one "check your permissions" message -
+        // which is actively misleading for the latter two, neither of
+        // which has anything to do with permissions. TIMEOUT in particular
+        // is the likely everyday case indoors with enableHighAccuracy
+        // (GPS can easily take longer than 10-20s to get a fix, or never
+        // get one at all inside a building), and no amount of permission
+        // troubleshooting can fix that.
+        if (error.code === error.POSITION_UNAVAILABLE) {
+          setLocationStatusKey('locationUnavailable')
+        } else if (error.code === error.TIMEOUT) {
+          setLocationStatusKey('locationTimeout')
+        } else {
+          setLocationStatusKey('locationDenied')
+        }
       },
-      { enableHighAccuracy: true, timeout: 10000 },
+      // enableHighAccuracy (GPS) was causing real-world timeouts that got
+      // misreported as permission problems - this app only needs "which
+      // nearby place is closest," not turn-by-turn precision, so the
+      // faster, more reliable network/wifi-based fix (the default) is the
+      // better trade-off. A generous 20s timeout as a safety net either way.
+      { enableHighAccuracy: false, timeout: 20000 },
     )
   }
 
