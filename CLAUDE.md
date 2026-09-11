@@ -578,6 +578,29 @@ In order:
   one, that is itself a strong signal to stop searching within that
   category and re-read the actual code path instead of reaching for
   another guess in the same direction.
+  Still not resolved as of this same day - the timeout/high-accuracy fix
+  above didn't fix it either. A screen recording of the actual failure
+  (analyzed by extracting frames with `imageio`+bundled ffmpeg, since
+  Claude Code has no native video support) showed the failure landing in
+  well under a second - far too fast to be a real GPS/network location
+  attempt or a human interacting with any permission UI, which is only
+  consistent with the browser already holding a stored decision for this
+  origin and refusing instantly without even trying. That re-opened the
+  permission-blocking theory despite the user's own reset attempt not
+  fixing it. Checked for a `Permissions-Policy` header/meta tag that
+  could block geolocation at the page level regardless of user
+  permission (would explain an instant failure with zero entry in
+  Chrome's site list, since the page's own policy would pre-empt the
+  permission system entirely) - not present anywhere in `backend/app.py`
+  or `frontend/index.html`; also re-confirmed `public/sw.js` is still a
+  genuine no-op (no caching, so not serving a stale cached bundle
+  either). With every code-side explanation checked and none of them
+  panning out, added a TEMPORARY diagnostic (`debugLocationError` state
+  in `App.tsx`) that appends the raw `GeolocationPositionError.code` and
+  `.message` directly onto the visible status line - deliberately
+  user-visible rather than console-only, since the user's own phone is
+  the only environment that reproduces this and there's no remote
+  debugging session available. Remove this once the real cause is found.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
