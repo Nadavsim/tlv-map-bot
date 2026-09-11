@@ -27,6 +27,7 @@ export function ChatInput({ disabled, onSend, lang }: ChatInputProps) {
         autoComplete="off"
         disabled={disabled}
         value={value}
+        maxLength={500}
         onChange={(e) => setValue(e.target.value)}
       />
       <button type="submit" disabled={disabled}>

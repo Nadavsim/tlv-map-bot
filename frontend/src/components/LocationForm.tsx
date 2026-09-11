@@ -81,6 +81,7 @@ export function LocationForm({
           type="text"
           placeholder={t(lang, 'locationInputPlaceholder')}
           value={value}
+          maxLength={500}
           onChange={(e) => setValue(e.target.value)}
         />
         <button type="submit" disabled={isResolving}>

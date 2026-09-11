@@ -654,6 +654,64 @@ In order:
   accumulated browser-side state" far faster than continuing to audit
   the code or hunt through settings menus.
 
+- Pre-public security hardening (2026-09-11) - triggered by making the
+  GitHub repo public. Went through a generic "things AI-built apps forget"
+  checklist someone sent the user item by item against the actual codebase
+  (not applied wholesale) and implemented the real gaps found:
+  - **Input length caps** - `ChatRequest.message` and `LocationLinkRequest.
+    text` (`backend/app.py`) had no length limit; a pasted wall of text
+    would have gone straight into a paid per-token Anthropic call. Added
+    `Field(max_length=500)` to both, plus a matching `maxLength={500}` on
+    the two frontend inputs (`ChatInput.tsx`, `LocationForm.tsx`) so
+    hitting the cap fails as an ordinary input limit, not a raw 422.
+  - **Security response headers** - none existed at all. Added a
+    `security_headers` middleware (`backend/app.py`, ahead of the existing
+    `cache_control` one) setting `X-Content-Type-Options`,
+    `X-Frame-Options: DENY`, `Referrer-Policy`,
+    `Strict-Transport-Security`, and a real `Content-Security-Policy`
+    scoped to exactly what the app loads (same-origin scripts/API calls,
+    the Google Fonts stylesheet + font files, `data:` for the inline SVG
+    favicon - nothing else). `Permissions-Policy` explicitly keeps
+    `geolocation=(self)` allowed (the app's core feature) while locking
+    out camera/microphone/payment/usb, which it never uses. Verified live:
+    zero console/CSP violations, a full chat round-trip (location set,
+    real LLM query, real results) still worked end-to-end, and all 121
+    backend tests still pass.
+  - **`robots.txt`** - added (`frontend/public/robots.txt`, blanket
+    `Disallow: /`), served from `/robots.txt` via a dedicated FastAPI
+    route (`backend/app.py`) mirroring the existing `/sw.js` pattern -
+    crawlers only ever check the true root, never `/static/robots.txt`.
+    This was the one item from Roadmap #3 below actually built so far;
+    custom 404, the error boundary, and the privacy policy from that same
+    item are still open (an earlier summary of this roadmap incorrectly
+    called all of #3 "done" - it was only ever "scoped").
+  - **Social preview (OG/Twitter meta tags)** - added to
+    `frontend/index.html` (`og:type`/`title`/`description`/`image`,
+    `twitter:card`/`title`/`description`). Specifically worth doing here
+    since the app already has a WhatsApp share button - a shared link
+    with no preview card was undermining a feature that already existed.
+    `og:image` deliberately points at the root-relative
+    `/static/icons/icon-512.png` (already-existing PWA icon, reused
+    rather than adding a new asset) rather than a hardcoded host, since
+    production and staging sit on two different auto-generated Azure
+    hostnames with no shared domain to hardcode.
+  Explicitly NOT done as part of this pass, left as manual follow-ups for
+  the user (outside what code changes can accomplish):
+  - **Azure spend cap** - the $15/month figure is a stated goal, not an
+    enforced budget alert. No Azure CLI access from this environment to
+    set one up directly - needs a one-time manual "Cost Management >
+    Budgets" setup in the Azure Portal.
+  - **Confirm HTTPS-only enforcement** - Azure App Service serves HTTPS by
+    default on its `azurewebsites.net` hostnames, but the explicit
+    "HTTPS Only" toggle in the Portal wasn't directly verifiable from
+    here either - worth a quick manual check.
+  Also explicitly NOT relevant yet, and deliberately left alone rather
+  than pre-built: admin-route/permission checks, CSRF protection, secure
+  cookies, and secure file uploads - none of these have anything to
+  protect yet (no auth, no cookies, no uploads exist), and each is already
+  correctly sequenced to land alongside the feature that actually
+  introduces it (see "Bigger builds - user system" below).
+
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
   tradeoff vs. the free OSRM walk/drive ETAs already in place)

@@ -7,6 +7,18 @@
     <title>TLV Bot</title>
     <meta name="description" content="Find the closest Tel Aviv food and coffee spot from a curated map." />
 
+    <!-- Social preview: matters since results can be shared straight to
+         WhatsApp via the existing share button. Image path is root-relative
+         (not a hardcoded host) so it resolves correctly on whichever
+         environment (staging/production) actually serves the share. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="TLV Bot" />
+    <meta property="og:description" content="Find the closest Tel Aviv food and coffee spot from a curated map." />
+    <meta property="og:image" content="/static/icons/icon-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="TLV Bot" />
+    <meta name="twitter:description" content="Find the closest Tel Aviv food and coffee spot from a curated map." />
+
     <!-- PWA: installable as a home-screen app (see public/manifest.webmanifest). -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#ff5a36" />
