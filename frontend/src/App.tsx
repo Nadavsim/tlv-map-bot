@@ -6,7 +6,7 @@ import { ChatLog } from './components/ChatLog'
 import { Header } from './components/Header'
 import { t, type StringKey } from './i18n'
 import { loadLang, loadTheme, saveLang, saveTheme } from './preferences'
-import type { Coordinates, Lang, Theme, TransportMode } from './types'
+import type { Coordinates, Lang, LocationMode, Theme, TransportMode } from './types'
 import { PAGE_SIZE } from './types'
 import './styles/theme.css'
 import './styles/App.css'
@@ -26,16 +26,29 @@ const UNDO_WINDOW_MS = 5000
 // is what makes that happen automatically on a language switch.
 type LocationStatusKey = Extract<
   StringKey,
-  'locationRequesting' | 'locationSet' | 'locationDenied' | 'locationRetryFailed' | 'locationUnsupported'
+  | 'locationNotSet'
+  | 'locationRequesting'
+  | 'locationSet'
+  | 'locationDenied'
+  | 'locationUnavailable'
+  | 'locationTimeout'
+  | 'locationUnsupported'
 >
 
 export default function App() {
   const [lang, setLang] = useState<Lang>(() => loadLang())
   const [theme, setTheme] = useState<Theme>(() => loadTheme())
   const [entries, setEntries] = useState<ChatEntry[]>([])
-  const [locationStatusKey, setLocationStatusKey] = useState<LocationStatusKey>('locationRequesting')
-  const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
-  const [showLocationForm, setShowLocationForm] = useState(false)
+  const [locationStatusKey, setLocationStatusKey] = useState<LocationStatusKey>('locationNotSet')
+  const [liveLocation, setLiveLocation] = useState<Coordinates | null>(null)
+  const [manualLocation, setManualLocation] = useState<Coordinates | null>(null)
+  const [manualLocationLabel, setManualLocationLabel] = useState<string | null>(null)
+  // Custom is the default - no browser permission prompt until the user
+  // deliberately asks for Live, rather than firing one automatically on
+  // load. The address form starts open to match: there's nothing to enter
+  // yet either way.
+  const [locationMode, setLocationMode] = useState<LocationMode>('manual')
+  const [showLocationForm, setShowLocationForm] = useState(true)
   const [isRequestingLocation, setIsRequestingLocation] = useState(false)
   const [mode, setMode] = useState<TransportMode>('walking')
   const [isWaitingForReply, setIsWaitingForReply] = useState(false)
@@ -60,55 +73,91 @@ export default function App() {
     saveTheme(theme)
   }, [theme])
 
-  function offerManualLocation(statusKey: LocationStatusKey) {
-    setLocationStatusKey(statusKey)
-    setShowLocationForm(true)
-    setEntries((prev) => [
-      ...prev,
-      { id: makeEntryId(), kind: 'bot-text', text: t(lang, 'locationFallbackMessage') },
-    ])
-  }
-
-  // isRetry=false (initial mount attempt): a failure pushes the full
-  // explanatory chat message + shows the manual-entry form. isRetry=true
-  // (the "try again" button, after the form is already showing - e.g. the
-  // user enabled location in settings after initially denying it, which
-  // otherwise required a page reload to take effect): a failure just
-  // updates the status line instead of spamming another chat bubble.
-  function requestLocation(isRetry: boolean) {
+  // Only ever called in direct response to the user asking for Live (the
+  // toggle, or the form's "Use my current location" button) - there's no
+  // silent background attempt to distinguish from a retry anymore, since
+  // Custom is the default and nothing requests geolocation on its own.
+  function requestLocation() {
     if (!navigator.geolocation) {
-      if (!isRetry) offerManualLocation('locationUnsupported')
+      setLocationStatusKey('locationUnsupported')
+      setShowLocationForm(true)
       return
     }
 
     setIsRequestingLocation(true)
+    setLocationStatusKey('locationRequesting')
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
+        setLiveLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
         setLocationStatusKey('locationSet')
+        setLocationMode('live')
         setShowLocationForm(false)
         setIsRequestingLocation(false)
       },
-      () => {
+      (error) => {
         setIsRequestingLocation(false)
-        if (isRetry) {
-          setLocationStatusKey('locationRetryFailed')
+        setShowLocationForm(true)
+        // These three codes are genuinely different problems and were
+        // previously collapsed into one "check your permissions" message -
+        // which is actively misleading for the latter two, neither of
+        // which has anything to do with permissions. TIMEOUT in particular
+        // is the likely everyday case indoors with enableHighAccuracy
+        // (GPS can easily take longer than 10-20s to get a fix, or never
+        // get one at all inside a building), and no amount of permission
+        // troubleshooting can fix that.
+        if (error.code === error.POSITION_UNAVAILABLE) {
+          setLocationStatusKey('locationUnavailable')
+        } else if (error.code === error.TIMEOUT) {
+          setLocationStatusKey('locationTimeout')
         } else {
-          offerManualLocation('locationDenied')
+          setLocationStatusKey('locationDenied')
         }
       },
-      { enableHighAccuracy: true, timeout: 10000 },
+      // enableHighAccuracy (GPS) was causing real-world timeouts that got
+      // misreported as permission problems - this app only needs "which
+      // nearby place is closest," not turn-by-turn precision, so the
+      // faster, more reliable network/wifi-based fix (the default) is the
+      // better trade-off. A generous 20s timeout as a safety net either way.
+      { enableHighAccuracy: false, timeout: 20000 },
     )
   }
 
-  useEffect(() => {
-    requestLocation(false)
-  }, [])
-
-  function handleLocationSet(coords: Coordinates) {
-    setUserLocation(coords)
-    setLocationStatusKey('locationSet')
+  // Fires whenever the address/Maps-link/coordinates form is submitted -
+  // whether it's showing by default, because a Live attempt failed, or
+  // because the user deliberately opened it via the Live/Custom toggle or
+  // "Change" below. Either way, the result is the same: a manual location,
+  // now active.
+  function handleLocationSet(coords: Coordinates, label: string) {
+    setManualLocation(coords)
+    setManualLocationLabel(label)
+    setLocationMode('manual')
     setShowLocationForm(false)
+  }
+
+  // The toggle always reflects the click immediately - `setLocationMode`
+  // fires unconditionally before anything else, so it never waits on an
+  // async result (a pending geolocation request) to look pressed.
+  // Live: reuse the last known fix instantly if there is one, otherwise
+  // request a fresh one - the browser's permission prompt only ever
+  // appears here, never automatically. Custom: reactivate the last
+  // manual location instantly if there is one, otherwise open the form -
+  // `handleLocationSet` above is what stores a newly-submitted address.
+  function handleLocationModeChange(newMode: LocationMode) {
+    if (newMode === locationMode) return
+    setLocationMode(newMode)
+    if (newMode === 'live') {
+      if (liveLocation) {
+        setShowLocationForm(false)
+      } else {
+        requestLocation()
+      }
+    } else {
+      setShowLocationForm(!manualLocation)
+    }
+  }
+
+  function handleChangeManualLocation() {
+    setShowLocationForm(true)
   }
 
   function handleLocationError(message: string) {
@@ -160,7 +209,7 @@ export default function App() {
   }
 
   async function handleSend(message: string) {
-    if (!userLocation) return
+    if (!activeLocation) return
 
     // Continuing the conversation forfeits any pending undo - restoring the
     // cleared history at this point would silently discard whatever the user
@@ -180,8 +229,8 @@ export default function App() {
       const previous = getPreviousContext()
       const data = await postChat({
         message,
-        lat: userLocation.lat,
-        lon: userLocation.lon,
+        lat: activeLocation.lat,
+        lon: activeLocation.lon,
         mode,
         lang,
         previous_category: previous?.category ?? null,
@@ -215,15 +264,15 @@ export default function App() {
 
   async function handleShowMore(entryId: string) {
     const entry = entries.find((e) => e.id === entryId)
-    if (!entry || entry.kind !== 'places' || !userLocation) return
+    if (!entry || entry.kind !== 'places' || !activeLocation) return
 
     setLoadingMoreId(entryId)
     try {
       const data = await postMorePlaces({
         category: entry.category,
         tag: entry.dietaryTag,
-        lat: userLocation.lat,
-        lon: userLocation.lon,
+        lat: activeLocation.lat,
+        lon: activeLocation.lon,
         mode,
         offset: entry.offset,
       })
@@ -273,12 +322,25 @@ export default function App() {
     dismissUndo()
   }
 
-  const chatDisabled = !userLocation || isWaitingForReply
+  // Manual mode echoes back exactly what the user typed (a location label,
+  // not a place name) rather than a translated string - deliberately
+  // unmediated, same reasoning as place names never being translated.
+  const activeLocation = locationMode === 'manual' ? manualLocation : liveLocation
+  const chatDisabled = !activeLocation || isWaitingForReply
+  const canChangeManualLocation = locationMode === 'manual' && manualLocation !== null && !showLocationForm
+  const locationStatusText =
+    locationMode === 'manual' && manualLocationLabel
+      ? `${t(lang, 'locationActiveManualPrefix')} ${manualLocationLabel}`
+      : t(lang, locationStatusKey)
 
   return (
     <div className="app">
       <Header
-        locationStatus={t(lang, locationStatusKey)}
+        locationStatus={locationStatusText}
+        locationMode={locationMode}
+        onLocationModeChange={handleLocationModeChange}
+        canChangeManualLocation={canChangeManualLocation}
+        onChangeManualLocation={handleChangeManualLocation}
         mode={mode}
         onModeChange={setMode}
         onHelp={() => showHelp(null)}
@@ -295,8 +357,12 @@ export default function App() {
         showLocationForm={showLocationForm}
         onLocationSet={handleLocationSet}
         onLocationError={handleLocationError}
-        onRetryLocation={() => requestLocation(true)}
+        onRetryLocation={() => {
+          setLocationMode('live')
+          requestLocation()
+        }}
         isRequestingLocation={isRequestingLocation}
+        showLiveRetry={locationMode === 'live'}
         onShowMore={handleShowMore}
         loadingMoreId={loadingMoreId}
         lang={lang}
@@ -310,6 +376,13 @@ export default function App() {
         </div>
       )}
       <ChatInput disabled={chatDisabled} onSend={handleSend} lang={lang} />
+      <footer className="app-footer">
+        {/* Opens in a new tab so navigating there doesn't lose the current,
+            in-memory-only conversation (there's no persistence to return to). */}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer">
+          {t(lang, 'privacyLink')}
+        </a>
+      </footer>
     </div>
   )
 }

@@ -93,26 +93,36 @@ In order:
    on top of it. Revisit later if it starts to matter (e.g. once the app
    is shared more widely, or for OAuth redirect URI aesthetics during auth
    work) - nothing about the current setup blocks adding one later.
-2. Install the "Impeccable" design skill for a second design pass (its
-   installer was blocked by the sandbox's safety classifier in the session
-   that tried it - needs to be run by the user in their own terminal:
-   `npx impeccable install`). The "Taste Skill" skills are already installed
-   (`.claude/skills/`) and were used once already (see "Visual upgrades").
-3. A few minor clarity/completeness features - privacy policy, custom 404,
-   etc. (see "Strategic Omissions" - things AI-built apps typically forget -
-   in the redesign-existing-projects skill for a fuller checklist).
+2. ~~Install the "Impeccable" design skill for a second design pass~~ -
+   done: installed by the user (its own installer was blocked by this
+   sandbox's safety classifier, same as the earlier Taste Skill attempt),
+   then run through four full critique-and-fix rounds on 2026-09-10 (see
+   "Visual upgrades" below) - score went 31 -> 28 -> 34 -> 36/40, every
+   flagged issue either fixed or resolved as a documented tradeoff.
+3. ~~A few minor clarity/completeness features~~ - done 2026-09-11 (privacy
+   policy, custom 404, React error boundary, `robots.txt`) - see "Finished
+   the rest of Roadmap #3" and "Pre-public security hardening" below for
+   the full writeups.
+   - Considered and deliberately left out for now: formal terms of use,
+     and a self-serve data-export/delete-my-data flow - reasonable to skip
+     at friends-and-family scale; revisit once real auth/accounts (item 6
+     below) make this less informal.
 4. ~~Set up separate production and test/staging environments~~ - done
    2026-09-10, see "Production/staging environment split" above (under
    Done) for the full story, gotchas included. Ended up costing real money
    (~$14.45/month for production's Basic tier) rather than staying free,
    after the free-tier approach caused a real production outage during
    setup - see that entry for why. Budget raised to $15/month accordingly.
-5. Implement auth and the user system - see "Bigger builds - user system"
+5. ~~Manual-location as a real mode, not just a permission fallback~~ -
+   done 2026-09-11, see "Done since the priority ordering" below for the
+   full design writeup. A natural follow-on now that this exists:
+   saved/frequent addresses (see "Scoped, not yet built" below).
+6. Implement auth and the user system - see "Bigger builds - user system"
    below for the already-sequenced plan (Google Sign-In + JWT session layer
    first, then favorites, ratings, user-suggested spots, map uploads). Now
    safe to build/test against the staging environment from step 4 rather
    than production.
-6. Add the map view visual feature (see "Visual upgrades" below).
+7. Add the map view visual feature (see "Visual upgrades" below).
 
 ## To-do list
 
@@ -392,6 +402,355 @@ In order:
     working prod/staging split, so the app stays on Azure's own
     auto-generated hostnames for now (see the Hosting entry above for why
     those aren't easily prettied up either way).
+- Manual-location as a real mode (2026-09-11) - previously, the typed-
+  address/Maps-link/coordinates path only ever appeared as a fallback
+  when live geolocation failed; there was no way to plan ahead for a
+  different address while live location was working fine. Added a
+  Live/Custom toggle (`Header.tsx`, styled identically to Walk/Drive):
+  - `App.tsx` tracks `liveLocation` and `manualLocation` as separate
+    state (previously one `userLocation`), plus `manualLocationLabel` (the
+    raw text the user typed, echoed back verbatim - not translated, same
+    reasoning as place names) and a `locationMode: 'live' | 'manual'`
+    flag. `activeLocation` (whichever the mode points at) is what
+    actually gets sent to `/api/chat`/`/api/more-places` - no backend
+    changes needed, since both endpoints already just take `lat`/`lon`.
+  - **Custom is the default**, not Live - live geolocation is never
+    requested automatically on load; the address form just starts open.
+    Clicking **Live** is what triggers the browser's permission prompt,
+    reusing the last known fix instantly if one already exists. Clicking
+    **Custom** reactivates the last-used manual location instantly if one
+    exists, otherwise opens the address form. A "Change" link next to the
+    status line is the way to update an already-active manual location.
+  - The first version of this shipped with the opposite default (Live
+    first, matching the old behavior) and two real bugs the user caught
+    on a real device that this session's own sandboxed testing missed:
+    (1) clicking a toggle option didn't visually highlight it if that
+    branch's code path forgot to call `setLocationMode` before doing
+    anything async - fixed by making `handleLocationModeChange` call
+    `setLocationMode(newMode)` unconditionally and immediately, before
+    any geolocation request, so the toggle always reflects the click
+    instantly regardless of what happens next; (2) `LocationForm`'s "Try
+    enabling location again" button/copy is unconditionally part of the
+    form, so proactively choosing Custom mode (nothing had failed) showed
+    error-flavored copy implying something had gone wrong. Both prompted
+    the bigger redesign above (Custom-by-default) rather than patching
+    the symptom - once Live only ever triggers a request in direct
+    response to a click, there's no more "silent automatic attempt vs.
+    explicit retry" distinction to get wrong, and the button's copy was
+    reframed positively as "Use my current location" (`locationUseLiveButton`
+    in `i18n.ts`) so it reads correctly in every context it can appear in,
+    not just a failure. This also let a whole guard (`locationModeRef`,
+    protecting a race that no longer exists once nothing calls
+    `requestLocation` on mount) come back out.
+  Verified live in both languages, both themes, desktop and mobile: fresh
+  load shows Custom active by default with no location-denied chat bubble
+  or error-flavored copy anywhere; clicking Live immediately highlights it
+  and requests geolocation (denied in this sandbox, confirmed the status
+  line updates without disabling chat or losing the active manual
+  location); switching back to Custom instantly restores the manual
+  location and its label with no re-typing; a real chat query against the
+  manual location returned correct results; no mobile layout regression.
+- Fixed two more real-device bugs in the manual-location toggle
+  (2026-09-11), and a third design issue caught in the same pass:
+  - **Custom mode still showed the "Use my current location" button**,
+    and clicking it silently forced `locationMode` back to `'live'` -
+    `requestLocation`'s success handler always sets `locationMode('live')`
+    unconditionally, so a Custom session with no address typed yet would
+    get hijacked into Live the moment that button succeeded, with no way
+    back to the address form short of switching the toggle off and back
+    on. Root cause: `LocationForm` mixed both modes' concerns in one
+    component - the retry button (Live's job) and the address input
+    (Custom's job) always rendered together, regardless of which mode was
+    actually active. Fixed by giving it a `showLiveRetry` prop and
+    rendering ONE OR THE OTHER, never both - Live mode only ever shows a
+    "try again" button (asks the browser, never the user, for detail),
+    Custom mode only ever shows the address form. This makes the bug
+    structurally impossible now, not just patched: nothing in Custom
+    mode's UI can call `requestLocation` anymore.
+  - **The status message didn't match the active mode** - Custom mode's
+    default state showed generic copy that didn't mention how to actually
+    proceed. Reworded `locationNotSet` to "Insert a location below, or
+    switch to Live." and `locationDenied` (Live's failure state) to
+    "...try again, or switch to Custom" (previously said "use the box
+    below," which no longer exists in Live mode's own view).
+  - **Toggle button order didn't align with Walk/Drive** - Custom/Live
+    was ordered to visually pair with Drive/Walk (the "off"/"on" halves
+    landing on opposite sides between the two toggle rows) rather than
+    Custom pairing with Walk. Reordered the JSX (Custom first, Live
+    second) so Custom+Walk share one side and Live+Drive share the other,
+    in both LTR and RTL.
+  Verified live in both languages: fresh load shows only the address
+  form with the reworded prompt; switching to Live shows only the retry
+  button with the reworded failure copy; "Change" still reopens only the
+  address form, never the retry button; a full Custom -> Live -> Custom
+  round trip preserves the manual location and its label exactly as
+  before; toggle alignment confirmed in the RTL screenshot (מותאם/הליכה
+  share the right edge, נוכחי/נסיעה share the left).
+- Real-device report (2026-09-11): tapping "Use my current location" a
+  second time didn't show the browser's permission popup at all. First
+  attempt assumed this always means a permanent, settings-only block, and
+  shipped a `locationBlocked` status asserting exactly that whenever
+  `GeolocationPositionError.code === PERMISSION_DENIED`. That shipped fix
+  was itself wrong and got reverted the same day: researched actual
+  browser behavior (Chrome persists an explicit "Block" tap as a site
+  setting and stops re-prompting, but a mere dismissal only soft-blocks
+  temporarily after repeated attempts; Safari's behavior is murkier still,
+  and its Permissions API is independently known to misreport denied as
+  `"prompt"`) and confirmed `PERMISSION_DENIED` (code 1) is the *same*
+  code for a fresh, retriable denial, a persisted explicit block, and a
+  couple of unrelated failure modes - client-side JS cannot tell them
+  apart. Asserting "permanently blocked, go to settings" after a single
+  failure was overclaiming, and actively wrong advice on a genuinely
+  recoverable denial (it discourages a retry that might well have worked).
+  Reverted to one honest, non-committal `locationDenied` message: "try
+  again, or switch to Custom. Still stuck? Check this site's location
+  permission in your browser settings" - the settings path is offered as
+  a fallback, not asserted as the only option. `locationBlocked` and the
+  `.code` branching were removed entirely rather than kept unused.
+  Lesson for next time: don't infer permission *history* from a single
+  browser API result that's documented to collapse multiple distinct
+  causes into one code - verify the actual platform behavior before
+  shipping a message that asserts something specific about it.
+  Root cause finally confirmed the same day, diagnostically rather than
+  by guessing again: asked the user two direct questions instead of
+  shipping a third speculative fix - whether the status line updates at
+  all on tap (it does, briefly, before showing the denied message - so
+  the click genuinely reaches the geolocation call, ruling out a stuck
+  `isRequestingLocation` or a dead click handler) and which browser
+  (Android Chrome). That combination means this device's Chrome has
+  Location genuinely set to Blocked for this specific origin - not a
+  code bug at all, and not something any website's JS can override,
+  by design. Chrome only shows the native prompt when the per-site
+  permission is in its default "Ask" state; once a user (or Chrome's own
+  repeated-dismissal auto-block) sets it to Blocked, every future
+  `getCurrentPosition()` call fails immediately and silently, exactly as
+  observed. The fix is entirely on the user's device (Chrome's per-site
+  Location permission, reachable via the icon left of the address bar,
+  or Settings -> Site settings -> Location -> the blocked-sites list) -
+  no further app change was made, since the app already both correctly
+  detects the denial and offers Custom mode as a fully working
+  alternative in the meantime.
+  That diagnosis was also wrong, disproven step by step the same day:
+  enabling Android's system Location toggle (it had been off) didn't fix
+  it; confirming Chrome's own OS-level app permission was already
+  "Allow" didn't explain it; finding no entry at all in Chrome's
+  per-site Blocked list ruled out an explicit block; a full "Delete &
+  reset" of all Chrome-stored data for the exact origin (wiping any
+  quieter, non-listed auto-mute state too) still didn't fix it;
+  confirming the URL was genuinely `https://` ruled out the
+  insecure-context explanation. Every plausible *permission*-shaped
+  explanation was individually tested and eliminated - which was the
+  signal to stop treating this as a permissions problem at all and
+  actually read the code path again. The real bug: `requestLocation`'s
+  failure callback took no error argument and collapsed all three
+  distinct `GeolocationPositionError` codes - `PERMISSION_DENIED`,
+  `POSITION_UNAVAILABLE`, and `TIMEOUT` - into one `locationDenied`
+  message that always said "check your location permission," even
+  though the latter two have nothing to do with permissions at all.
+  Combined with `enableHighAccuracy: true` and only a 10s timeout - GPS
+  routinely takes longer than that (or never gets a fix at all) indoors
+  - a plain TIMEOUT was the likely real, everyday cause, misreported as
+  a permissions issue on every single occurrence, sending the user
+  through several rounds of device-settings troubleshooting that could
+  never have fixed a GPS timeout. Fixed by reading `error.code` and
+  branching into three honest, distinct messages (`locationDenied`,
+  new `locationUnavailable`, new `locationTimeout`), and by switching to
+  `enableHighAccuracy: false` with a more generous 20s timeout - this
+  app only needs "which nearby place is closest," not GPS-grade
+  precision, so the faster, more reliable network/wifi-based fix is the
+  better trade-off and should make genuine timeouts rare going forward.
+  Verified live by mocking `navigator.geolocation.getCurrentPosition` to
+  return each of the three codes directly (can't force a real device
+  into TIMEOUT/UNAVAILABLE from this sandbox) - each now produces its
+  own distinct, accurate message in both languages, and the real
+  (unmocked) denial in this sandbox still correctly resolves to
+  `locationDenied` as before. Lesson for next time: when every
+  individually-plausible cause in one category gets ruled out one by
+  one, that is itself a strong signal to stop searching within that
+  category and re-read the actual code path instead of reaching for
+  another guess in the same direction.
+  Still not resolved as of this same day - the timeout/high-accuracy fix
+  above didn't fix it either. A screen recording of the actual failure
+  (analyzed by extracting frames with `imageio`+bundled ffmpeg, since
+  Claude Code has no native video support) showed the failure landing in
+  well under a second - far too fast to be a real GPS/network location
+  attempt or a human interacting with any permission UI, which is only
+  consistent with the browser already holding a stored decision for this
+  origin and refusing instantly without even trying. That re-opened the
+  permission-blocking theory despite the user's own reset attempt not
+  fixing it. Checked for a `Permissions-Policy` header/meta tag that
+  could block geolocation at the page level regardless of user
+  permission (would explain an instant failure with zero entry in
+  Chrome's site list, since the page's own policy would pre-empt the
+  permission system entirely) - not present anywhere in `backend/app.py`
+  or `frontend/index.html`; also re-confirmed `public/sw.js` is still a
+  genuine no-op (no caching, so not serving a stale cached bundle
+  either). With every code-side explanation checked and none of them
+  panning out, added a TEMPORARY diagnostic (`debugLocationError` state
+  in `App.tsx`) that appends the raw `GeolocationPositionError.code` and
+  `.message` directly onto the visible status line - deliberately
+  user-visible rather than console-only, since the user's own phone is
+  the only environment that reproduces this and there's no remote
+  debugging session available.
+  **Finally resolved, same day - not a code bug at all.** The debug
+  output read `code 1: User denied Geolocation` - genuine
+  `PERMISSION_DENIED`, confirmed real, but that string is identical
+  whether Chrome is showing a fresh prompt the user just denied or
+  silently refusing because of prior history; it carries no more
+  information than the code itself. A screen recording, examined frame
+  by frame (extracting every single frame across the ~0.5-1.5s window,
+  not just every 5th), pinned the actual failure to under 70ms between
+  "Requesting your location..." appearing and the denial replacing it -
+  nowhere near enough time for a real lookup or human interaction,
+  confirming Chrome was refusing before attempting anything. A screenshot
+  of Chrome's own Location settings page then showed "Location access is
+  off for this device" at that specific moment - genuinely off, contrary
+  to an earlier claim of having enabled it - which explained that one
+  data point but not the full pattern, since the user's mental model
+  (a website popping up an "enable device location" dialog and turning
+  it on for you, like Google Maps or a dating app can) turned out to
+  describe a native-Android-only capability (Google Play Services'
+  Location Settings API) that no website - not this one, not any -
+  has ever had access to; a plain browser can only ask "may this site
+  know your location," and only once system location is already on.
+  The actual resolution came from the user's own diagnostic idea:
+  checking production (`main`, untouched by any of this session's
+  location-mode work) side by side with staging on the same phone -
+  production worked normally. Diffing every location-relevant file
+  between the branches found `frontend/index.html`, `public/sw.js`,
+  `public/manifest.webmanifest`, and `backend/app.py` byte-identical,
+  and the `getCurrentPosition()` call structurally the same shape in
+  both (staging's current `enableHighAccuracy:false, timeout:20000` is
+  if anything more lenient than production's original
+  `true`/`10000`) - no code explanation survived a direct comparison.
+  Confirmed conclusively by testing both sites in two browsers that had
+  never visited either origin before (Firefox, Samsung Internet): both
+  production and staging worked normally in both. Root cause: Chrome
+  tracks geolocation permission independently per origin, and staging's
+  specific hostname had been hit with an extraordinary number of
+  repeated geolocation requests over the course of this one debugging
+  session (automated verification passes plus manual retries) - almost
+  certainly enough to trigger Chrome's own documented "quiet permissions"
+  auto-suppression for that one origin specifically, a mechanism entirely
+  separate from the explicit per-site "Blocked" list the user had already
+  checked and reset. Production's origin, tested far less, never crossed
+  that threshold. Not reproducible by a real first-time visitor to either
+  environment, and not fixable (or breakable) by any code change - the
+  `debugLocationError` diagnostic was removed once this was confirmed.
+  Lesson for next time: when a bug is 100% reproducible on one specific
+  URL in one specific browser but nothing about the code or the browser's
+  own settings explains it, checking whether the *identical* code
+  behaves differently on a *different origin* (or in a browser with no
+  history on either) isolates "the app" from "this specific origin's
+  accumulated browser-side state" far faster than continuing to audit
+  the code or hunt through settings menus.
+
+- Pre-public security hardening (2026-09-11) - triggered by making the
+  GitHub repo public. Went through a generic "things AI-built apps forget"
+  checklist someone sent the user item by item against the actual codebase
+  (not applied wholesale) and implemented the real gaps found:
+  - **Input length caps** - `ChatRequest.message` and `LocationLinkRequest.
+    text` (`backend/app.py`) had no length limit; a pasted wall of text
+    would have gone straight into a paid per-token Anthropic call. Added
+    `Field(max_length=500)` to both, plus a matching `maxLength={500}` on
+    the two frontend inputs (`ChatInput.tsx`, `LocationForm.tsx`) so
+    hitting the cap fails as an ordinary input limit, not a raw 422.
+  - **Security response headers** - none existed at all. Added a
+    `security_headers` middleware (`backend/app.py`, ahead of the existing
+    `cache_control` one) setting `X-Content-Type-Options`,
+    `X-Frame-Options: DENY`, `Referrer-Policy`,
+    `Strict-Transport-Security`, and a real `Content-Security-Policy`
+    scoped to exactly what the app loads (same-origin scripts/API calls,
+    the Google Fonts stylesheet + font files, `data:` for the inline SVG
+    favicon - nothing else). `Permissions-Policy` explicitly keeps
+    `geolocation=(self)` allowed (the app's core feature) while locking
+    out camera/microphone/payment/usb, which it never uses. Verified live:
+    zero console/CSP violations, a full chat round-trip (location set,
+    real LLM query, real results) still worked end-to-end, and all 121
+    backend tests still pass.
+  - **`robots.txt`** - added (`frontend/public/robots.txt`, blanket
+    `Disallow: /`), served from `/robots.txt` via a dedicated FastAPI
+    route (`backend/app.py`) mirroring the existing `/sw.js` pattern -
+    crawlers only ever check the true root, never `/static/robots.txt`.
+    This was the one item from Roadmap #3 below actually built so far;
+    custom 404, the error boundary, and the privacy policy from that same
+    item are still open (an earlier summary of this roadmap incorrectly
+    called all of #3 "done" - it was only ever "scoped").
+  - **Social preview (OG/Twitter meta tags)** - added to
+    `frontend/index.html` (`og:type`/`title`/`description`/`image`,
+    `twitter:card`/`title`/`description`). Specifically worth doing here
+    since the app already has a WhatsApp share button - a shared link
+    with no preview card was undermining a feature that already existed.
+    `og:image` deliberately points at the root-relative
+    `/static/icons/icon-512.png` (already-existing PWA icon, reused
+    rather than adding a new asset) rather than a hardcoded host, since
+    production and staging sit on two different auto-generated Azure
+    hostnames with no shared domain to hardcode.
+  Explicitly NOT done as part of this pass, left as manual follow-ups for
+  the user (outside what code changes can accomplish):
+  - **Azure spend cap** - the $15/month figure is a stated goal, not an
+    enforced budget alert. No Azure CLI access from this environment to
+    set one up directly - needs a one-time manual "Cost Management >
+    Budgets" setup in the Azure Portal.
+  - **Confirm HTTPS-only enforcement** - Azure App Service serves HTTPS by
+    default on its `azurewebsites.net` hostnames, but the explicit
+    "HTTPS Only" toggle in the Portal wasn't directly verifiable from
+    here either - worth a quick manual check.
+  Also explicitly NOT relevant yet, and deliberately left alone rather
+  than pre-built: admin-route/permission checks, CSRF protection, secure
+  cookies, and secure file uploads - none of these have anything to
+  protect yet (no auth, no cookies, no uploads exist), and each is already
+  correctly sequenced to land alongside the feature that actually
+  introduces it (see "Bigger builds - user system" below).
+- Finished the rest of Roadmap #3 (2026-09-11): custom 404, error
+  boundary, and privacy policy - `robots.txt` was the only piece of this
+  item actually built in the security-hardening pass above; an earlier
+  session summary incorrectly called the whole item "done" when it had
+  only ever been "scoped."
+  - **Custom 404 page** - a standalone, bilingual, on-theme static page
+    (`frontend/public/404.html`, `frontend/public/pages.css` -
+    deliberately an external stylesheet, not an inline `<style>` block,
+    so the strict `style-src` CSP added in the hardening pass above
+    covers it too without needing a CSP exception). Served via a new
+    `custom_404_handler` app-level exception handler
+    (`backend/app.py`) that returns this page for any 404 EXCEPT under
+    `/api/` - those are the frontend's own `fetch` calls, which expect
+    JSON, not an HTML page, so they keep FastAPI's default JSON 404
+    unchanged.
+  - **React error boundary** - `frontend/src/components/ErrorBoundary.tsx`,
+    a class component (React only exposes `componentDidCatch`/
+    `getDerivedStateFromError` as a class API, no hook equivalent exists)
+    wrapping `<App />` in `main.tsx`. Reads the language preference
+    directly via `loadLang()` rather than trusting any of App's own state,
+    since the whole point is catching a crash *inside* App. Shows a
+    simple "something broke, refresh" message with a reload button,
+    styled via theme.css/App.css tokens (already loaded before the crash,
+    so still available even if App's own render throws).
+  - **Privacy policy page** - `frontend/public/privacy.html`, served at a
+    clean `/privacy` URL the same way as `/sw.js`/`/robots.txt`. Written
+    to accurately match what the code actually does (checked
+    `services/routing.py`, `services/location.py`, `services/llm.py`, and
+    the usage-stats collections directly, not assumed): location and
+    typed addresses are forwarded to OSRM/Nominatim for routing/geocoding
+    but never stored; chat messages go to Anthropic's Claude API and are
+    never stored server-side (conversation lives only in browser memory,
+    per the existing conversational-refinement design); the two
+    anonymous usage-stats collections (category counts, unmatched-query
+    text with its existing 90-day TTL) are disclosed as anonymous and
+    curation-only; language/theme preferences are disclosed as
+    browser-local-storage-only. Linked from a small, unobtrusive
+    `<footer>` in `App.tsx` (a text link, not a header icon - the header
+    is already flagged elsewhere in this file as too cramped to keep
+    adding controls to), opened in a new tab via `target="_blank"` so
+    visiting it doesn't lose the current (in-memory-only, no persistence)
+    conversation in the original tab.
+  Verified live: `/privacy` and an arbitrary unknown path both render
+  correctly (bilingual, correct light/dark palette via
+  `prefers-color-scheme`, since these standalone pages predate the
+  React app's own theme-toggle logic); `/api/nonexistent` still returns
+  JSON 404 unchanged; zero CSP violations or console errors; the footer
+  link renders correctly (and mirrors position under RTL) in both
+  languages; all 121 backend tests and the frontend typecheck still pass.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
@@ -409,16 +768,53 @@ In order:
 9. ~~Conversational refinement / short-lived session memory~~ - done, see
    above.
 10. ~~Kosher/dietary tags and filtering~~ - done, see above.
-11. Shorten/change the Azure URL (custom domain, or rename the App
-    Service) - lowest urgency, purely cosmetic, and needs a decision
-    (buy a domain vs. just live with a renamed App Service) before it's
-    even scoped.
+11. Feedback option for bad data - a lightweight "this place closed" /
+    "wrong category" action from a place card, feeding curation the same
+    way `unmatched_queries` already does (see "Light usage stats" above)
+    rather than a moderation queue - that's already sequenced separately
+    for user-suggested places under "Bigger builds" below, once real
+    accounts exist to attribute submissions to.
+12. Saved/frequent addresses - a natural follow-on once manual-location
+    mode (Roadmap item 5 above) exists. Explicit constraint from the user
+    (2026-09-11): no semantic labels like "Home" or "Work" - those would
+    let anyone (including the app operator) infer where a specific user
+    actually lives or works, which this app has no business collecting.
+    Generic saved entries (a nickname the user picks, or just a plain
+    recency-ordered list) only.
+
+Explicitly considered and left out for now (2026-09-11): a persistent
+dietary/category filter UI (vs. today's conversational, per-query
+filtering) - revisit once favorites/the user system make session-level
+state worth adding.
 
 ### Visual upgrades
 - Map view - a visible map showing the recommended place(s), on top of the
   existing chat/list view (the original "chat now, map later" plan from
   early in the project). (Improved icons moved into the priority list
   above, at #2.)
+- Category icons on the chips (2026-09-11, not yet built) - a small icon
+  per category (coffee cup, pizza slice, etc.) next to the existing text
+  in `.category-chip`, using the lucide-react set already depended on
+  everywhere else in the app, so a result list is scannable at a glance
+  rather than read word by word.
+- Plan ahead for the header before it's forced (2026-09-11, not yet
+  built) - the header already carries 4 icon buttons plus the Walk/Drive
+  toggle, and it took real design work this session just to fit a single
+  visible text label on one of them (see the fourth critique-round fixes
+  below). Both auth (a profile/avatar control) and manual-location mode
+  (Roadmap item 5) will likely want their own header presence next -
+  worth designing that next header state deliberately rather than letting
+  two unrelated features independently fight for the same cramped row.
+- Run `/impeccable document` to generate a formal `DESIGN.md` (2026-09-11,
+  not yet done) - the actual design system (two deliberate palettes, the
+  pill/radius system, the RTL patterns) currently only lives as prose
+  scattered across this file. Worth codifying now that it's been through
+  four critique rounds, so future visual work (map view, auth UI) starts
+  from a real spec instead of re-deriving conventions from old commit
+  messages.
+- Considered and declined for now (2026-09-11): a distinct visual badge
+  for "surprise me" results (e.g. marking those cards differently from a
+  normal category match) - not needed at this scale.
 - Design polish pass, done via the third-party "Taste Skill" project skills
   (`.claude/skills/`, installed via `npx skills add Leonxlnx/taste-skill` -
   a separate "Impeccable" skill was tried too but its installer was blocked

@@ -1,0 +1,94 @@
+/* Shared stylesheet for the small standalone pages (404, privacy) that live
+   outside the React app - kept external (not an inline <style> block) so the
+   app's strict style-src CSP (self + Google Fonts only, no 'unsafe-inline')
+   covers these pages too without an exception. */
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2.5rem 1.25rem;
+  font-family: 'Nunito', system-ui, sans-serif;
+  background: #fff8f2;
+  color: #2a1b12;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #15161a;
+    color: #f2f2ed;
+  }
+}
+
+.page {
+  max-width: 560px;
+  width: 100%;
+}
+
+.page.centered {
+  text-align: center;
+  margin: auto 0;
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin: 0 0 0.75rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin: 1.75rem 0 0.5rem;
+}
+
+p,
+li {
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+a {
+  color: #c23f19;
+}
+
+@media (prefers-color-scheme: dark) {
+  a {
+    color: #c9ff3d;
+  }
+}
+
+.button {
+  display: inline-block;
+  margin-top: 1.25rem;
+  padding: 0.7rem 1.3rem;
+  border-radius: 999px;
+  background: #c23f19;
+  color: #ffffff;
+  text-decoration: none;
+  font-weight: 800;
+}
+
+@media (prefers-color-scheme: dark) {
+  .button {
+    background: #c9ff3d;
+    color: #15161a;
+  }
+}
+
+hr {
+  border: none;
+  border-top: 1.5px solid #f0dccb;
+  margin: 2.5rem 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  hr {
+    border-top-color: #2c2e36;
+  }
+}
+
+[dir='rtl'] {
+  text-align: right;
+}

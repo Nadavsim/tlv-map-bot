@@ -118,10 +118,33 @@ header h1 svg {
   color: var(--fg);
 }
 
+.location-status-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
 .location-status {
   margin: 0;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.change-location-button {
+  /* Padding grows the tap target (this is the only way to edit an
+     already-set manual address); the matching negative margin cancels it
+     out visually so the text still sits flush with the status line. */
+  padding: 0.3rem 0.4rem;
+  margin: -0.3rem -0.4rem;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .mode-toggle {
@@ -474,6 +497,45 @@ header h1 svg {
 .location-form-row button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  height: 100dvh;
+  padding: 1.5rem;
+  text-align: center;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.error-boundary button {
+  padding: 0.7rem 1.3rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-family: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.error-boundary button:hover {
+  filter: brightness(1.08);
+}
+
+.app-footer {
+  text-align: center;
+  padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom));
+}
+
+.app-footer a {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-decoration: underline;
 }
 
 .undo-toast {

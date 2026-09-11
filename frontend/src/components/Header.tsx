@@ -1,9 +1,13 @@
-import { Car, CircleHelp, Footprints, Languages, MapPin, Moon, RotateCcw, Sun } from 'lucide-react'
+import { Car, CircleHelp, Footprints, Languages, LocateFixed, MapPin, Moon, RotateCcw, Sun } from 'lucide-react'
 import { t } from '../i18n'
-import type { Lang, Theme, TransportMode } from '../types'
+import type { Lang, LocationMode, Theme, TransportMode } from '../types'
 
 interface HeaderProps {
   locationStatus: string
+  locationMode: LocationMode
+  onLocationModeChange: (mode: LocationMode) => void
+  canChangeManualLocation: boolean
+  onChangeManualLocation: () => void
   mode: TransportMode
   onModeChange: (mode: TransportMode) => void
   onHelp: () => void
@@ -16,6 +20,10 @@ interface HeaderProps {
 
 export function Header({
   locationStatus,
+  locationMode,
+  onLocationModeChange,
+  canChangeManualLocation,
+  onChangeManualLocation,
   mode,
   onModeChange,
   onHelp,
@@ -66,7 +74,32 @@ export function Header({
           </button>
         </div>
       </div>
-      <p className="location-status">{locationStatus}</p>
+      <div className="location-status-row">
+        <p className="location-status">{locationStatus}</p>
+        {canChangeManualLocation && (
+          <button type="button" className="change-location-button" onClick={onChangeManualLocation}>
+            {t(lang, 'locationChangeButton')}
+          </button>
+        )}
+      </div>
+      <div className="mode-toggle" role="group" aria-label={t(lang, 'locationModeGroupLabel')}>
+        <button
+          type="button"
+          className={locationMode === 'manual' ? 'active' : ''}
+          onClick={() => onLocationModeChange('manual')}
+        >
+          <MapPin size={16} aria-hidden="true" />
+          {t(lang, 'locationModeCustom')}
+        </button>
+        <button
+          type="button"
+          className={locationMode === 'live' ? 'active' : ''}
+          onClick={() => onLocationModeChange('live')}
+        >
+          <LocateFixed size={16} aria-hidden="true" />
+          {t(lang, 'locationModeLive')}
+        </button>
+      </div>
       <div className="mode-toggle" role="group" aria-label={t(lang, 'transportMode')}>
         <button
           type="button"

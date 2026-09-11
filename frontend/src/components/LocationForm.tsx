@@ -5,10 +5,16 @@ import { t } from '../i18n'
 import type { Coordinates, Lang } from '../types'
 
 interface LocationFormProps {
-  onLocationSet: (coords: Coordinates) => void
+  onLocationSet: (coords: Coordinates, label: string) => void
   onError: (message: string) => void
   onRetryLocation: () => void
   isRequestingLocation: boolean
+  // Live mode has nothing to type - it only ever needs a way to ask the
+  // browser again. Custom mode has nothing to retry - it only ever needs
+  // the address input. Showing both together is what let a click on "Use
+  // my current location" silently hijack an in-progress Custom session
+  // back to Live.
+  showLiveRetry: boolean
   lang: Lang
 }
 
@@ -17,6 +23,7 @@ export function LocationForm({
   onError,
   onRetryLocation,
   isRequestingLocation,
+  showLiveRetry,
   lang,
 }: LocationFormProps) {
   const [value, setValue] = useState('')
@@ -29,7 +36,7 @@ export function LocationForm({
 
     const parts = text.split(',').map((s) => parseFloat(s.trim()))
     if (parts.length === 2 && !parts.some(Number.isNaN)) {
-      onLocationSet({ lat: parts[0], lon: parts[1] })
+      onLocationSet({ lat: parts[0], lon: parts[1] }, text)
       return
     }
 
@@ -43,7 +50,7 @@ export function LocationForm({
         onError(t(lang, 'locationResolveError'))
         return
       }
-      onLocationSet({ lat: data.lat, lon: data.lon })
+      onLocationSet({ lat: data.lat, lon: data.lon }, text)
     } catch {
       onError(t(lang, 'locationResolveNetworkError'))
     } finally {
@@ -51,22 +58,30 @@ export function LocationForm({
     }
   }
 
+  if (showLiveRetry) {
+    return (
+      <div className="location-fallback">
+        <button
+          type="button"
+          className="retry-location-button"
+          onClick={onRetryLocation}
+          disabled={isRequestingLocation}
+        >
+          <LocateFixed size={15} aria-hidden="true" />
+          {isRequestingLocation ? t(lang, 'locationUseLiveButtonChecking') : t(lang, 'locationUseLiveButton')}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="location-fallback">
-      <button
-        type="button"
-        className="retry-location-button"
-        onClick={onRetryLocation}
-        disabled={isRequestingLocation}
-      >
-        <LocateFixed size={15} aria-hidden="true" />
-        {isRequestingLocation ? t(lang, 'locationRetryButtonChecking') : t(lang, 'locationRetryButton')}
-      </button>
       <form className="location-form-row" onSubmit={handleSubmit}>
         <input
           type="text"
           placeholder={t(lang, 'locationInputPlaceholder')}
           value={value}
+          maxLength={500}
           onChange={(e) => setValue(e.target.value)}
         />
         <button type="submit" disabled={isResolving}>
