@@ -520,6 +520,25 @@ In order:
   browser API result that's documented to collapse multiple distinct
   causes into one code - verify the actual platform behavior before
   shipping a message that asserts something specific about it.
+  Root cause finally confirmed the same day, diagnostically rather than
+  by guessing again: asked the user two direct questions instead of
+  shipping a third speculative fix - whether the status line updates at
+  all on tap (it does, briefly, before showing the denied message - so
+  the click genuinely reaches the geolocation call, ruling out a stuck
+  `isRequestingLocation` or a dead click handler) and which browser
+  (Android Chrome). That combination means this device's Chrome has
+  Location genuinely set to Blocked for this specific origin - not a
+  code bug at all, and not something any website's JS can override,
+  by design. Chrome only shows the native prompt when the per-site
+  permission is in its default "Ask" state; once a user (or Chrome's own
+  repeated-dismissal auto-block) sets it to Blocked, every future
+  `getCurrentPosition()` call fails immediately and silently, exactly as
+  observed. The fix is entirely on the user's device (Chrome's per-site
+  Location permission, reachable via the icon left of the address bar,
+  or Settings -> Site settings -> Location -> the blocked-sites list) -
+  no further app change was made, since the app already both correctly
+  detects the denial and offers Custom mode as a fully working
+  alternative in the meantime.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
