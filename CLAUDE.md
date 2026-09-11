@@ -600,7 +600,59 @@ In order:
   `.message` directly onto the visible status line - deliberately
   user-visible rather than console-only, since the user's own phone is
   the only environment that reproduces this and there's no remote
-  debugging session available. Remove this once the real cause is found.
+  debugging session available.
+  **Finally resolved, same day - not a code bug at all.** The debug
+  output read `code 1: User denied Geolocation` - genuine
+  `PERMISSION_DENIED`, confirmed real, but that string is identical
+  whether Chrome is showing a fresh prompt the user just denied or
+  silently refusing because of prior history; it carries no more
+  information than the code itself. A screen recording, examined frame
+  by frame (extracting every single frame across the ~0.5-1.5s window,
+  not just every 5th), pinned the actual failure to under 70ms between
+  "Requesting your location..." appearing and the denial replacing it -
+  nowhere near enough time for a real lookup or human interaction,
+  confirming Chrome was refusing before attempting anything. A screenshot
+  of Chrome's own Location settings page then showed "Location access is
+  off for this device" at that specific moment - genuinely off, contrary
+  to an earlier claim of having enabled it - which explained that one
+  data point but not the full pattern, since the user's mental model
+  (a website popping up an "enable device location" dialog and turning
+  it on for you, like Google Maps or a dating app can) turned out to
+  describe a native-Android-only capability (Google Play Services'
+  Location Settings API) that no website - not this one, not any -
+  has ever had access to; a plain browser can only ask "may this site
+  know your location," and only once system location is already on.
+  The actual resolution came from the user's own diagnostic idea:
+  checking production (`main`, untouched by any of this session's
+  location-mode work) side by side with staging on the same phone -
+  production worked normally. Diffing every location-relevant file
+  between the branches found `frontend/index.html`, `public/sw.js`,
+  `public/manifest.webmanifest`, and `backend/app.py` byte-identical,
+  and the `getCurrentPosition()` call structurally the same shape in
+  both (staging's current `enableHighAccuracy:false, timeout:20000` is
+  if anything more lenient than production's original
+  `true`/`10000`) - no code explanation survived a direct comparison.
+  Confirmed conclusively by testing both sites in two browsers that had
+  never visited either origin before (Firefox, Samsung Internet): both
+  production and staging worked normally in both. Root cause: Chrome
+  tracks geolocation permission independently per origin, and staging's
+  specific hostname had been hit with an extraordinary number of
+  repeated geolocation requests over the course of this one debugging
+  session (automated verification passes plus manual retries) - almost
+  certainly enough to trigger Chrome's own documented "quiet permissions"
+  auto-suppression for that one origin specifically, a mechanism entirely
+  separate from the explicit per-site "Blocked" list the user had already
+  checked and reset. Production's origin, tested far less, never crossed
+  that threshold. Not reproducible by a real first-time visitor to either
+  environment, and not fixable (or breakable) by any code change - the
+  `debugLocationError` diagnostic was removed once this was confirmed.
+  Lesson for next time: when a bug is 100% reproducible on one specific
+  URL in one specific browser but nothing about the code or the browser's
+  own settings explains it, checking whether the *identical* code
+  behaves differently on a *different origin* (or in a browser with no
+  history on either) isolates "the app" from "this specific origin's
+  accumulated browser-side state" far faster than continuing to audit
+  the code or hunt through settings menus.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup

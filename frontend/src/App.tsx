@@ -40,11 +40,6 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(() => loadTheme())
   const [entries, setEntries] = useState<ChatEntry[]>([])
   const [locationStatusKey, setLocationStatusKey] = useState<LocationStatusKey>('locationNotSet')
-  // TEMPORARY diagnostic (2026-09-11): every plausible permission/timeout
-  // explanation for a persistent real-device failure has been individually
-  // ruled out, so surface the browser's own raw error text directly rather
-  // than guessing a sixth cause - remove once the real cause is found.
-  const [debugLocationError, setDebugLocationError] = useState<string | null>(null)
   const [liveLocation, setLiveLocation] = useState<Coordinates | null>(null)
   const [manualLocation, setManualLocation] = useState<Coordinates | null>(null)
   const [manualLocationLabel, setManualLocationLabel] = useState<string | null>(null)
@@ -91,7 +86,6 @@ export default function App() {
 
     setIsRequestingLocation(true)
     setLocationStatusKey('locationRequesting')
-    setDebugLocationError(null)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLiveLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
@@ -103,7 +97,6 @@ export default function App() {
       (error) => {
         setIsRequestingLocation(false)
         setShowLocationForm(true)
-        setDebugLocationError(`[debug] code ${error.code}: ${error.message || '(no message)'}`)
         // These three codes are genuinely different problems and were
         // previously collapsed into one "check your permissions" message -
         // which is actively misleading for the latter two, neither of
@@ -336,9 +329,9 @@ export default function App() {
   const chatDisabled = !activeLocation || isWaitingForReply
   const canChangeManualLocation = locationMode === 'manual' && manualLocation !== null && !showLocationForm
   const locationStatusText =
-    (locationMode === 'manual' && manualLocationLabel
+    locationMode === 'manual' && manualLocationLabel
       ? `${t(lang, 'locationActiveManualPrefix')} ${manualLocationLabel}`
-      : t(lang, locationStatusKey)) + (debugLocationError ? ` ${debugLocationError}` : '')
+      : t(lang, locationStatusKey)
 
   return (
     <div className="app">
