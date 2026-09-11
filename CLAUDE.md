@@ -781,6 +781,33 @@ In order:
     actually lives or works, which this app has no business collecting.
     Generic saved entries (a nickname the user picks, or just a plain
     recency-ordered list) only.
+13. Price tag per place, requested by the user (2026-09-11) - each result
+    card should show a price indicator ($/$$/$$$) sourced from Google
+    Maps' own price-level rating for that place, alongside the existing
+    category/distance/ETA/tag chips. Not yet scoped in detail - the real
+    decision when this gets built is *how* the price level gets into the
+    DB, and it cuts against this project's "stay free/cheap" pattern
+    either way:
+    - **Google Places API lookup** (what "based on Google Maps pricing
+      rating" implies) - place_id lookup + Place Details per place
+      returns a `price_level` field. Unlike the per-query OSRM/Nominatim
+      calls elsewhere in this app, this would run once per place during
+      `scripts/sync_places.py` (price level is static data about a
+      place, not something that changes per request), so cost scales
+      with the curated list's size, not with usage - but it's still a
+      paid Google API requiring its own key/billing setup, unlike every
+      other integration this app uses so far (OSRM, Nominatim, and the
+      Google Maps *links* themselves are all free/keyless). Needs a real
+      cost check against the $15/month budget before committing to it.
+    - **Hand-tagged, like dietary tags** - reuse the same free-form
+      hashtag pattern already working for `#kosher`/`#vegan` in a pin's
+      My Maps description (see "Kosher/dietary tags and filtering"
+      above) - e.g. `#$$` - filled in by hand during curation, same as
+      everything else in the map. Zero new cost or integration, at the
+      expense of it being the creator's own judgment rather than
+      Google's rating specifically.
+    Revisit this tradeoff when the item comes up for real; both are
+    listed here so the decision isn't reopened from scratch later.
 
 Explicitly considered and left out for now (2026-09-11): a persistent
 dietary/category filter UI (vs. today's conversational, per-query
