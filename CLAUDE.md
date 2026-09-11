@@ -99,23 +99,14 @@ In order:
    then run through four full critique-and-fix rounds on 2026-09-10 (see
    "Visual upgrades" below) - score went 31 -> 28 -> 34 -> 36/40, every
    flagged issue either fixed or resolved as a documented tradeoff.
-3. A few minor clarity/completeness features - scoped 2026-09-11:
-   - **Privacy policy** - genuinely needed now, not just nice-to-have:
-     real people's location (per query), chat text (sent to the Anthropic
-     API), and dietary/category stats are already processed and stored,
-     and Google Sign-In (item 5 below) adds account data on top. A real
-     page, not boilerplate - covering what's collected and where it goes
-     (Anthropic API for NLU, MongoDB Atlas for storage).
-   - **Custom 404 page** - branded instead of a bare framework error page.
-   - **A basic React error boundary** - right now an unhandled render
-     error would show a blank white screen with no recovery path; a
-     simple "something broke, refresh" boundary is cheap insurance.
-   - **`robots.txt` disallowing crawling** - this app is for friends and
-     family, not public discovery; nothing about it should end up indexed.
+3. ~~A few minor clarity/completeness features~~ - done 2026-09-11 (privacy
+   policy, custom 404, React error boundary, `robots.txt`) - see "Finished
+   the rest of Roadmap #3" and "Pre-public security hardening" below for
+   the full writeups.
    - Considered and deliberately left out for now: formal terms of use,
      and a self-serve data-export/delete-my-data flow - reasonable to skip
-     at friends-and-family scale; revisit once real auth/accounts (item 5)
-     make this less informal.
+     at friends-and-family scale; revisit once real auth/accounts (item 6
+     below) make this less informal.
 4. ~~Set up separate production and test/staging environments~~ - done
    2026-09-10, see "Production/staging environment split" above (under
    Done) for the full story, gotchas included. Ended up costing real money
@@ -711,6 +702,55 @@ In order:
   protect yet (no auth, no cookies, no uploads exist), and each is already
   correctly sequenced to land alongside the feature that actually
   introduces it (see "Bigger builds - user system" below).
+- Finished the rest of Roadmap #3 (2026-09-11): custom 404, error
+  boundary, and privacy policy - `robots.txt` was the only piece of this
+  item actually built in the security-hardening pass above; an earlier
+  session summary incorrectly called the whole item "done" when it had
+  only ever been "scoped."
+  - **Custom 404 page** - a standalone, bilingual, on-theme static page
+    (`frontend/public/404.html`, `frontend/public/pages.css` -
+    deliberately an external stylesheet, not an inline `<style>` block,
+    so the strict `style-src` CSP added in the hardening pass above
+    covers it too without needing a CSP exception). Served via a new
+    `custom_404_handler` app-level exception handler
+    (`backend/app.py`) that returns this page for any 404 EXCEPT under
+    `/api/` - those are the frontend's own `fetch` calls, which expect
+    JSON, not an HTML page, so they keep FastAPI's default JSON 404
+    unchanged.
+  - **React error boundary** - `frontend/src/components/ErrorBoundary.tsx`,
+    a class component (React only exposes `componentDidCatch`/
+    `getDerivedStateFromError` as a class API, no hook equivalent exists)
+    wrapping `<App />` in `main.tsx`. Reads the language preference
+    directly via `loadLang()` rather than trusting any of App's own state,
+    since the whole point is catching a crash *inside* App. Shows a
+    simple "something broke, refresh" message with a reload button,
+    styled via theme.css/App.css tokens (already loaded before the crash,
+    so still available even if App's own render throws).
+  - **Privacy policy page** - `frontend/public/privacy.html`, served at a
+    clean `/privacy` URL the same way as `/sw.js`/`/robots.txt`. Written
+    to accurately match what the code actually does (checked
+    `services/routing.py`, `services/location.py`, `services/llm.py`, and
+    the usage-stats collections directly, not assumed): location and
+    typed addresses are forwarded to OSRM/Nominatim for routing/geocoding
+    but never stored; chat messages go to Anthropic's Claude API and are
+    never stored server-side (conversation lives only in browser memory,
+    per the existing conversational-refinement design); the two
+    anonymous usage-stats collections (category counts, unmatched-query
+    text with its existing 90-day TTL) are disclosed as anonymous and
+    curation-only; language/theme preferences are disclosed as
+    browser-local-storage-only. Linked from a small, unobtrusive
+    `<footer>` in `App.tsx` (a text link, not a header icon - the header
+    is already flagged elsewhere in this file as too cramped to keep
+    adding controls to), opened in a new tab via `target="_blank"` so
+    visiting it doesn't lose the current (in-memory-only, no persistence)
+    conversation in the original tab.
+  Verified live: `/privacy` and an arbitrary unknown path both render
+  correctly (bilingual, correct light/dark palette via
+  `prefers-color-scheme`, since these standalone pages predate the
+  React app's own theme-toggle logic); `/api/nonexistent` still returns
+  JSON 404 unchanged; zero CSP violations or console errors; the footer
+  link renders correctly (and mirrors position under RTL) in both
+  languages; all 121 backend tests and the frontend typecheck still pass.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup

@@ -60,6 +60,9 @@ const STRINGS = {
     helpAgain: 'Type "help" any time to see this again.',
     helpCategoriesPrefix: 'Categories I currently know about:',
     helpCommand: 'help',
+    appCrashedMessage: 'Something went wrong. Refreshing usually fixes it.',
+    appCrashedReload: 'Refresh',
+    privacyLink: 'Privacy',
   },
   he: {
     greeting:
@@ -114,6 +117,9 @@ const STRINGS = {
     helpAgain: 'הקלד "עזרה" בכל שלב כדי לראות את זה שוב.',
     helpCategoriesPrefix: 'קטגוריות שאני מכיר כרגע:',
     helpCommand: 'עזרה',
+    appCrashedMessage: 'משהו השתבש. רענון בדרך כלל פותר את זה.',
+    appCrashedReload: 'רענן',
+    privacyLink: 'פרטיות',
   },
 } as const satisfies Record<Lang, Record<string, string>>
 

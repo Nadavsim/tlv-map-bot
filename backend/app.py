@@ -5,12 +5,14 @@ from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import db
 from .models import PlaceResult
@@ -41,6 +43,16 @@ app = FastAPI(lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+
+
+@app.exception_handler(StarletteHTTPException)
+async def custom_404_handler(request: Request, exc: StarletteHTTPException):
+    # /api/* callers are the frontend's own fetch code, not a browser
+    # navigation - they expect JSON, not an HTML page, on a bad request.
+    # Everything else (a stray/bookmarked/typo'd URL) gets the branded page.
+    if exc.status_code == 404 and not request.url.path.startswith("/api/"):
+        return FileResponse(BASE_DIR / "static" / "404.html", status_code=404)
+    return await http_exception_handler(request, exc)
 
 
 @app.middleware("http")
@@ -240,6 +252,13 @@ async def robots():
     # never /static/robots.txt. This app is friends-and-family only, not
     # meant for public discovery, hence the blanket disallow.
     return FileResponse(BASE_DIR / "static" / "robots.txt", media_type="text/plain")
+
+
+@app.get("/privacy")
+async def privacy():
+    # A clean root-level URL (mirrors /sw.js, /robots.txt) rather than
+    # pointing people at /static/privacy.html directly.
+    return FileResponse(BASE_DIR / "static" / "privacy.html")
 
 
 @app.post("/api/resolve-location")

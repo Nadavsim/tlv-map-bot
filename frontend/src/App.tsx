@@ -376,6 +376,13 @@ export default function App() {
         </div>
       )}
       <ChatInput disabled={chatDisabled} onSend={handleSend} lang={lang} />
+      <footer className="app-footer">
+        {/* Opens in a new tab so navigating there doesn't lose the current,
+            in-memory-only conversation (there's no persistence to return to). */}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer">
+          {t(lang, 'privacyLink')}
+        </a>
+      </footer>
     </div>
   )
 }
