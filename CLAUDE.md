@@ -459,6 +459,42 @@ In order:
   location); switching back to Custom instantly restores the manual
   location and its label with no re-typing; a real chat query against the
   manual location returned correct results; no mobile layout regression.
+- Fixed two more real-device bugs in the manual-location toggle
+  (2026-09-11), and a third design issue caught in the same pass:
+  - **Custom mode still showed the "Use my current location" button**,
+    and clicking it silently forced `locationMode` back to `'live'` -
+    `requestLocation`'s success handler always sets `locationMode('live')`
+    unconditionally, so a Custom session with no address typed yet would
+    get hijacked into Live the moment that button succeeded, with no way
+    back to the address form short of switching the toggle off and back
+    on. Root cause: `LocationForm` mixed both modes' concerns in one
+    component - the retry button (Live's job) and the address input
+    (Custom's job) always rendered together, regardless of which mode was
+    actually active. Fixed by giving it a `showLiveRetry` prop and
+    rendering ONE OR THE OTHER, never both - Live mode only ever shows a
+    "try again" button (asks the browser, never the user, for detail),
+    Custom mode only ever shows the address form. This makes the bug
+    structurally impossible now, not just patched: nothing in Custom
+    mode's UI can call `requestLocation` anymore.
+  - **The status message didn't match the active mode** - Custom mode's
+    default state showed generic copy that didn't mention how to actually
+    proceed. Reworded `locationNotSet` to "Insert a location below, or
+    switch to Live." and `locationDenied` (Live's failure state) to
+    "...try again, or switch to Custom" (previously said "use the box
+    below," which no longer exists in Live mode's own view).
+  - **Toggle button order didn't align with Walk/Drive** - Custom/Live
+    was ordered to visually pair with Drive/Walk (the "off"/"on" halves
+    landing on opposite sides between the two toggle rows) rather than
+    Custom pairing with Walk. Reordered the JSX (Custom first, Live
+    second) so Custom+Walk share one side and Live+Drive share the other,
+    in both LTR and RTL.
+  Verified live in both languages: fresh load shows only the address
+  form with the reworded prompt; switching to Live shows only the retry
+  button with the reworded failure copy; "Change" still reopens only the
+  address form, never the retry button; a full Custom -> Live -> Custom
+  round trip preserves the manual location and its label exactly as
+  before; toggle alignment confirmed in the RTL screenshot (מותאם/הליכה
+  share the right edge, נוכחי/נסיעה share the left).
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup

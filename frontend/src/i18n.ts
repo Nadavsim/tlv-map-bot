@@ -9,10 +9,10 @@ const STRINGS = {
   en: {
     greeting:
       "Hi! I'll find the closest spot from your Tel Aviv food map. Tell me your location below, or tap Live up top to share where you are. 📍",
-    locationNotSet: 'Enter your location below to get started.',
+    locationNotSet: 'Insert a location below, or switch to Live.',
     locationRequesting: 'Requesting your location...',
     locationSet: 'Location set. Ask away!',
-    locationDenied: "Couldn't get your location - try again, or use the box below.",
+    locationDenied: "Couldn't get your location - try again, or switch to Custom.",
     locationUnsupported: "Geolocation isn't supported in this browser.",
     locationUseLiveButton: 'Use my current location',
     locationUseLiveButtonChecking: 'Checking...',
@@ -61,10 +61,10 @@ const STRINGS = {
   he: {
     greeting:
       'היי! אני אמצא לך את המקום הכי קרוב ממפת האוכל של תל אביב. ספר לי את המיקום שלך למטה, או הקש על "נוכחי" למעלה כדי לשתף איפה אתה נמצא. 📍',
-    locationNotSet: 'הזן את המיקום שלך למטה כדי להתחיל.',
+    locationNotSet: 'הזן מיקום למטה, או עבור למצב נוכחי.',
     locationRequesting: 'מבקש את המיקום שלך...',
     locationSet: 'המיקום נקבע. שאל בבקשה!',
-    locationDenied: 'לא הצלחתי לקבל את המיקום שלך - נסה שוב, או השתמש בתיבה למטה.',
+    locationDenied: 'לא הצלחתי לקבל את המיקום שלך - נסה שוב, או עבור למצב מותאם.',
     locationUnsupported: 'שירותי מיקום אינם נתמכים בדפדפן זה.',
     locationUseLiveButton: 'השתמש במיקום הנוכחי שלי',
     locationUseLiveButtonChecking: 'בודק...',

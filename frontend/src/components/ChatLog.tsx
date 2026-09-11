@@ -15,6 +15,7 @@ interface ChatLogProps {
   onLocationError: (message: string) => void
   onRetryLocation: () => void
   isRequestingLocation: boolean
+  showLiveRetry: boolean
   onShowMore: (entryId: string) => void
   loadingMoreId: string | null
   lang: Lang
@@ -29,6 +30,7 @@ export function ChatLog({
   onLocationError,
   onRetryLocation,
   isRequestingLocation,
+  showLiveRetry,
   onShowMore,
   loadingMoreId,
   lang,
@@ -70,6 +72,7 @@ export function ChatLog({
           onError={onLocationError}
           onRetryLocation={onRetryLocation}
           isRequestingLocation={isRequestingLocation}
+          showLiveRetry={showLiveRetry}
           lang={lang}
         />
       )}

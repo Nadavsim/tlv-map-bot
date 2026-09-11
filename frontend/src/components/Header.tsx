@@ -85,19 +85,19 @@ export function Header({
       <div className="mode-toggle" role="group" aria-label={t(lang, 'locationModeGroupLabel')}>
         <button
           type="button"
-          className={locationMode === 'live' ? 'active' : ''}
-          onClick={() => onLocationModeChange('live')}
-        >
-          <LocateFixed size={16} aria-hidden="true" />
-          {t(lang, 'locationModeLive')}
-        </button>
-        <button
-          type="button"
           className={locationMode === 'manual' ? 'active' : ''}
           onClick={() => onLocationModeChange('manual')}
         >
           <MapPin size={16} aria-hidden="true" />
           {t(lang, 'locationModeCustom')}
+        </button>
+        <button
+          type="button"
+          className={locationMode === 'live' ? 'active' : ''}
+          onClick={() => onLocationModeChange('live')}
+        >
+          <LocateFixed size={16} aria-hidden="true" />
+          {t(lang, 'locationModeLive')}
         </button>
       </div>
       <div className="mode-toggle" role="group" aria-label={t(lang, 'transportMode')}>

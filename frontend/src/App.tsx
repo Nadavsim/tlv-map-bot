@@ -337,6 +337,7 @@ export default function App() {
           requestLocation()
         }}
         isRequestingLocation={isRequestingLocation}
+        showLiveRetry={locationMode === 'live'}
         onShowMore={handleShowMore}
         loadingMoreId={loadingMoreId}
         lang={lang}

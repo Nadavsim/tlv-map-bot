@@ -9,6 +9,12 @@ interface LocationFormProps {
   onError: (message: string) => void
   onRetryLocation: () => void
   isRequestingLocation: boolean
+  // Live mode has nothing to type - it only ever needs a way to ask the
+  // browser again. Custom mode has nothing to retry - it only ever needs
+  // the address input. Showing both together is what let a click on "Use
+  // my current location" silently hijack an in-progress Custom session
+  // back to Live.
+  showLiveRetry: boolean
   lang: Lang
 }
 
@@ -17,6 +23,7 @@ export function LocationForm({
   onError,
   onRetryLocation,
   isRequestingLocation,
+  showLiveRetry,
   lang,
 }: LocationFormProps) {
   const [value, setValue] = useState('')
@@ -51,17 +58,24 @@ export function LocationForm({
     }
   }
 
+  if (showLiveRetry) {
+    return (
+      <div className="location-fallback">
+        <button
+          type="button"
+          className="retry-location-button"
+          onClick={onRetryLocation}
+          disabled={isRequestingLocation}
+        >
+          <LocateFixed size={15} aria-hidden="true" />
+          {isRequestingLocation ? t(lang, 'locationUseLiveButtonChecking') : t(lang, 'locationUseLiveButton')}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="location-fallback">
-      <button
-        type="button"
-        className="retry-location-button"
-        onClick={onRetryLocation}
-        disabled={isRequestingLocation}
-      >
-        <LocateFixed size={15} aria-hidden="true" />
-        {isRequestingLocation ? t(lang, 'locationUseLiveButtonChecking') : t(lang, 'locationUseLiveButton')}
-      </button>
       <form className="location-form-row" onSubmit={handleSubmit}>
         <input
           type="text"
