@@ -1365,13 +1365,25 @@ full product later.
      including the access-vs-refresh type-confusion cases, the `users`
      collection CRUD functions, and all 5 new endpoints, all mocked -
      zero real Google/Atlas calls in the suite, matching the existing
-     "mint a JWT directly for a test user" plan). NOT verified: an actual
-     end-to-end sign-in with a real Google account, an actual signed-in
-     avatar/popover render, and an actual sign-out - all need the user's
-     own Google account to complete, and still need `GOOGLE_CLIENT_ID`/
-     `JWT_SECRET` added to staging's and production's real GitHub
-     Secrets/Azure App Settings (only this session's local `.env` has them
-     so far) before either deployed environment can serve this at all.
+     "mint a JWT directly for a test user" plan).
+   - **`GOOGLE_CLIENT_ID`/`JWT_SECRET` added to staging's real Azure App
+     Settings** (a distinct, randomly-generated secret from local dev's,
+     not reused across environments) - production's still needs the same
+     treatment whenever auth is ready to go there. **Real end-to-end
+     sign-in verified by the user on the real deployed staging
+     environment** with an actual Google account - confirmed working.
+   - **The signed-out account icon was nearly invisible in light mode** -
+     a real bug the user caught live on a real device, not something any
+     of this session's own testing reproduced (every check up to that
+     point had been in the sandboxed browser tool). Root cause: unlike
+     `.icon-button` and every other header control, `.account-avatar-button`
+     never set its own `color`, so it fell back to the browser's native
+     default button text color - which on that real device resolved to
+     white, invisible against the light theme's cream background,
+     completely independent of this app's own light/dark toggle. Fixed
+     by explicitly setting `color: var(--muted)` (matching `--muted`'s
+     already-verified WCAG AA contrast from the earlier Impeccable
+     hardening pass), plus a `:hover` state matching `.icon-button`'s.
 2. Favorites (save spots from the list)
 3. Ratings
 4. User-suggested new places, with a moderation queue (never auto-publish
