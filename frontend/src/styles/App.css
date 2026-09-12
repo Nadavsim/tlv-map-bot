@@ -144,7 +144,18 @@ header h1 svg {
   border: none;
   border-radius: 999px;
   background: transparent;
+  /* Without an explicit color, an unstyled <button> falls back to the
+     browser's native button text color - on at least one real
+     environment that resolved to white regardless of this app's own
+     light/dark theme, making the signed-out icon nearly invisible against
+     the light palette's cream background. Matches .icon-button's own
+     explicit color for the identical reason. */
+  color: var(--muted);
   cursor: pointer;
+}
+
+.account-avatar-button:hover {
+  color: var(--fg);
 }
 
 .account-avatar-button img,
