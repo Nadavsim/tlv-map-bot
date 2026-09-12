@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -6,8 +7,8 @@ from fastapi.testclient import TestClient
 from backend import app as app_module
 from backend import db
 from backend.app import format_place
-from backend.models import GeoPoint, PlaceResult
-from backend.services import llm, location, routing
+from backend.models import GeoPoint, PlaceResult, User
+from backend.services import auth, llm, location, routing
 
 SAMPLE_PLACE = PlaceResult(
     name="Cafelix",
@@ -738,3 +739,161 @@ def test_chat_endpoint_followup_continues_with_previous_dietary_tag(monkeypatch)
     body = resp.json()
     assert body["dietary_tag"] == "vegan"
     find_nearest_mock.assert_awaited_once_with("burger", 32.08, 34.78, limit=3, offset=3, tag="vegan")
+
+
+SAMPLE_USER = User(
+    google_sub="g-123",
+    email="a@example.com",
+    name="A Name",
+    picture_url="https://example.com/p.jpg",
+    token_version=0,
+    created_at=datetime.now(timezone.utc),
+)
+
+
+def test_auth_config_returns_the_google_client_id(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(auth, "GOOGLE_CLIENT_ID", "some-client-id.apps.googleusercontent.com")
+
+    with TestClient(app_module.app) as client:
+        resp = client.get("/api/auth/config")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"google_client_id": "some-client-id.apps.googleusercontent.com"}
+
+
+def test_auth_google_creates_a_new_user_and_sets_refresh_cookie(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(
+        auth, "verify_google_id_token", lambda credential: {"sub": "g-123", "email": "a@example.com", "name": "A Name", "picture": "https://example.com/p.jpg"}
+    )
+    monkeypatch.setattr(db, "get_user_by_google_sub", AsyncMock(return_value=None))
+    create_user_mock = AsyncMock(return_value=("user-id-1", SAMPLE_USER))
+    monkeypatch.setattr(db, "create_user", create_user_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/auth/google", json={"credential": "fake-google-token"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["access_token"]
+    assert body["user"] == {"name": "A Name", "email": "a@example.com", "picture_url": "https://example.com/p.jpg"}
+    assert "refresh_token" in resp.cookies
+    create_user_mock.assert_awaited_once_with(
+        google_sub="g-123", email="a@example.com", name="A Name", picture_url="https://example.com/p.jpg"
+    )
+
+
+def test_auth_google_reuses_an_existing_user_without_creating_a_new_one(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(auth, "verify_google_id_token", lambda credential: {"sub": "g-123", "email": "a@example.com", "name": "A Name", "picture": None})
+    monkeypatch.setattr(db, "get_user_by_google_sub", AsyncMock(return_value=("user-id-1", SAMPLE_USER)))
+    create_user_mock = AsyncMock()
+    monkeypatch.setattr(db, "create_user", create_user_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/auth/google", json={"credential": "fake-google-token"})
+
+    assert resp.status_code == 200
+    create_user_mock.assert_not_awaited()
+
+
+def test_auth_google_rejects_an_invalid_credential(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(auth, "verify_google_id_token", lambda credential: None)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/auth/google", json={"credential": "not-really-a-google-token"})
+
+    assert resp.status_code == 401
+
+
+def test_auth_refresh_issues_a_new_access_token_with_a_valid_cookie(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(auth, "decode_refresh_token", lambda token: ("user-id-1", 0))
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=SAMPLE_USER))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/auth/refresh", cookies={"refresh_token": "some-valid-refresh-token"})
+
+    assert resp.status_code == 200
+    assert resp.json()["access_token"]
+    assert "refresh_token" in resp.cookies
+
+
+def test_auth_refresh_rejects_when_no_cookie_present(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/auth/refresh")
+
+    assert resp.status_code == 401
+
+
+def test_auth_refresh_rejects_a_token_version_that_no_longer_matches(monkeypatch):
+    # The user signed out (or was signed out) since this refresh token was
+    # issued - db.revoke_user_sessions bumped token_version past what the
+    # token itself carries.
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(auth, "decode_refresh_token", lambda token: ("user-id-1", 0))
+    stale_user = SAMPLE_USER.model_copy(update={"token_version": 1})
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=stale_user))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/auth/refresh", cookies={"refresh_token": "an-old-refresh-token"})
+
+    assert resp.status_code == 401
+
+
+def test_auth_logout_revokes_sessions_and_clears_cookie(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(auth, "decode_refresh_token", lambda token: ("user-id-1", 0))
+    revoke_mock = AsyncMock()
+    monkeypatch.setattr(db, "revoke_user_sessions", revoke_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/auth/logout", cookies={"refresh_token": "some-refresh-token"})
+
+    assert resp.status_code == 200
+    revoke_mock.assert_awaited_once_with("user-id-1")
+
+
+def test_auth_logout_is_a_no_op_without_a_cookie(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/auth/logout")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
+def test_auth_me_returns_the_user_for_a_valid_bearer_token(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(auth, "decode_access_token", lambda token: "user-id-1")
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=SAMPLE_USER))
+
+    with TestClient(app_module.app) as client:
+        resp = client.get("/api/auth/me", headers={"Authorization": "Bearer some-access-token"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"name": "A Name", "email": "a@example.com", "picture_url": "https://example.com/p.jpg"}
+
+
+def test_auth_me_rejects_a_missing_authorization_header(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        resp = client.get("/api/auth/me")
+
+    assert resp.status_code == 401
+
+
+def test_auth_me_rejects_an_invalid_access_token(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(auth, "decode_access_token", lambda token: None)
+
+    with TestClient(app_module.app) as client:
+        resp = client.get("/api/auth/me", headers={"Authorization": "Bearer garbage"})
+
+    assert resp.status_code == 401

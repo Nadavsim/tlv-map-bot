@@ -118,6 +118,97 @@ header h1 svg {
   color: var(--fg);
 }
 
+.google-signin-button {
+  /* Google's own rendered icon button (its content, size, and colors are
+     controlled by the GoogleSignInButton component's renderButton() call,
+     not this stylesheet - Google's brand guidelines don't allow arbitrary
+     re-skinning of it). Constrained to the same 44px footprint as every
+     other header control so it doesn't widen the row. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+}
+
+.account-control {
+  position: relative;
+}
+
+.account-avatar-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.account-avatar-button img,
+.account-avatar-fallback {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+}
+
+.account-avatar-button img {
+  object-fit: cover;
+}
+
+.account-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.account-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 0.3rem);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 160px;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: var(--card-bg);
+  border: 1.5px solid var(--border);
+  box-shadow: var(--shadow-md);
+}
+
+.account-menu-name {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow-wrap: break-word;
+}
+
+.account-menu button {
+  padding: 0.5rem 0.8rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--chip-fg);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.account-menu button:hover {
+  filter: brightness(1.05);
+}
+
 .location-status-row {
   display: flex;
   align-items: baseline;

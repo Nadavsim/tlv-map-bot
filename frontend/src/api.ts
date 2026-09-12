@@ -1,4 +1,6 @@
 import type {
+  AuthConfigResponse,
+  AuthResponse,
   CategoriesResponse,
   ChatRequest,
   ChatResponse,
@@ -47,4 +49,33 @@ export async function getCategories(): Promise<CategoriesResponse> {
 
 export function resolveLocation(text: string): Promise<ResolveLocationResponse> {
   return postJSON<ResolveLocationResponse>('/api/resolve-location', { text })
+}
+
+export async function getAuthConfig(): Promise<AuthConfigResponse> {
+  const res = await fetch('/api/auth/config')
+  if (!res.ok) {
+    throw new ApiError(res.status, `Request to /api/auth/config failed with status ${res.status}`)
+  }
+  return res.json() as Promise<AuthConfigResponse>
+}
+
+export function postGoogleAuth(credential: string): Promise<AuthResponse> {
+  return postJSON<AuthResponse>('/api/auth/google', { credential })
+}
+
+// No body needed - the refresh token travels as an httpOnly cookie, sent
+// automatically on this same-origin request without any credentials option.
+// Returns null (not a rejected promise) on a 401 - "not signed in" is an
+// entirely expected outcome here (e.g. every fresh visitor), not an error.
+export async function postRefresh(): Promise<AuthResponse | null> {
+  const res = await fetch('/api/auth/refresh', { method: 'POST' })
+  if (res.status === 401) return null
+  if (!res.ok) {
+    throw new ApiError(res.status, `Request to /api/auth/refresh failed with status ${res.status}`)
+  }
+  return res.json() as Promise<AuthResponse>
+}
+
+export async function postLogout(): Promise<void> {
+  await fetch('/api/auth/logout', { method: 'POST' })
 }

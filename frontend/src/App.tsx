@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { ApiError, getCategories, postChat, postMorePlaces } from './api'
+import { ApiError, getAuthConfig, getCategories, postChat, postGoogleAuth, postLogout, postMorePlaces, postRefresh } from './api'
 import { type ChatEntry, makeEntryId } from './chatTypes'
 import { ChatInput } from './components/ChatInput'
 import { ChatLog } from './components/ChatLog'
 import { Header } from './components/Header'
 import { t, type StringKey } from './i18n'
 import { loadLang, loadTheme, saveLang, saveTheme } from './preferences'
-import type { Coordinates, Lang, LocationMode, Theme, TransportMode } from './types'
+import type { AuthUser, Coordinates, Lang, LocationMode, Theme, TransportMode } from './types'
 import { PAGE_SIZE } from './types'
 import './styles/theme.css'
 import './styles/App.css'
@@ -18,6 +18,12 @@ const HELP_COMMANDS = ['help', 'עזרה']
 
 // How long an accidental "New Conversation" tap stays undoable.
 const UNDO_WINDOW_MS = 5000
+
+// Refresh a bit before the access token's real 15-minute expiry (backend's
+// ACCESS_TOKEN_TTL_SECONDS) - a safety margin, not an exact mirror of it, so
+// a slow request right at the boundary doesn't get a token that expires
+// mid-flight.
+const ACCESS_TOKEN_REFRESH_MS = 14 * 60 * 1000
 
 // The location status line is live UI chrome (like the Walk/Drive labels),
 // not a chat message - it should always reflect the *current* language, not
@@ -55,12 +61,88 @@ export default function App() {
   const [loadingMoreId, setLoadingMoreId] = useState<string | null>(null)
   const [clearedEntries, setClearedEntries] = useState<ChatEntry[] | null>(null)
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null)
+  const [googleClientId, setGoogleClientId] = useState<string | null>(null)
+  // Never triggers a re-render on its own (only authUser does) - this is
+  // exactly why it's a ref and not state: nothing in the UI reads the raw
+  // token value itself, only whether someone is signed in.
+  const accessTokenRef = useRef<string | null>(null)
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     return () => {
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     }
   }, [])
+
+  // The Client ID isn't secret, but it lives in the backend's env rather
+  // than being duplicated into a frontend build-time config - one source of
+  // truth, same reasoning as fetching /api/categories instead of hardcoding.
+  useEffect(() => {
+    getAuthConfig()
+      .then(({ google_client_id }) => setGoogleClientId(google_client_id))
+      .catch(() => {
+        // No Sign-In button if this fails - the rest of the app (the actual
+        // core feature) doesn't depend on it.
+      })
+  }, [])
+
+  // Restores a session on load using the httpOnly refresh cookie, if one
+  // exists - a fresh visitor with no cookie gets a clean 401 here, which
+  // postRefresh() already turns into a plain `null`, not a thrown error.
+  useEffect(() => {
+    postRefresh()
+      .then((result) => {
+        if (result) applySession(result.access_token, result.user)
+      })
+      .catch(() => {
+        // Silent - an anonymous visitor is the default, expected state.
+      })
+  }, [])
+
+  function applySession(accessToken: string, user: AuthUser) {
+    accessTokenRef.current = accessToken
+    setAuthUser(user)
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+    refreshTimerRef.current = setTimeout(async () => {
+      try {
+        const result = await postRefresh()
+        if (result) {
+          applySession(result.access_token, result.user)
+        } else {
+          // The refresh cookie itself expired/was revoked - fall back to
+          // signed-out rather than silently keeping a stale access token.
+          accessTokenRef.current = null
+          setAuthUser(null)
+        }
+      } catch {
+        // A network hiccup shouldn't sign someone out - just try again on
+        // the same schedule next time rather than tearing down the session.
+      }
+    }, ACCESS_TOKEN_REFRESH_MS)
+  }
+
+  async function handleGoogleCredential(credential: string) {
+    try {
+      const result = await postGoogleAuth(credential)
+      applySession(result.access_token, result.user)
+    } catch {
+      // Sign-in failing shouldn't be a chat-log error bubble - it's not part
+      // of that conversation. Silently staying signed out is the safe
+      // fallback; nothing in the app currently depends on being signed in.
+    }
+  }
+
+  async function handleSignOut() {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+    accessTokenRef.current = null
+    setAuthUser(null)
+    await postLogout().catch(() => {
+      // Already signed out client-side regardless - a failed request here
+      // just means the server-side session lingers until its own expiry.
+    })
+  }
 
   useEffect(() => {
     document.documentElement.lang = lang
@@ -349,6 +431,10 @@ export default function App() {
         onLangChange={setLang}
         theme={theme}
         onThemeChange={setTheme}
+        authUser={authUser}
+        googleClientId={googleClientId}
+        onGoogleCredential={handleGoogleCredential}
+        onSignOut={handleSignOut}
       />
       <ChatLog
         greeting={t(lang, 'greeting')}

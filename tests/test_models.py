@@ -1,7 +1,9 @@
+from datetime import datetime, timezone
+
 import pytest
 from pydantic import ValidationError
 
-from backend.models import GeoPoint, Place, PlaceResult
+from backend.models import GeoPoint, Place, PlaceResult, User
 
 
 def test_geo_point_exposes_longitude_and_latitude_from_geojson_order():
@@ -65,3 +67,14 @@ def test_place_result_adds_distance_on_top_of_place_fields():
 def test_place_result_requires_distance():
     with pytest.raises(ValidationError):
         PlaceResult(name="Cafelix", category="coffee", location=GeoPoint(coordinates=(34.77, 32.06)))
+
+
+def test_user_defaults_picture_url_to_none_and_token_version_to_zero():
+    user = User(google_sub="g-123", email="a@example.com", name="A", created_at=datetime.now(timezone.utc))
+    assert user.picture_url is None
+    assert user.token_version == 0
+
+
+def test_user_requires_google_sub_email_name_and_created_at():
+    with pytest.raises(ValidationError):
+        User(email="a@example.com", name="A", created_at=datetime.now(timezone.utc))

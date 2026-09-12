@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -216,3 +217,84 @@ async def test_log_unmatched_query_inserts_text_and_timestamp(monkeypatch):
     (inserted,), _ = fake_collection.insert_one.call_args
     assert inserted["text"] == "sushi near me"
     assert "created_at" in inserted
+
+
+@pytest.mark.asyncio
+async def test_get_user_by_google_sub_returns_id_and_user(monkeypatch):
+    from bson import ObjectId
+
+    object_id = ObjectId()
+    fake_collection = MagicMock()
+    fake_collection.find_one = AsyncMock(
+        return_value={
+            "_id": object_id,
+            "google_sub": "g-123",
+            "email": "a@example.com",
+            "name": "A",
+            "picture_url": None,
+            "token_version": 0,
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
+    monkeypatch.setattr(db, "get_users_collection", lambda: fake_collection)
+
+    result = await db.get_user_by_google_sub("g-123")
+
+    assert result is not None
+    user_id, user = result
+    assert user_id == str(object_id)
+    assert user.google_sub == "g-123"
+    fake_collection.find_one.assert_awaited_once_with({"google_sub": "g-123"})
+
+
+@pytest.mark.asyncio
+async def test_get_user_by_google_sub_returns_none_when_not_found(monkeypatch):
+    fake_collection = MagicMock()
+    fake_collection.find_one = AsyncMock(return_value=None)
+    monkeypatch.setattr(db, "get_users_collection", lambda: fake_collection)
+
+    assert await db.get_user_by_google_sub("nope") is None
+
+
+@pytest.mark.asyncio
+async def test_get_user_by_id_returns_none_for_a_malformed_id(monkeypatch):
+    # Should never blow up on a garbage id (e.g. a stale/tampered token) -
+    # just report "no such user," the same as a well-formed id that's simply
+    # not in the database.
+    fake_collection = MagicMock()
+    fake_collection.find_one = AsyncMock()
+    monkeypatch.setattr(db, "get_users_collection", lambda: fake_collection)
+
+    assert await db.get_user_by_id("not-a-real-object-id") is None
+    fake_collection.find_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_user_inserts_and_returns_id_and_user(monkeypatch):
+    from bson import ObjectId
+
+    object_id = ObjectId()
+    fake_collection = MagicMock()
+    fake_collection.insert_one = AsyncMock(return_value=MagicMock(inserted_id=object_id))
+    monkeypatch.setattr(db, "get_users_collection", lambda: fake_collection)
+
+    user_id, user = await db.create_user("g-123", "a@example.com", "A", "https://example.com/p.jpg")
+
+    assert user_id == str(object_id)
+    assert user.google_sub == "g-123"
+    assert user.token_version == 0
+    fake_collection.insert_one.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_revoke_user_sessions_increments_token_version(monkeypatch):
+    from bson import ObjectId
+
+    object_id = ObjectId()
+    fake_collection = MagicMock()
+    fake_collection.update_one = AsyncMock()
+    monkeypatch.setattr(db, "get_users_collection", lambda: fake_collection)
+
+    await db.revoke_user_sessions(str(object_id))
+
+    fake_collection.update_one.assert_awaited_once_with({"_id": object_id}, {"$inc": {"token_version": 1}})

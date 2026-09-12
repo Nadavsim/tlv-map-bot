@@ -64,6 +64,9 @@ const STRINGS = {
     appCrashedReload: 'Refresh',
     privacyLink: 'Privacy',
     priceLabel: 'Price range',
+    accountMenuLabel: 'Account menu',
+    signedInAsPrefix: 'Signed in as',
+    signOut: 'Sign out',
   },
   he: {
     greeting:
@@ -122,6 +125,9 @@ const STRINGS = {
     appCrashedReload: 'רענן',
     privacyLink: 'פרטיות',
     priceLabel: 'טווח מחירים',
+    accountMenuLabel: 'תפריט חשבון',
+    signedInAsPrefix: 'מחובר בתור',
+    signOut: 'התנתק',
   },
 } as const satisfies Record<Lang, Record<string, string>>
 

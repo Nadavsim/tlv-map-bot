@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import Cookie, FastAPI, Header, HTTPException, Request, Response
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -16,7 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import db
 from .models import PlaceResult
-from .services import llm, location, routing
+from .services import auth, llm, location, routing
 
 load_dotenv()
 
@@ -59,10 +59,12 @@ async def custom_404_handler(request: Request, exc: StarletteHTTPException):
 async def security_headers(request, call_next):
     """Baseline hardening headers, same on every response. CSP is scoped to
     exactly what the app actually loads: same-origin scripts/API calls, the
-    Google Fonts stylesheet + font files, and data: URIs for the inline SVG
-    favicon - nothing else. Permissions-Policy explicitly keeps geolocation
-    available to the page itself (the app's core feature) while locking out
-    unrelated device APIs this app never uses."""
+    Google Fonts stylesheet + font files, data: URIs for the inline SVG
+    favicon, and (since Google Sign-In) Google Identity Services' own script/
+    frame/network calls and Google-hosted profile pictures - nothing else.
+    Permissions-Policy explicitly keeps geolocation available to the page
+    itself (the app's core feature) while locking out unrelated device APIs
+    this app never uses."""
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -73,11 +75,17 @@ async def security_headers(request, call_next):
     response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self'; "
-        "style-src 'self' https://fonts.googleapis.com; "
+        "script-src 'self' https://accounts.google.com; "
+        # 'unsafe-inline' here is specifically for Google Identity Services -
+        # it injects its own inline styles at runtime that can't be
+        # pre-hashed/nonced. Inline *style* injection (unlike script) has a
+        # much smaller blast radius, and this app has no user-generated HTML
+        # rendering path that could exploit it.
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; "
         "font-src 'self' https://fonts.gstatic.com; "
-        "img-src 'self' data:; "
-        "connect-src 'self'; "
+        "img-src 'self' data: https://*.googleusercontent.com; "
+        "connect-src 'self' https://accounts.google.com; "
+        "frame-src https://accounts.google.com; "
         "object-src 'none'; "
         "base-uri 'self'; "
         "form-action 'self'; "
@@ -372,3 +380,129 @@ async def more_places(request: Request, req: MorePlacesRequest):
         [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
     )
     return {"places": [format_place(p, eta) for p, eta in zip(matches, etas)]}
+
+
+# --- Auth ---------------------------------------------------------------
+# Google Sign-In only (see CLAUDE.md for why no self-managed password path
+# exists) - the base chat above stays fully usable with zero login; this
+# section exists to unblock future features (favorites, ratings) that do
+# need to know who's asking, not to gate anything that exists today.
+
+REFRESH_COOKIE_NAME = "refresh_token"
+# Scoped to /api/auth specifically, not the whole site - the cookie has no
+# reason to be sent along with every place/chat/static-asset request.
+REFRESH_COOKIE_PATH = "/api/auth"
+
+
+class GoogleAuthRequest(BaseModel):
+    # Field name matches Google Identity Services' own callback payload
+    # (`response.credential`) - one less translation for the frontend to do.
+    credential: str = Field(max_length=4096)
+
+
+def _user_public_dict(user) -> dict:
+    return {"name": user.name, "email": user.email, "picture_url": user.picture_url}
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        REFRESH_COOKIE_NAME,
+        token,
+        max_age=auth.REFRESH_TOKEN_TTL_SECONDS,
+        path=REFRESH_COOKIE_PATH,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+    )
+
+
+async def get_current_user_id(authorization: str | None = Header(None)) -> str:
+    """Required-auth dependency - raises 401 if there's no valid access
+    token. Nothing uses this yet (see the section note above), but it's
+    here ready for the first endpoint that needs it."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user_id = auth.decode_access_token(authorization.removeprefix("Bearer "))
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return user_id
+
+
+@app.get("/api/auth/config")
+async def auth_config():
+    # The Client ID isn't secret - it's already public in the frontend's own
+    # bundle either way - this just avoids hardcoding it in two places.
+    return {"google_client_id": auth.GOOGLE_CLIENT_ID}
+
+
+@app.post("/api/auth/google")
+async def auth_google(req: GoogleAuthRequest, response: Response):
+    claims = auth.verify_google_id_token(req.credential)
+    if not claims:
+        raise HTTPException(status_code=401, detail="Invalid Google credential")
+
+    existing = await db.get_user_by_google_sub(claims["sub"])
+    if existing:
+        user_id, user = existing
+    else:
+        user_id, user = await db.create_user(
+            google_sub=claims["sub"],
+            email=claims["email"],
+            name=claims["name"],
+            picture_url=claims.get("picture"),
+        )
+
+    access_token = auth.create_access_token(user_id)
+    _set_refresh_cookie(response, auth.create_refresh_token(user_id, user.token_version))
+    return {"access_token": access_token, "user": _user_public_dict(user)}
+
+
+@app.post("/api/auth/refresh")
+async def auth_refresh(response: Response, refresh_token: str | None = Cookie(None, alias=REFRESH_COOKIE_NAME)):
+    def unauthorized() -> HTTPException:
+        response.delete_cookie(REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
+        return HTTPException(status_code=401, detail="Not authenticated")
+
+    if not refresh_token:
+        raise unauthorized()
+    decoded = auth.decode_refresh_token(refresh_token)
+    if not decoded:
+        raise unauthorized()
+    user_id, token_version = decoded
+
+    user = await db.get_user_by_id(user_id)
+    # A version mismatch means this refresh token predates a sign-out
+    # (see db.revoke_user_sessions) - reject it even though it hasn't
+    # expired yet, which is the entire point of tracking a version at all.
+    if not user or user.token_version != token_version:
+        raise unauthorized()
+
+    access_token = auth.create_access_token(user_id)
+    # Rotated (not reused) on every refresh - standard practice so a leaked
+    # refresh token has a shrinking window of usefulness rather than staying
+    # valid, unrotated, for the full 30 days.
+    _set_refresh_cookie(response, auth.create_refresh_token(user_id, token_version))
+    return {"access_token": access_token, "user": _user_public_dict(user)}
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(response: Response, refresh_token: str | None = Cookie(None, alias=REFRESH_COOKIE_NAME)):
+    if refresh_token:
+        decoded = auth.decode_refresh_token(refresh_token)
+        if decoded:
+            user_id, _ = decoded
+            # Bumps token_version, so this one call revokes every refresh
+            # token ever issued to this user - not just the one in this
+            # request's cookie (e.g. also signs out a different device).
+            await db.revoke_user_sessions(user_id)
+    response.delete_cookie(REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
+    return {"ok": True}
+
+
+@app.get("/api/auth/me")
+async def auth_me(authorization: str | None = Header(None)):
+    user_id = await get_current_user_id(authorization)
+    user = await db.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="User no longer exists")
+    return _user_public_dict(user)

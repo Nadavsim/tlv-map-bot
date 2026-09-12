@@ -1,6 +1,7 @@
 import { Car, CircleHelp, Footprints, Languages, LocateFixed, MapPin, Moon, RotateCcw, Sun } from 'lucide-react'
+import { AccountControl } from './AccountControl'
 import { t } from '../i18n'
-import type { Lang, LocationMode, Theme, TransportMode } from '../types'
+import type { AuthUser, Lang, LocationMode, Theme, TransportMode } from '../types'
 
 interface HeaderProps {
   locationStatus: string
@@ -16,6 +17,10 @@ interface HeaderProps {
   onLangChange: (lang: Lang) => void
   theme: Theme
   onThemeChange: (theme: Theme) => void
+  authUser: AuthUser | null
+  googleClientId: string | null
+  onGoogleCredential: (credential: string) => void
+  onSignOut: () => void
 }
 
 export function Header({
@@ -32,6 +37,10 @@ export function Header({
   onLangChange,
   theme,
   onThemeChange,
+  authUser,
+  googleClientId,
+  onGoogleCredential,
+  onSignOut,
 }: HeaderProps) {
   return (
     <header>
@@ -72,6 +81,14 @@ export function Header({
           >
             <CircleHelp size={20} aria-hidden="true" />
           </button>
+          <AccountControl
+            user={authUser}
+            googleClientId={googleClientId}
+            theme={theme}
+            lang={lang}
+            onCredential={onGoogleCredential}
+            onSignOut={onSignOut}
+          />
         </div>
       </div>
       <div className="location-status-row">

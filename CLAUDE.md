@@ -117,11 +117,14 @@ In order:
    done 2026-09-11, see "Done since the priority ordering" below for the
    full design writeup. A natural follow-on now that this exists:
    saved/frequent addresses (see "Scoped, not yet built" below).
-6. Implement auth and the user system - see "Bigger builds - user system"
-   below for the already-sequenced plan (Google Sign-In + JWT session layer
-   first, then favorites, ratings, user-suggested spots, map uploads). Now
-   safe to build/test against the staging environment from step 4 rather
-   than production.
+6. Implement auth and the user system - **in progress**: auth core
+   (Google Sign-In + JWT session layer) built and tested 2026-09-12, see
+   "Bigger builds - user system" below for the full writeup and what's
+   still outstanding (real end-to-end sign-in verification, staging/
+   production secrets). Favorites, ratings, user-suggested spots, and map
+   uploads remain sequenced after it, not started. Built/tested against
+   the staging environment from step 4, not production, per this item's
+   own original note below.
 7. Add the map view visual feature (see "Visual upgrades" below).
 
 ## To-do list
@@ -1203,18 +1206,145 @@ state worth adding.
 ### Bigger builds - user system (sequenced, not started)
 Goal: real accounts usable by friends and family now, with an eye toward a
 full product later.
-1. Auth core - **Google Sign-In (OAuth)** as the actual front door, not
-   self-managed passwords - delegates credential security (storage, breach
-   detection, reset flows) entirely to Google, which is the right call for a
-   personal project two-plus people are trusting with their data. Paired
-   with the app's own short-lived JWT access/refresh session layer
-   (matching prior hands-on experience from a university project), issued
-   after verifying the Google ID token once: access token in memory (not
-   localStorage), refresh token in an `httpOnly`/`Secure`/`SameSite=Strict`
-   cookie, revocable (a stored token version/hash per user). Testing doesn't
-   need real OAuth - mint a JWT directly for a test user in test setup, since
-   what's being tested is "does the app handle this token correctly," not
-   "does Google's login page work."
+1. ~~Auth core~~ - app-side implementation done 2026-09-12, built and tested
+   against staging per the roadmap's own instruction, not production. Real
+   end-to-end sign-in with an actual Google account still needs the user to
+   verify by hand - session/user-management sessions can't complete a real
+   Google OAuth login (that needs a real account and, appropriately,
+   Claude never handles a user's real credentials).
+   - **Google Sign-In (OAuth) as the actual front door, not self-managed
+     passwords** - delegates credential security (storage, breach
+     detection, reset flows) entirely to Google. Explicitly considered and
+     declined: a parallel bcrypt/salted-password system as a fallback for
+     anyone who doesn't want Google Sign-In - doubles the security surface,
+     needs a new email-sending dependency for password resets (real cost,
+     against the $15/month budget), and reopens exactly the risk
+     delegating to Google was meant to close. The mitigation instead: the
+     base chat stays fully anonymous regardless (see below) - nobody is
+     locked out of the *product*, only the not-yet-built extras
+     (favorites/ratings/suggestions) that will actually require an account.
+   - **Google Identity Services' ID-token flow**, not the older full
+     OAuth 2.0 authorization-code redirect dance - this app only needs to
+     know who someone is, not act on their behalf against Google's APIs,
+     so the simpler client-side flow (a rendered button hands the frontend
+     a signed ID token directly) is the right fit. Needs only "Authorized
+     JavaScript origins" configured on the Google Cloud OAuth Client ID,
+     no redirect URIs.
+   - **New Google Cloud project + OAuth Client ID**, deliberately created
+     under a separate Google account from the user's personal one (the
+     user's own call, not a security requirement - the Client ID isn't
+     secret, it ends up in the frontend's own public code either way; the
+     real reason was not wanting a personal email shown on the consent
+     screen during real sign-ins, plus general hygiene keeping side-project
+     cloud resources off a personal account). Authorized JavaScript
+     origins cover local dev (`localhost:8000` uvicorn, `localhost:5173`
+     Vite dev server) plus both the real staging and production Azure
+     hostnames.
+   - **Backend**: `User` model (`backend/models.py`) keyed on Google's
+     `sub` claim, not email (Google's own guidance - email can change,
+     sub never does) - `google_sub`, `email`, `name`, `picture_url`,
+     `token_version` (bumped on sign-out, see below), `created_at`. A
+     `users` collection (`db.py`) with a unique index on `google_sub` and
+     its own `$jsonSchema` warn-mode validator, same defense-in-depth
+     pattern as `places`. `_ensure_schema_validator` was generalized to
+     take a collection name + schema rather than being hardcoded to
+     `places`, now that a second collection needs one.
+   - **`backend/services/auth.py`** (new, matching the one-module-per-
+     integration pattern already used for `llm`/`routing`/`location`):
+     wraps Google's own token verification (`google-auth`'s
+     `id_token.verify_oauth2_token`, checked against this app's own Client
+     ID as the audience - without that check, a token issued for a
+     completely different Google app would also pass) and issues this
+     app's own JWTs (`PyJWT`) - a short-lived access token (15 min, held
+     only in browser memory, never localStorage) and a longer-lived
+     refresh token (30 days, `httpOnly`/`Secure`/`SameSite=Strict` cookie,
+     scoped to `/api/auth` only rather than the whole site). Both tokens
+     carry a `type` claim (`access`/`refresh`) specifically so a leaked
+     refresh token - which page JS should never even be able to read -
+     can't also be replayed as an access token. Every refresh call rotates
+     the refresh token too (not reused for its full 30-day life), and
+     compares the token's embedded `token_version` against the user's
+     current stored value - a sign-out bumps that value
+     (`db.revoke_user_sessions`), instantly invalidating every refresh
+     token ever issued to that user, not just the one in the browser that
+     clicked sign-out.
+   - **New endpoints**: `POST /api/auth/google` (verify credential, look
+     up or create the user, issue tokens), `POST /api/auth/refresh`
+     (rotate access+refresh from the cookie), `POST /api/auth/logout`
+     (revoke + clear cookie), `GET /api/auth/me`, `GET /api/auth/config`
+     (serves `GOOGLE_CLIENT_ID` to the frontend - not secret, but kept as
+     one source of truth in the backend's own env rather than duplicated
+     into a frontend build-time config, same reasoning as fetching
+     `/api/categories` instead of hardcoding). Nothing existing calls the
+     required-auth dependency (`get_current_user_id`) yet - it's built and
+     ready for the first feature (favorites) that actually needs it.
+   - **CSP had to grow for Google Identity Services specifically** (three
+     real, live-discovered requirements, not assumed upfront):
+     `script-src`/`connect-src`/`frame-src` need `https://accounts.google.com`
+     for the script itself, its network calls, and the One Tap/consent
+     iframe; `img-src` needs `https://*.googleusercontent.com` for profile
+     pictures; and `style-src` needed `'unsafe-inline'` added - GIS injects
+     its own inline styles at runtime that can't be pre-hashed/nonced, and
+     also loads a stylesheet from `https://accounts.google.com/gsi/style`.
+     Inline *style* injection carries a much smaller blast radius than
+     inline *script* would, and this app has no user-generated HTML
+     rendering path that could exploit it, so this was judged an
+     acceptable, narrow loosening rather than a broad one.
+   - **Frontend**: `GoogleSignInButton.tsx` loads Google's script itself
+     (no npm package - GIS isn't officially published as one anyway, and
+     this matches the project's existing habit of hand-rolling rather than
+     adding a dependency, same reasoning as the hand-rolled i18n) and
+     renders Google's own button - deliberately icon-only (`type: 'icon'`,
+     `shape: 'circle'`), not the full "Sign in with Google" text button
+     that was tried first and caused a real, live-reproduced horizontal
+     overflow in the header's icon row at 375px once added alongside the
+     existing 4 controls; the icon variant fits the same 44px footprint as
+     every other header control, and also matches the originally-agreed
+     design call ("a small avatar/name replacing an existing icon slot,"
+     not a wide new CTA). `AccountControl.tsx` swaps between that button
+     (signed out) and a circular avatar + click-to-open sign-out popover
+     (signed in), reusing the account's Google profile picture or a
+     colored initial as a fallback.
+   - **The rendered button's own language didn't automatically follow
+     this app's language toggle** - a real bug caught live, not assumed:
+     Google's button text is baked into the specific script Google serves,
+     keyed by an `hl` query param on the script URL itself; without it,
+     Google falls back to the browser/OS locale (or an existing Google
+     session's own language), independent of this app's own `lang` state.
+     Fixed by appending `?hl=<lang>` to the script src and reloading the
+     script (removing and re-adding the tag - changing `hl` on an
+     already-loaded script has no effect) whenever the app's language
+     changes, not just once at initial load. Verified live: switching the
+     app's language toggle now correctly and immediately changes the
+     Google button's own accessible name/tooltip language too, in both
+     directions.
+   - App.tsx holds the session directly (no Context API, no extra
+     abstraction - matches how the rest of this app's state already
+     works): an access token in a ref (deliberately not state, since
+     nothing in the UI reads its raw value, only whether someone is
+     signed in), a `User | null` in state, and a scheduled silent-refresh
+     timer (14 minutes, just under the real 15-minute access-token expiry)
+     that keeps a session alive transparently across a long visit as long
+     as the refresh token itself is still valid. A silent
+     `/api/auth/refresh` call on every page load restores a session from
+     the cookie if one exists; a fresh visitor with no cookie gets a plain
+     401 that resolves to "signed out," not a thrown error anywhere in the
+     UI.
+   - Verified live (real browser, all 4 light/dark x en/he combinations,
+     and 375px mobile width): the Google button renders, is clickable
+     with zero console/CSP errors, correctly re-localizes and re-themes on
+     toggle, and the header no longer overflows horizontally at any tested
+     width. All 157 backend tests pass (28 new: JWT issue/verify/rotation
+     including the access-vs-refresh type-confusion cases, the `users`
+     collection CRUD functions, and all 5 new endpoints, all mocked -
+     zero real Google/Atlas calls in the suite, matching the existing
+     "mint a JWT directly for a test user" plan). NOT verified: an actual
+     end-to-end sign-in with a real Google account, an actual signed-in
+     avatar/popover render, and an actual sign-out - all need the user's
+     own Google account to complete, and still need `GOOGLE_CLIENT_ID`/
+     `JWT_SECRET` added to staging's and production's real GitHub
+     Secrets/Azure App Settings (only this session's local `.env` has them
+     so far) before either deployed environment can serve this at all.
 2. Favorites (save spots from the list)
 3. Ratings
 4. User-suggested new places, with a moderation queue (never auto-publish

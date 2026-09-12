@@ -2,11 +2,13 @@ import os
 import time
 from datetime import datetime, timezone
 
+from bson import ObjectId
+from bson.errors import InvalidId
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import OperationFailure
 
-from .models import PlaceResult
+from .models import PlaceResult, User
 
 load_dotenv()
 
@@ -56,6 +58,20 @@ PLACES_JSON_SCHEMA = {
     },
 }
 
+# Mirrors models.User, same reasoning as PLACES_JSON_SCHEMA above.
+USERS_JSON_SCHEMA = {
+    "bsonType": "object",
+    "required": ["google_sub", "email", "name", "token_version", "created_at"],
+    "properties": {
+        "google_sub": {"bsonType": "string"},
+        "email": {"bsonType": "string"},
+        "name": {"bsonType": "string"},
+        "picture_url": {"bsonType": ["string", "null"]},
+        "token_version": {"bsonType": "int"},
+        "created_at": {"bsonType": "date"},
+    },
+}
+
 _client: AsyncIOMotorClient | None = None
 _categories_cache: list[str] | None = None
 _categories_cache_expires_at: float = 0.0
@@ -86,6 +102,10 @@ def get_unmatched_queries_collection():
     return _get_collection("unmatched_queries")
 
 
+def get_users_collection():
+    return _get_collection("users")
+
+
 async def ensure_indexes() -> None:
     places = get_places_collection()
     await places.create_index([("location", "2dsphere")])
@@ -104,29 +124,33 @@ async def ensure_indexes() -> None:
     await places.create_index("name")
     await places.create_index("category")
 
-    await _ensure_schema_validator(places)
+    await _ensure_schema_validator(places, "places", PLACES_JSON_SCHEMA)
 
     unmatched_queries = get_unmatched_queries_collection()
     await unmatched_queries.create_index("created_at", expireAfterSeconds=UNMATCHED_QUERIES_TTL_SECONDS)
 
+    users = get_users_collection()
+    await users.create_index("google_sub", unique=True)
+    await _ensure_schema_validator(users, "users", USERS_JSON_SCHEMA)
 
-async def _ensure_schema_validator(places) -> None:
-    """Defense-in-depth: enforce PLACES_JSON_SCHEMA at the database layer
-    itself, so a malformed document gets caught regardless of what wrote it
-    (a bad script, a manual Compass edit) - not just whatever happens to run
-    it through models.Place first.
+
+async def _ensure_schema_validator(collection, name: str, schema: dict) -> None:
+    """Defense-in-depth: enforce a collection's $jsonSchema at the database
+    layer itself, so a malformed document gets caught regardless of what
+    wrote it (a bad script, a manual Compass edit) - not just whatever
+    happens to run it through the matching Pydantic model first.
 
     validationAction "warn" only logs a violation to the Atlas server log
     instead of rejecting the write. "error" would be stricter, but risks
-    locking out a legitimate write if this schema ever drifts even slightly
+    locking out a legitimate write if a schema ever drifts even slightly
     from what the app actually writes - start permissive and only tighten to
     "error" once it's been observed running clean for a while."""
-    database = places.database
-    validator = {"$jsonSchema": PLACES_JSON_SCHEMA}
+    database = collection.database
+    validator = {"$jsonSchema": schema}
     try:
         await database.command(
             {
-                "collMod": "places",
+                "collMod": name,
                 "validator": validator,
                 "validationLevel": "moderate",
                 "validationAction": "warn",
@@ -135,7 +159,7 @@ async def _ensure_schema_validator(places) -> None:
     except OperationFailure:
         # collMod fails if the collection doesn't exist yet (fresh database).
         await database.create_collection(
-            "places",
+            name,
             validator=validator,
             validationLevel="moderate",
             validationAction="warn",
@@ -285,3 +309,47 @@ async def find_nearby(
     async for doc in places.aggregate(pipeline):
         return doc
     return None
+
+
+async def get_user_by_google_sub(google_sub: str) -> tuple[str, User] | None:
+    """Returns (id, User) or None. The id is returned separately (not on
+    User itself) for the same reason PlaceResult doesn't carry Mongo's _id -
+    it's a Mongo-layer detail, not part of the domain model."""
+    users = get_users_collection()
+    doc = await users.find_one({"google_sub": google_sub})
+    if doc is None:
+        return None
+    return str(doc["_id"]), User(**doc)
+
+
+async def get_user_by_id(user_id: str) -> User | None:
+    try:
+        object_id = ObjectId(user_id)
+    except InvalidId:
+        return None
+    users = get_users_collection()
+    doc = await users.find_one({"_id": object_id})
+    return User(**doc) if doc else None
+
+
+async def create_user(google_sub: str, email: str, name: str, picture_url: str | None) -> tuple[str, User]:
+    """Called only on a first sign-in for this google_sub - an existing user
+    is looked up via get_user_by_google_sub instead, never re-inserted."""
+    user = User(
+        google_sub=google_sub,
+        email=email,
+        name=name,
+        picture_url=picture_url,
+        created_at=datetime.now(timezone.utc),
+    )
+    users = get_users_collection()
+    result = await users.insert_one(user.model_dump())
+    return str(result.inserted_id), user
+
+
+async def revoke_user_sessions(user_id: str) -> None:
+    """Bumps token_version, invalidating every refresh token issued before
+    this call (see User.token_version) - what "sign out" actually revokes
+    server-side, not just what the client discards."""
+    users = get_users_collection()
+    await users.update_one({"_id": ObjectId(user_id)}, {"$inc": {"token_version": 1}})

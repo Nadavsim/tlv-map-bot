@@ -72,3 +72,18 @@ export interface Coordinates {
   lat: number
   lon: number
 }
+
+export interface AuthUser {
+  name: string
+  email: string
+  picture_url: string | null
+}
+
+export interface AuthResponse {
+  access_token: string
+  user: AuthUser
+}
+
+export interface AuthConfigResponse {
+  google_client_id: string
+}
