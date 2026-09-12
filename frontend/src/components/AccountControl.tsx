@@ -1,3 +1,4 @@
+import { CircleUserRound } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { GoogleSignInButton } from './GoogleSignInButton'
 import { t } from '../i18n'
@@ -12,6 +13,12 @@ interface AccountControlProps {
   onSignOut: () => void
 }
 
+// A menu, not a bare button - deliberately, so this same panel is where
+// favorites/saved-spots get a home once those exist, instead of each new
+// account-scoped feature fighting for its own header slot (see the header
+// space concerns noted throughout this project). The trigger itself is
+// always the same 44px icon-button regardless of auth state; only the
+// panel's contents change.
 export function AccountControl({ user, googleClientId, theme, lang, onCredential, onSignOut }: AccountControlProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -27,13 +34,6 @@ export function AccountControl({ user, googleClientId, theme, lang, onCredential
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isMenuOpen])
 
-  if (!user) {
-    // Config hasn't loaded yet (a single fetch on app start) - render
-    // nothing rather than a half-configured button for that brief window.
-    if (!googleClientId) return null
-    return <GoogleSignInButton clientId={googleClientId} theme={theme} lang={lang} onCredential={onCredential} />
-  }
-
   return (
     <div className="account-control" ref={containerRef}>
       <button
@@ -43,26 +43,42 @@ export function AccountControl({ user, googleClientId, theme, lang, onCredential
         aria-label={t(lang, 'accountMenuLabel')}
         aria-expanded={isMenuOpen}
       >
-        {user.picture_url ? (
+        {user?.picture_url ? (
           <img src={user.picture_url} alt="" referrerPolicy="no-referrer" />
-        ) : (
+        ) : user ? (
           <span className="account-avatar-fallback">{user.name.charAt(0).toUpperCase()}</span>
+        ) : (
+          <CircleUserRound size={22} aria-hidden="true" />
         )}
       </button>
       {isMenuOpen && (
         <div className="account-menu" role="menu">
-          <p className="account-menu-name">
-            {t(lang, 'signedInAsPrefix')} {user.name}
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setIsMenuOpen(false)
-              onSignOut()
-            }}
-          >
-            {t(lang, 'signOut')}
-          </button>
+          <p className="account-menu-heading">{t(lang, 'accountHeading')}</p>
+          {user ? (
+            <>
+              <p className="account-menu-name">
+                {t(lang, 'signedInAsPrefix')} {user.name}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false)
+                  onSignOut()
+                }}
+              >
+                {t(lang, 'signOut')}
+              </button>
+            </>
+          ) : (
+            // Mounted only while the menu is open - a closed-then-reopened
+            // panel always mounts this fresh, picking up whatever language/
+            // theme is current at that moment rather than having to react
+            // to a change while already mounted (see GoogleSignInButton -
+            // reacting live to a language change means tearing down and
+            // reloading Google's own script, which turned out to be a real
+            // source of flaky rendering under rapid toggling).
+            googleClientId && <GoogleSignInButton clientId={googleClientId} theme={theme} lang={lang} onCredential={onCredential} />
+          )}
         </div>
       )}
     </div>

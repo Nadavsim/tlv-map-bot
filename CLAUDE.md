@@ -1294,30 +1294,53 @@ full product later.
      (no npm package - GIS isn't officially published as one anyway, and
      this matches the project's existing habit of hand-rolling rather than
      adding a dependency, same reasoning as the hand-rolled i18n) and
-     renders Google's own button - deliberately icon-only (`type: 'icon'`,
-     `shape: 'circle'`), not the full "Sign in with Google" text button
-     that was tried first and caused a real, live-reproduced horizontal
-     overflow in the header's icon row at 375px once added alongside the
-     existing 4 controls; the icon variant fits the same 44px footprint as
-     every other header control, and also matches the originally-agreed
-     design call ("a small avatar/name replacing an existing icon slot,"
-     not a wide new CTA). `AccountControl.tsx` swaps between that button
-     (signed out) and a circular avatar + click-to-open sign-out popover
-     (signed in), reusing the account's Google profile picture or a
-     colored initial as a fallback.
+     renders Google's own full branded button (`text: 'signin_with'`).
+     A first version tried an icon-only variant directly in the header row
+     to avoid widening it - abandoned once the design below made that
+     unnecessary.
+   - **`AccountControl.tsx` is a menu, not a bare button** (2026-09-12,
+     the user's own suggestion) - a single 44px account icon in the header
+     (a generic person-circle icon signed out, the real avatar/a colored
+     initial fallback signed in) opens a panel; the panel's *contents*
+     change with auth state (the Google button signed out, name + sign-out
+     signed in), not the trigger itself. Deliberately designed this way so
+     favorites/saved-spots get a home in this same panel once they exist,
+     instead of each new account-scoped feature fighting for its own
+     header slot - directly answers this file's own earlier note under
+     "Visual upgrades" about the header needing deliberate planning before
+     auth and manual-location both wanted presence in it. This replaced an
+     earlier version that rendered the Google button (icon-only,
+     `type: 'icon'`/`shape: 'circle'`) directly in the header row - abandoned
+     for two reasons: it didn't match the "small avatar in a slot" design
+     actually agreed on, and it caused a real, live-reproduced horizontal
+     overflow at 375px once sitting alongside the existing 4 header
+     controls.
    - **The rendered button's own language didn't automatically follow
      this app's language toggle** - a real bug caught live, not assumed:
      Google's button text is baked into the specific script Google serves,
      keyed by an `hl` query param on the script URL itself; without it,
      Google falls back to the browser/OS locale (or an existing Google
      session's own language), independent of this app's own `lang` state.
-     Fixed by appending `?hl=<lang>` to the script src and reloading the
+     Fixed by appending `?hl=<lang>` to the script src, reloading the
      script (removing and re-adding the tag - changing `hl` on an
-     already-loaded script has no effect) whenever the app's language
-     changes, not just once at initial load. Verified live: switching the
-     app's language toggle now correctly and immediately changes the
-     Google button's own accessible name/tooltip language too, in both
-     directions.
+     already-loaded script has no effect) when the language differs from
+     what's currently loaded.
+   - **Reloading that script while the button stayed mounted turned out to
+     be genuinely flaky under rapid toggling** - live-reproduced, not
+     theoretical: toggling the language twice in quick succession (while
+     the button was permanently mounted in the header, in the earlier
+     design) left Google's rendered iframe missing its own background
+     styling on the second reload. The menu redesign above fixes this as
+     a side effect, not just a coincidence: `GoogleSignInButton` now only
+     ever mounts while the panel is open (conditional rendering in
+     `AccountControl.tsx` unmounts it entirely on close), so a language
+     change made while the panel is closed is picked up fresh the next
+     time it opens, rather than the component having to tear down and
+     reload Google's script while already alive and rendered. Reacting to
+     a *theme* change while the panel stays open is still handled the
+     original way (a plain re-render via `renderButton`, no script reload
+     needed - only `hl` requires a fresh script), since that's cheap and
+     never showed the same flakiness.
    - App.tsx holds the session directly (no Context API, no extra
      abstraction - matches how the rest of this app's state already
      works): an access token in a ref (deliberately not state, since
@@ -1331,10 +1354,14 @@ full product later.
      401 that resolves to "signed out," not a thrown error anywhere in the
      UI.
    - Verified live (real browser, all 4 light/dark x en/he combinations,
-     and 375px mobile width): the Google button renders, is clickable
-     with zero console/CSP errors, correctly re-localizes and re-themes on
-     toggle, and the header no longer overflows horizontally at any tested
-     width. All 157 backend tests pass (28 new: JWT issue/verify/rotation
+     and 375px mobile width, both on this session's local dev server and
+     the real deployed staging environment): the account menu opens and
+     closes (including click-outside-to-close), the Google button inside
+     it renders correctly in the language/theme active at open time with
+     zero console/CSP errors, and there's no horizontal overflow anywhere
+     tested - including the panel itself at 375px, positioned against the
+     header's edge the same way the header's own controls already are.
+     All 157 backend tests pass (28 new: JWT issue/verify/rotation
      including the access-vs-refresh type-confusion cases, the `users`
      collection CRUD functions, and all 5 new endpoints, all mocked -
      zero real Google/Atlas calls in the suite, matching the existing

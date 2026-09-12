@@ -119,17 +119,15 @@ header h1 svg {
 }
 
 .google-signin-button {
-  /* Google's own rendered icon button (its content, size, and colors are
+  /* Google's own rendered button (its content, size, and colors are
      controlled by the GoogleSignInButton component's renderButton() call,
      not this stylesheet - Google's brand guidelines don't allow arbitrary
-     re-skinning of it). Constrained to the same 44px footprint as every
-     other header control so it doesn't widen the row. */
+     re-skinning of it). Only ever rendered inside the account menu panel
+     (see AccountControl.tsx), which has real room - no width constraint
+     needed here unlike the header's own icon row. */
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  overflow: hidden;
 }
 
 .account-control {
@@ -177,19 +175,28 @@ header h1 svg {
   z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  min-width: 160px;
-  padding: 0.75rem;
+  align-items: stretch;
+  gap: 0.6rem;
+  min-width: 240px;
+  padding: 0.9rem;
   border-radius: 12px;
   background: var(--card-bg);
   border: 1.5px solid var(--border);
   box-shadow: var(--shadow-md);
 }
 
+.account-menu-heading {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
 .account-menu-name {
   margin: 0;
-  font-size: 0.8rem;
-  color: var(--muted);
+  font-size: 0.85rem;
   overflow-wrap: break-word;
 }
 

@@ -13,7 +13,7 @@ declare global {
           initialize(config: { client_id: string; callback: (response: { credential: string }) => void }): void
           renderButton(
             parent: HTMLElement,
-            options: { theme: 'outline' | 'filled_black'; type: 'icon'; shape: 'circle'; size: 'medium' },
+            options: { theme: 'outline' | 'filled_black'; shape: 'pill'; size: 'large'; text: 'signin_with'; width: number },
           ): void
         }
       }
@@ -41,15 +41,17 @@ export function GoogleSignInButton({ clientId, theme, lang, onCredential }: Goog
       // listener.
       window.google.accounts.id.initialize({ client_id: clientId, callback: (response) => onCredential(response.credential) })
       containerRef.current.innerHTML = ''
-      // Icon-only (not the full "Sign in with Google" text button) - this
-      // sits in the header's icon row alongside 44px touch targets, not as
-      // a wide standalone CTA; the full-text variant overflowed that row on
-      // narrow phones once added to the existing 4 controls.
+      // The full branded "Sign in with Google" button - safe to use here
+      // since this only ever renders inside the account menu panel, which
+      // has real room, unlike the header's own 44px icon row (an earlier
+      // version tried putting this same full button directly in the
+      // header and it overflowed at mobile widths).
       window.google.accounts.id.renderButton(containerRef.current, {
         theme: theme === 'dark' ? 'filled_black' : 'outline',
-        type: 'icon',
-        shape: 'circle',
-        size: 'medium',
+        shape: 'pill',
+        size: 'large',
+        text: 'signin_with',
+        width: 220,
       })
     }
 
