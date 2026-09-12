@@ -781,12 +781,32 @@ In order:
     actually lives or works, which this app has no business collecting.
     Generic saved entries (a nickname the user picks, or just a plain
     recency-ordered list) only.
-13. ~~Price tag per place~~ - app-side implementation done 2026-09-11; the
-    real map data still needs to be hand-tagged (see below) before it
-    shows up live. Decided against the Google Places API option
-    considered below - went with the hand-tagged approach instead, priced
-    via a one-time Google Maps lookup pass rather than the paid API (see
-    "Sourcing the actual price data" below for how that lookup was done).
+13. ~~Price tag per place~~ - done end-to-end 2026-09-12: app-side
+    implementation shipped 2026-09-11, and the user finished hand-tagging
+    all the real pins in My Maps the next day. A manually-triggered run of
+    `.github/workflows/sync_places.yml` (`workflow_dispatch`, rather than
+    waiting for the 4am UTC cron) pulled the tags in immediately - synced
+    165 places (one fewer than the 166 priced/tagged, since a place was
+    separately removed from the map in between - unrelated to pricing).
+    Verified live on real production data: a real "coffee" query showed
+    real `$` chips (Mae Cafe, Origem Fresh Coffee, Chacho's), a real
+    "steak" query showed real `$$$` chips (מיטבר, M25, Triger) - correct
+    variety, not just a single hardcoded tier. Decided against the Google
+    Places API option considered below - went with the hand-tagged
+    approach instead, priced via a one-time Google Maps lookup pass
+    rather than the paid API (see "Sourcing the actual price data" below
+    for how that lookup was done). Also explicitly considered and
+    declined: backfilling `price_tier` directly into MongoDB instead of
+    tagging My Maps - would have needed `price_tier` switched from
+    `dietary_tags`' always-overwrite-on-sync behavior to
+    `instagram_url`'s preserve-on-update behavior first (otherwise the
+    very next automatic sync would silently wipe every DB-only value back
+    to empty, since the pins would still have no backing tag) - and even
+    then, price would become the one field permanently disconnected from
+    the map, editable only via a direct DB change rather than a normal
+    pin edit like everything else in this app. The user chose to keep
+    price consistent with how dietary tags/categories/Instagram links all
+    already work instead.
     - **Hand-tagged, like dietary tags** - reuses the exact free-form
       hashtag pattern already working for `#kosher`/`#vegan` in a pin's
       My Maps description (see "Kosher/dietary tags and filtering"
@@ -842,11 +862,9 @@ In order:
       to the wrong thing even for an exact name match, which is a genuine
       argument for the real place_id-based Places API over scraping if
       this data ever needs a bulk refresh again. The final 166-place
-      dataset (all real, this session, not yet applied to My Maps) lives
-      at `price_results.json` in this session's scratchpad - not
-      committed to the repo (scratch data, not app code) - still needs to
-      be hand-typed as `#$`/`#$$`/`#$$$` into each pin's My Maps
-      description before it actually shows up live.
+      dataset lives at `price_results.json` in that session's scratchpad -
+      not committed to the repo (scratch data, not app code) - and was
+      fully hand-typed into My Maps by the user the next day (see above).
 
 Explicitly considered and left out for now (2026-09-11): a persistent
 dietary/category filter UI (vs. today's conversational, per-query
