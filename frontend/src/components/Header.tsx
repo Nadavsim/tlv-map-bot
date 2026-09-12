@@ -1,5 +1,6 @@
-import { Car, CircleHelp, Footprints, Languages, LocateFixed, MapPin, Moon, RotateCcw, Sun } from 'lucide-react'
-import { AccountControl } from './AccountControl'
+import { Car, Footprints, LocateFixed, MapPin, Menu } from 'lucide-react'
+import { useState } from 'react'
+import { SideMenu } from './SideMenu'
 import { t } from '../i18n'
 import type { AuthUser, Lang, LocationMode, Theme, TransportMode } from '../types'
 
@@ -42,6 +43,8 @@ export function Header({
   onGoogleCredential,
   onSignOut,
 }: HeaderProps) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+
   return (
     <header>
       <div className="header-top">
@@ -53,44 +56,27 @@ export function Header({
           <button
             type="button"
             className="icon-button"
-            onClick={() => onLangChange(lang === 'en' ? 'he' : 'en')}
-            aria-label={t(lang, 'languageToggle')}
+            onClick={() => setIsMenuOpen(true)}
+            aria-label={t(lang, 'menuLabel')}
           >
-            <Languages size={18} aria-hidden="true" />
-            <span>{t(lang, 'languageToggle')}</span>
+            <Menu size={20} aria-hidden="true" />
           </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => onThemeChange(theme === 'light' ? 'dark' : 'light')}
-            aria-label={theme === 'light' ? t(lang, 'themeToggleToDark') : t(lang, 'themeToggleToLight')}
-            title={theme === 'light' ? t(lang, 'themeToggleToDark') : t(lang, 'themeToggleToLight')}
-          >
-            {theme === 'light' ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}
-          </button>
-          <button type="button" className="icon-button" onClick={onNewConversation} aria-label={t(lang, 'newConversation')}>
-            <RotateCcw size={18} aria-hidden="true" />
-            <span>{t(lang, 'newConversation')}</span>
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={onHelp}
-            aria-label={t(lang, 'help')}
-            title={t(lang, 'help')}
-          >
-            <CircleHelp size={20} aria-hidden="true" />
-          </button>
-          <AccountControl
-            user={authUser}
-            googleClientId={googleClientId}
-            theme={theme}
-            lang={lang}
-            onCredential={onGoogleCredential}
-            onSignOut={onSignOut}
-          />
         </div>
       </div>
+      <SideMenu
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        lang={lang}
+        onLangChange={onLangChange}
+        theme={theme}
+        onThemeChange={onThemeChange}
+        onHelp={onHelp}
+        onNewConversation={onNewConversation}
+        authUser={authUser}
+        googleClientId={googleClientId}
+        onGoogleCredential={onGoogleCredential}
+        onSignOut={onSignOut}
+      />
       <div className="location-status-row">
         <p className="location-status">{locationStatus}</p>
         {canChangeManualLocation && (

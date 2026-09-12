@@ -1341,6 +1341,50 @@ full product later.
      original way (a plain re-render via `renderButton`, no script reload
      needed - only `hl` requires a fresh script), since that's cheap and
      never showed the same flakiness.
+   - **Second real-device report (2026-09-12): the account icon itself
+     needed horizontal scrolling to reach in English on mobile** - the
+     header's icon row (language, theme, new conversation, help, account -
+     5 controls by this point) had gone from "fits" to "doesn't" as
+     controls accumulated, exactly the risk this file's own "Visual
+     upgrades" section had flagged as inevitable before auth and manual-
+     location both wanted header presence. Fixed with a proper redesign
+     rather than another squeeze: the entire icon row is now a single
+     hamburger button (`Menu` icon) that opens a full-height slide-out
+     drawer (`SideMenu.tsx`, new) containing all 4 of those controls as
+     full-width labeled rows, with the account section (renamed
+     `AccountControl.tsx` -> `AccountSection.tsx`, now pure content with
+     no trigger/popover of its own) pinned to the drawer's bottom via
+     `margin-top: auto` - the user's own suggestion, and explicitly framed
+     as the future home for favorites/saved-spots too, not just account.
+     The header now holds exactly two things regardless of auth or
+     language state - the title and one hamburger - so this class of
+     overflow bug structurally can't recur as more controls get added
+     later; they go in the drawer, not the header.
+     Drawer mechanics: a fixed-position panel anchored via
+     `inset-inline-end: 0` (RTL-safe positioning, flips automatically),
+     animated with `transform: translateX(100%|0)` - `transform` itself
+     does NOT respect logical/RTL directions the way `inset-inline-end`
+     already does, so closed-state translateX is flipped explicitly under
+     `[dir='rtl']` rather than assumed symmetric. A backdrop dims and
+     click-closes the page behind it; `inert` is applied to the whole
+     drawer while closed (keyboard/screen-reader focus can't reach hidden
+     content); Escape closes it too. Selecting any item closes the drawer
+     afterward (`selectAndClose`), matching how the old popover closed
+     itself after sign-out.
+     Verified via direct CSS specificity/computed-style inspection
+     (`element.matches()`, and forcing `transition: none` to read the
+     final resolved `transform` instantly) rather than trusting visual
+     screenshots alone - this session's Browser pane was hidden/
+     backgrounded for part of this verification, which throttles CSS
+     transitions and `requestAnimationFrame` entirely (confirmed: the
+     computed transform was flat-out wrong mid-"transition" until forcing
+     it, then immediately correct) - a real browser tab a real person has
+     open and focused doesn't have this problem, but it's worth recording
+     since it looked exactly like a real animation bug at first before the
+     `transition: none` test isolated it as a hidden-tab artifact instead.
+     Confirmed no horizontal overflow at 375px in either language (the
+     actual reported bug) - the header's own two-element row can no
+     longer overflow no matter how much the drawer's own contents grow.
    - App.tsx holds the session directly (no Context API, no extra
      abstraction - matches how the rest of this app's state already
      works): an access token in a ref (deliberately not state, since

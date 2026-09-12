@@ -122,50 +122,145 @@ header h1 svg {
   /* Google's own rendered button (its content, size, and colors are
      controlled by the GoogleSignInButton component's renderButton() call,
      not this stylesheet - Google's brand guidelines don't allow arbitrary
-     re-skinning of it). Only ever rendered inside the account menu panel
-     (see AccountControl.tsx), which has real room - no width constraint
-     needed here unlike the header's own icon row. */
+     re-skinning of it). Only ever rendered inside the side menu's account
+     section, which has real room - no width constraint needed here unlike
+     the header's own icon row. */
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.account-control {
-  position: relative;
+/* Dims and click-closes the page behind the drawer. Kept in the DOM (not
+   conditionally rendered) so the opacity transition has something to
+   animate; pointer-events is what actually makes it inert while closed. */
+.side-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
 }
 
-.account-avatar-button {
+.side-menu-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.side-menu {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  inset-inline-end: 0;
+  z-index: 101;
+  width: min(300px, 85vw);
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  background: var(--bg);
+  box-shadow: var(--shadow-md);
+  /* Slides fully off its own edge when closed - the sign flips under RTL
+     below since transform doesn't respect logical directions the way
+     inset-inline-end (the positioning above) already does. */
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+}
+
+[dir='rtl'] .side-menu {
+  transform: translateX(-100%);
+}
+
+.side-menu.open {
+  transform: translateX(0);
+}
+
+.side-menu-top {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.side-menu-close {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 44px;
   height: 44px;
-  padding: 0;
   border: none;
   border-radius: 999px;
   background: transparent;
-  /* Without an explicit color, an unstyled <button> falls back to the
-     browser's native button text color - on at least one real
-     environment that resolved to white regardless of this app's own
-     light/dark theme, making the signed-out icon nearly invisible against
-     the light palette's cream background. Matches .icon-button's own
-     explicit color for the identical reason. */
   color: var(--muted);
   cursor: pointer;
 }
 
-.account-avatar-button:hover {
+.side-menu-close:hover {
   color: var(--fg);
 }
 
-.account-avatar-button img,
+.side-menu-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0.5rem;
+}
+
+.side-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  padding: 0.85rem 0.6rem;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: start;
+  cursor: pointer;
+}
+
+.side-menu-item:hover {
+  background: var(--chip-bg);
+}
+
+.account-section {
+  /* Pinned to the bottom of the drawer - the whole reason for this
+     redesign was giving account-scoped features (this, and eventually
+     favorites/saved spots) a permanent, spacious home instead of
+     fighting the header's icon row for space. */
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1.5px solid var(--border);
+}
+
+.account-section-heading {
+  margin: 0 0 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.account-section-signed-in {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.account-avatar-image,
 .account-avatar-fallback {
-  width: 32px;
-  height: 32px;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
   border-radius: 999px;
 }
 
-.account-avatar-button img {
+.account-avatar-image {
   object-fit: cover;
 }
 
@@ -176,54 +271,36 @@ header h1 svg {
   background: var(--accent);
   color: var(--accent-fg);
   font-weight: 800;
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
-.account-menu {
-  position: absolute;
-  inset-inline-end: 0;
-  top: calc(100% + 0.3rem);
-  z-index: 10;
+.account-section-info {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 0.6rem;
-  min-width: 240px;
-  padding: 0.9rem;
-  border-radius: 12px;
-  background: var(--card-bg);
-  border: 1.5px solid var(--border);
-  box-shadow: var(--shadow-md);
+  gap: 0.3rem;
+  min-width: 0;
 }
 
-.account-menu-heading {
+.account-section-name {
   margin: 0;
-  font-size: 0.7rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-}
-
-.account-menu-name {
-  margin: 0;
-  font-size: 0.85rem;
+  font-weight: 700;
   overflow-wrap: break-word;
 }
 
-.account-menu button {
-  padding: 0.5rem 0.8rem;
+.account-section-info button {
+  align-self: flex-start;
+  padding: 0.35rem 0.7rem;
   border: none;
   border-radius: 999px;
   background: var(--chip-bg);
   color: var(--chip-fg);
   font-family: inherit;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   cursor: pointer;
 }
 
-.account-menu button:hover {
+.account-section-info button:hover {
   filter: brightness(1.05);
 }
 
