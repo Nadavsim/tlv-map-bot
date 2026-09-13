@@ -5,7 +5,7 @@ map of favorite Tel Aviv food places. Tell it what you're craving, share your
 location, and it finds the nearest match with a one-tap navigation link.
 
 This started as a WhatsApp bot (Twilio + Azure PostGIS Postgres); it's now a
-lightweight web app so it can run for well under $12/month.
+lightweight web app that runs for roughly $15/month.
 
 ## ✨ Features
 
@@ -19,6 +19,10 @@ lightweight web app so it can run for well under $12/month.
   from your public Google My Maps map - no manual export/import step. Edits to
   `instagram_url` (or anything else you add by hand in MongoDB Atlas) are
   preserved across syncs.
+* **Google Sign-In:** optional account system on top of a fully anonymous
+  base app - nobody needs to sign in to use the chatbot itself, but signing
+  in (via Google, no separate passwords) is the foundation for upcoming
+  account-scoped features like favorites and ratings.
 
 ## 🏗️ Architecture
 
@@ -33,6 +37,10 @@ lightweight web app so it can run for well under $12/month.
 * **NLU:** Anthropic API, `claude-haiku-4-5` - one small tool-call per chat
   message to match free text to a known category. At personal-project volume
   this runs about $1-2/month.
+* **Auth:** Google Identity Services (ID-token flow) verified server-side,
+  plus this app's own short-lived JWT access tokens (in-memory only) and
+  longer-lived refresh tokens (httpOnly cookie, scoped to `/api/auth`). No
+  self-managed passwords - see `CLAUDE.md` for the full design writeup.
 * **Hosting:** Azure App Service, split into a production and a staging
   environment (see `CLAUDE.md` for the full story and setup gotchas).
   Production runs on a dedicated Basic (B1) plan (~$14.45/month - the
@@ -80,7 +88,16 @@ MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=t
 MONGODB_DB_NAME=tlvbot
 MYMAPS_ID=your_mymaps_id_here
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
+GOOGLE_CLIENT_ID=your_google_oauth_client_id_here
+JWT_SECRET=a_long_random_string_unique_per_environment
 ```
+
+`GOOGLE_CLIENT_ID` comes from a Google Cloud OAuth Client ID (Identity
+Services, ID-token flow - see `CLAUDE.md` for setup). It isn't secret (it
+ends up in the frontend's own public code either way), but `JWT_SECRET` is -
+generate a long random value and use a **different** one for local dev,
+staging, and production, so signing out of one environment can never affect
+another.
 
 ### 5. Install dependencies
 
@@ -148,7 +165,7 @@ build steps needed:
   database (`MONGODB_DB_NAME` set differently there - see `CLAUDE.md`).
 
 For either App Service, in its Configuration (or "Environment variables" in
-newer Portal versions) -> Application settings, set the same four env vars
+newer Portal versions) -> Application settings, set the same env vars
 as above, **plus**:
 
 ```
@@ -181,7 +198,9 @@ backend/                                FastAPI app package.
   services/                               One module per external
     llm.py                                  integration: Claude NLU,
     routing.py                              OSRM ETAs, Google Maps link
-    location.py                             resolution
+    location.py                             resolution, and Google
+    auth.py                                 Sign-In verification + this
+                                             app's own JWT issuing
 scripts/                                Maintenance CLI scripts, run as
   sync_places.py                          python -m scripts.sync_places
   seed_instagram_from_csv.py              python -m scripts.seed_instagram_from_csv

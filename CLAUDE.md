@@ -118,13 +118,11 @@ In order:
    full design writeup. A natural follow-on now that this exists:
    saved/frequent addresses (see "Scoped, not yet built" below).
 6. Implement auth and the user system - **in progress**: auth core
-   (Google Sign-In + JWT session layer) built and tested 2026-09-12, see
-   "Bigger builds - user system" below for the full writeup and what's
-   still outstanding (real end-to-end sign-in verification, staging/
-   production secrets). Favorites, ratings, user-suggested spots, and map
-   uploads remain sequenced after it, not started. Built/tested against
-   the staging environment from step 4, not production, per this item's
-   own original note below.
+   (Google Sign-In + JWT session layer, plus the slide-out menu drawer
+   that houses it) built, tested, verified live, and deployed to
+   production 2026-09-13, see "Bigger builds - user system" below for the
+   full writeup. Favorites, ratings, user-suggested spots, and map uploads
+   remain sequenced after it, not started.
 7. Add the map view visual feature (see "Visual upgrades" below).
 
 ## To-do list
@@ -1410,10 +1408,9 @@ full product later.
      collection CRUD functions, and all 5 new endpoints, all mocked -
      zero real Google/Atlas calls in the suite, matching the existing
      "mint a JWT directly for a test user" plan).
-   - **`GOOGLE_CLIENT_ID`/`JWT_SECRET` added to staging's real Azure App
-     Settings** (a distinct, randomly-generated secret from local dev's,
-     not reused across environments) - production's still needs the same
-     treatment whenever auth is ready to go there. **Real end-to-end
+   - **`GOOGLE_CLIENT_ID`/`JWT_SECRET` added to both staging's and
+     production's real Azure App Settings** (a distinct, randomly-generated
+     `JWT_SECRET` per environment, never reused). **Real end-to-end
      sign-in verified by the user on the real deployed staging
      environment** with an actual Google account - confirmed working.
    - **The signed-out account icon was nearly invisible in light mode** -
@@ -1428,6 +1425,13 @@ full product later.
      by explicitly setting `color: var(--muted)` (matching `--muted`'s
      already-verified WCAG AA contrast from the earlier Impeccable
      hardening pass), plus a `:hover` state matching `.icon-button`'s.
+   - **Verified live on the real deployed staging environment** (real
+     phone, both languages) after the slide-out drawer redesign above -
+     no horizontal overflow, hamburger opens/closes the drawer correctly,
+     account section pinned at the bottom as designed, RTL and both
+     themes render correctly. Pushed to `main` and deployed to production
+     2026-09-13 - auth core (item 1's whole scope, including this drawer
+     redesign) is now live for real users, not just staging.
 2. Favorites (save spots from the list)
 3. Ratings
 4. User-suggested new places, with a moderation queue (never auto-publish
