@@ -1,5 +1,6 @@
 import re
-import xml.etree.ElementTree as ET
+
+import defusedxml.ElementTree as ET
 
 # My Maps' public KML export doesn't include a <description> per pin by default,
 # but if the user ever adds one (e.g. pastes an Instagram link into a pin's
@@ -23,14 +24,32 @@ _TAG_RE = re.compile(r"#(\w+)", re.UNICODE)
 # than silently truncated to "$$$".
 _PRICE_RE = re.compile(r"#(\${1,3})(?!\$)")
 
+# Closing hour, typed into the description as e.g. "#until23" (closes at
+# 23:00, 24h clock) - the one hour-related tag with enough structure to
+# actually drive "likely closed right now" deprioritization (see
+# db.deprioritize_unlikely_matches). Vague descriptive tags like
+# "#breakfast" or "#latenight" don't carry a specific hour, so they're left
+# to fall into the existing generic dietary_tags/hashtag bucket instead -
+# still shown as a chip, just without deprioritization logic behind them.
+# "#until00" (or any hour >23) is rejected outright rather than silently
+# clamped - a real closing hour is always 1-23 on this app's 24h clock.
+_CLOSES_AT_RE = re.compile(r"#until([01]?\d|2[0-3])\b")
+
+# Outdoor-only seating, typed as "#outdoor" - the signal used to
+# deprioritize a match during rain (see services/weather.py). No "#indoor"
+# counterpart needed: a place with no tag is treated as indoor/unknown,
+# which is the safe default (never deprioritized for weather).
+_OUTDOOR_RE = re.compile(r"#outdoor\b", re.IGNORECASE)
+
 
 def parse_kml_text(kml_text: str) -> list[dict]:
     """Parse KML text (My Maps export) into a list of place dicts.
 
     Each dict has: name, category, latitude, longitude, instagram_url (may
     be None), dietary_tags (list[str], may be empty), price_tier (one of
-    "$"/"$$"/"$$$", may be None). 'category' comes from the enclosing
-    Folder name (My Maps layers).
+    "$"/"$$"/"$$$", may be None), closes_at_hour (0-23, may be None),
+    outdoor_seating (bool). 'category' comes from the enclosing Folder name
+    (My Maps layers).
     """
     root = ET.fromstring(kml_text)
     places_data = []
@@ -68,6 +87,8 @@ def parse_kml_text(kml_text: str) -> list[dict]:
             instagram_url = None
             dietary_tags: list[str] = []
             price_tier = None
+            closes_at_hour = None
+            outdoor_seating = False
             desc_node = placemark.find("kml:description", _NS)
             if desc_node is not None and desc_node.text:
                 match = _INSTAGRAM_RE.search(desc_node.text)
@@ -77,6 +98,10 @@ def parse_kml_text(kml_text: str) -> list[dict]:
                 price_match = _PRICE_RE.search(desc_node.text)
                 if price_match:
                     price_tier = price_match.group(1)
+                closes_match = _CLOSES_AT_RE.search(desc_node.text)
+                if closes_match:
+                    closes_at_hour = int(closes_match.group(1))
+                outdoor_seating = bool(_OUTDOOR_RE.search(desc_node.text))
 
             places_data.append(
                 {
@@ -87,6 +112,8 @@ def parse_kml_text(kml_text: str) -> list[dict]:
                     "instagram_url": instagram_url,
                     "dietary_tags": dietary_tags,
                     "price_tier": price_tier,
+                    "closes_at_hour": closes_at_hour,
+                    "outdoor_seating": outdoor_seating,
                 }
             )
 

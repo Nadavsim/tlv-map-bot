@@ -1,6 +1,12 @@
-import { Banknote, Camera, Navigation } from 'lucide-react'
+import { Banknote, Camera, Clock, Navigation, Umbrella } from 'lucide-react'
 import { t } from '../i18n'
 import type { Lang, Place } from '../types'
+
+// "23" -> "23:00" - the raw hour this app stores/sends, formatted the one
+// way a chip actually needs to show it.
+function formatClosesAt(hour: number): string {
+  return `${String(hour).padStart(2, '0')}:00`
+}
 
 export function PlaceCard({ place, lang }: { place: Place; lang: Lang }) {
   return (
@@ -33,6 +39,23 @@ export function PlaceCard({ place, lang }: { place: Place; lang: Lang }) {
             {tag}
           </span>
         ))}
+        {place.closes_at_hour !== null && (
+          <span
+            className="hours-chip"
+            title={t(lang, 'closesAtLabel')}
+            aria-label={`${t(lang, 'closesAtLabel')}: ${formatClosesAt(place.closes_at_hour)}`}
+            dir="ltr"
+          >
+            <Clock size={12} aria-hidden="true" />
+            {formatClosesAt(place.closes_at_hour)}
+          </span>
+        )}
+        {place.outdoor_seating && (
+          <span className="outdoor-chip" title={t(lang, 'outdoorSeatingLabel')}>
+            <Umbrella size={12} aria-hidden="true" />
+            {t(lang, 'outdoorSeatingLabel')}
+          </span>
+        )}
         <span className="distance-eta" dir="ltr">
           {place.eta ? `${place.distance} · ${place.eta}` : place.distance}
         </span>

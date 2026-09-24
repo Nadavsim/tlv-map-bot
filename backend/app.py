@@ -237,6 +237,8 @@ def format_place(place: PlaceResult, eta_seconds: float | None) -> dict:
         "instagram_url": place.instagram_url,
         "dietary_tags": place.dietary_tags,
         "price_tier": place.price_tier,
+        "closes_at_hour": place.closes_at_hour,
+        "outdoor_seating": place.outdoor_seating,
         "maps_url": maps_url,
     }
 
@@ -253,6 +255,19 @@ async def service_worker():
     # must cover the manifest's start_url ("/") for Chrome to consider the
     # app installable as a PWA.
     return FileResponse(BASE_DIR / "static" / "sw.js", media_type="application/javascript")
+
+
+@app.get("/health")
+async def health():
+    # Wired into Azure App Service's built-in Health Check feature (General
+    # settings -> Health check, point it at this path) so a hung or
+    # DB-disconnected instance gets auto-restarted instead of silently
+    # serving errors - this app has already failed silently once, with
+    # nobody alerted, during the prod/staging split. A non-200 here is a
+    # real signal, not a formality: it means the database is unreachable.
+    if not await db.ping_database():
+        raise HTTPException(status_code=503, detail="database unreachable")
+    return {"status": "ok"}
 
 
 @app.get("/robots.txt")

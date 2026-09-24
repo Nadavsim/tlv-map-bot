@@ -31,6 +31,8 @@ export interface Place {
   instagram_url: string | null
   dietary_tags: string[]
   price_tier: '$' | '$$' | '$$$' | null
+  closes_at_hour: number | null
+  outdoor_seating: boolean
   maps_url: string
 }
 

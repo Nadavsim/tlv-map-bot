@@ -1,6 +1,7 @@
 import os
 import time
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -9,6 +10,12 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import OperationFailure
 
 from .models import PlaceResult, User
+from .services import weather
+
+# This app is about Tel Aviv specifically, regardless of where the server
+# happens to run or what timezone a request's own clock is in - "closes at
+# 23" always means 23:00 Israel time.
+_TLV_TZ = ZoneInfo("Asia/Jerusalem")
 
 load_dotenv()
 
@@ -54,6 +61,8 @@ PLACES_JSON_SCHEMA = {
         "instagram_url": {"bsonType": ["string", "null"]},
         "dietary_tags": {"bsonType": "array", "items": {"bsonType": "string"}},
         "price_tier": {"enum": ["$", "$$", "$$$", None]},
+        "closes_at_hour": {"bsonType": ["int", "null"], "minimum": 0, "maximum": 23},
+        "outdoor_seating": {"bsonType": "bool"},
         "last_synced_at": {"bsonType": ["date", "null"]},
     },
 }
@@ -88,6 +97,18 @@ def _get_collection(name: str):
             raise RuntimeError("MONGODB_URI is not set")
         _client = AsyncIOMotorClient(MONGODB_URI)
     return _client[MONGODB_DB_NAME][name]
+
+
+async def ping_database() -> bool:
+    """Cheap liveness check for /health - a real ping, not just "did the
+    client construct", since a silent DB-connectivity failure is exactly the
+    kind of outage this app has already had with nobody alerted."""
+    try:
+        client = get_places_collection().database.client
+        await client.admin.command("ping")
+        return True
+    except Exception:
+        return False
 
 
 def get_places_collection():
@@ -262,6 +283,36 @@ def build_geo_pipeline(
     return pipeline
 
 
+def _is_likely_closed(place: PlaceResult, current_hour: int) -> bool:
+    if place.closes_at_hour is None:
+        return False
+    if place.closes_at_hour == 0:
+        # "#until00" means "open past midnight" - never a closed signal.
+        return False
+    return current_hour >= place.closes_at_hour
+
+
+def _is_likely_unpleasant(place: PlaceResult, is_raining: bool) -> bool:
+    return is_raining and place.outdoor_seating
+
+
+def deprioritize_unlikely_matches(
+    places: list[PlaceResult], current_hour: int, is_raining: bool
+) -> list[PlaceResult]:
+    """Pure, no I/O - reorders (never excludes) already-fetched candidates so
+    a place that's likely closed right now, or has outdoor-only seating
+    during rain, sorts after everything else. Distance order is preserved
+    within each bucket, so a query where neither signal applies to any
+    result comes back in exactly the same order $geoNear returned it in."""
+
+    def flagged(place: PlaceResult) -> bool:
+        return _is_likely_closed(place, current_hour) or _is_likely_unpleasant(place, is_raining)
+
+    fine = [p for p in places if not flagged(p)]
+    later = [p for p in places if flagged(p)]
+    return fine + later
+
+
 async def find_nearest(
     category: str | None,
     lat: float,
@@ -272,7 +323,10 @@ async def find_nearest(
 ) -> list[PlaceResult]:
     places = get_places_collection()
     pipeline = build_geo_pipeline(category, lat, lon, limit, offset, tag)
-    return [PlaceResult(**doc) async for doc in places.aggregate(pipeline)]
+    matches = [PlaceResult(**doc) async for doc in places.aggregate(pipeline)]
+    current_hour = datetime.now(_TLV_TZ).hour
+    is_raining = await weather.is_raining_now(lat, lon)
+    return deprioritize_unlikely_matches(matches, current_hour, is_raining)
 
 
 def build_proximity_pipeline(

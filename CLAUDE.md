@@ -118,21 +118,21 @@ location mode, and auth core (Google Sign-In + JWT sessions with the
 slide-out account menu) - built, verified live, and in production as of
 2026-09-13.
 
-**Now** (ready to start, no open decisions, mostly $0):
-- **Trust** - put "one trusted list, not reviews" into the product's own
-  copy: the chat greeting, the WhatsApp share text, help text, OG tags.
-  The single most agreed-upon idea across all three reviews - the story
-  is already true, it's just never told where a first-time user sees it.
-- **Trust** - hours + weather hashtags (`#until23`, `#breakfast`,
-  `#indoor`), reusing the exact `#kosher`/`#$$$` pattern already proven.
-  The cheapest way to stop recommending a place that's actually closed.
-- **Reliability** - a `/health` endpoint wired into Azure B1's built-in
-  health check, plus free uptime and error alerts. This app has already
-  failed silently once, mid-project, with nobody alerted.
-- **Reliability** - swap `parser.py`'s XML parsing to `defusedxml` now,
-  ahead of any user-uploaded map.
-- **Growth** - fire the PWA install prompt right after a shared link's
-  first good result, not on generic first load.
+**Now** - all 5 done 2026-09-24, see "Now items shipped" below for the
+full writeup:
+- ~~**Trust** - put "one trusted list, not reviews" into the product's own
+  copy~~ - done.
+- ~~**Trust** - hours + weather hashtags, reusing the exact
+  `#kosher`/`#$$$` pattern already proven~~ - done, with real
+  deprioritization logic behind it, not just a display chip.
+- ~~**Reliability** - a `/health` endpoint wired into Azure B1's built-in
+  health check~~ - endpoint done; wiring the Azure setting itself, plus
+  free uptime/error alerting, are manual follow-ups outside what code
+  changes can do (see the writeup).
+- ~~**Reliability** - swap `parser.py`'s XML parsing to `defusedxml`~~ -
+  done.
+- ~~**Growth** - fire the PWA install prompt right after a shared link's
+  first good result~~ - done.
 
 **Next** (queued - mostly build on something in Now, or need one small
 call):
@@ -829,6 +829,113 @@ serving. (The map view itself was added to the Later horizon above,
   JSON 404 unchanged; zero CSP violations or console errors; the footer
   link renders correctly (and mirrors position under RTL) in both
   languages; all 121 backend tests and the frontend typecheck still pass.
+- Now items shipped (2026-09-24) - all 5 items from the roadmap's Now
+  horizon, built and verified live in one pass:
+  - **Trust copy pass** - the "one trusted list, not reviews" pitch went
+    into the chat greeting, `helpCraving`, the WhatsApp share text, and
+    `index.html`'s meta description/OG/Twitter tags, in both languages.
+    Real discovery along the way: the WhatsApp share text had **no link
+    back to the app at all** before this - a friend got restaurant info
+    with Maps/Instagram links but no way to try the bot themselves, which
+    quietly broke the entire point of sharing being a growth mechanic.
+    Fixed by adding a closing line to `share.ts`'s `formatShareText`
+    (`shareFooterPitch` + `shareFooterCta` i18n keys) that includes
+    `${window.location.origin}/?src=share` - root-relative to whichever
+    environment is actually serving the share, same reasoning as the
+    OG image path. This directly unblocked the PWA item below, which
+    depends on that `src=share` marker existing.
+  - **PWA install-prompt trigger** - real discovery: no custom
+    install-prompt logic existed anywhere in the frontend before this: the
+    app relied entirely on the browser's own automatic "Add to Home
+    Screen" heuristic, uncontrolled by app code. Built from scratch in
+    `App.tsx`: a `beforeinstallprompt` listener captures and
+    `preventDefault()`s the browser's automatic prompt, storing the event
+    in a ref; a second effect watches `entries` and fires `.prompt()`
+    itself the moment two things are both true - the visitor arrived via
+    `?src=share` (read once on mount into a ref) and the chat log now has
+    a `places` entry with at least one result. Both gating flags are refs,
+    not state (matches this app's existing "only use state for what
+    actually needs a re-render" convention). Verified live that the logic
+    runs with zero console errors and correctly no-ops when no deferred
+    prompt exists (expected in this sandboxed browser, which never fires
+    a real `beforeinstallprompt`) - the real trigger still needs
+    confirming on an actual Chrome/Android device after deploy, the same
+    way the original PWA installability work was.
+  - **Hours + weather hashtags, with real deprioritization** - not just a
+    display chip: `#until23` (0-23, `parser._CLOSES_AT_RE`) and
+    `#outdoor` (`parser._OUTDOOR_RE`) are new `Place` fields
+    (`closes_at_hour`, `outdoor_seating`), added to `PLACES_JSON_SCHEMA`
+    and `sync_places.py` the same way `price_tier` was. `#until00` is
+    deliberately never treated as "closes at hour 0" - it means open past
+    midnight. Vague descriptive tags like `#breakfast`/`#latenight`
+    (mentioned as examples in the roadmap card) were deliberately *not*
+    given their own fields - they don't carry a specific hour, so they
+    still work as chips via the existing generic `dietary_tags` hashtag
+    bucket, just without deprioritization logic behind them; only the one
+    tag with enough structure to actually compare against the clock got
+    real code.
+    New `db.deprioritize_unlikely_matches()` (pure, no I/O) reorders -
+    never excludes - a query's already-fetched candidates so a likely-
+    closed-right-now or rained-out-patio place sorts after everything
+    else, preserving distance order within each bucket. Wired directly
+    into `find_nearest()` itself (not sprinkled across each of `/api/chat`'s
+    three call sites) so every caller gets it for free with no signature
+    change. "Right now" uses `Asia/Jerusalem` time explicitly
+    (`zoneinfo`), not server or request timezone - this app is about Tel
+    Aviv specifically regardless of where it runs.
+    New `services/weather.py` (free, keyless Open-Meteo `current.
+    precipitation`, same "free public service, no API key" pattern as
+    OSRM/Nominatim) - a citywide 10-minute TTL cache (Tel Aviv is small
+    enough that this is a reasonable proxy regardless of exact
+    coordinates) keeps this from hitting Open-Meteo on every single chat
+    message. A failed weather lookup defaults to "not raining" rather
+    than blocking or skewing a reply.
+    Frontend: `PlaceCard.tsx` gained an hours chip (`Clock` icon,
+    `HH:00`, `dir="ltr"` same reasoning as the existing price/distance
+    chips) and an outdoor-seating chip (`Umbrella` icon), sharing the
+    existing `.tag-chip`/`.price-chip` CSS rule rather than new styling.
+    Verified live via a temporary client-side fetch-response patch (no
+    real place has either tag yet - real hand-tagging in My Maps is the
+    user's next step, same rollout pattern as price tiers): both chips
+    render correctly in Hebrew/RTL/dark theme, no layout regression, no
+    horizontal overflow at 375px. All 26 new backend tests (parser
+    extraction including the `#until24` out-of-range rejection,
+    `deprioritize_unlikely_matches`'s reordering/never-drops/`until00`
+    cases, `services/weather.py`'s fetch/cache/TTL behavior, `find_nearest`'s
+    weather wiring) plus a fix to an existing `find_nearest` test that was
+    silently making a real, unmocked network call to Open-Meteo pass; 184
+    backend tests total.
+  - **`/health` endpoint** - `GET /health` calls a new `db.ping_database()`
+    (a real Mongo `admin.command("ping")`, not just "did the client
+    construct") and returns 503 if the database is unreachable. Caught a
+    real gap while adding its tests: `TestClient`'s startup triggers
+    `db.ensure_indexes()` for real unless mocked (this project's own
+    memory note about always mocking new `db.py` calls, applied against
+    itself) - the first version of these tests intermittently failed the
+    *rest* of the suite with `RuntimeError: Event loop is closed` from a
+    real Motor client lingering across tests; fixed by mocking
+    `ensure_indexes` in both new tests, matching every other `TestClient`
+    test in the file. Verified live against the real local dev database.
+  - **`defusedxml` swap** - `parser.py`'s `xml.etree.ElementTree` import
+    replaced with `defusedxml.ElementTree` (API-compatible drop-in); all
+    13 existing parser tests pass unchanged.
+  - Added a `frontend` entry to `.claude/launch.json` (Vite dev server on
+    5173, proxying `/api/*` to the `backend` entry's 8000) - needed for
+    fast frontend-only iteration verifying this batch of changes; wasn't
+    configured before.
+  - **Explicitly NOT done as part of this pass** - manual follow-ups
+    outside what code changes can accomplish, same category as the
+    pre-public-hardening pass's Azure spend cap note below:
+    - **Wiring Azure App Service's Health Check setting to `/health`**
+      (General settings, both environments) - no Azure CLI/Portal access
+      from this environment.
+    - **Signing up for free uptime/error-alert services** (e.g.
+      UptimeRobot, Sentry) and pointing them at `/health` - creating
+      accounts on the user's behalf is outside what this session does
+      regardless of tooling access.
+    - **Hand-tagging real places** with `#until<hour>`/`#outdoor` in My
+      Maps - the app-side implementation is ready and synced the same way
+      price tiers were, but no real place has either tag yet.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup

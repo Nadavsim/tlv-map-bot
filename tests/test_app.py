@@ -27,6 +27,23 @@ def _default_no_dietary_tags(monkeypatch):
     monkeypatch.setattr(db, "get_dietary_tags", AsyncMock(return_value=[]))
 
 
+def test_health_endpoint_returns_ok_when_database_is_reachable(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "ping_database", AsyncMock(return_value=True))
+    with TestClient(app_module.app) as client:
+        response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_health_endpoint_returns_503_when_database_is_unreachable(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "ping_database", AsyncMock(return_value=False))
+    with TestClient(app_module.app) as client:
+        response = client.get("/health")
+    assert response.status_code == 503
+
+
 def test_format_place_shows_meters_as_km_with_two_decimals_under_1km():
     formatted = format_place(SAMPLE_PLACE, eta_seconds=None)
     assert formatted["distance"] == "0.85 km"
@@ -64,6 +81,28 @@ def test_format_place_includes_price_tier_when_set():
 def test_format_place_price_tier_is_none_when_unset():
     formatted = format_place(SAMPLE_PLACE, eta_seconds=None)
     assert formatted["price_tier"] is None
+
+
+def test_format_place_includes_closes_at_hour_when_set():
+    place = SAMPLE_PLACE.model_copy(update={"closes_at_hour": 23})
+    formatted = format_place(place, eta_seconds=None)
+    assert formatted["closes_at_hour"] == 23
+
+
+def test_format_place_closes_at_hour_is_none_when_unset():
+    formatted = format_place(SAMPLE_PLACE, eta_seconds=None)
+    assert formatted["closes_at_hour"] is None
+
+
+def test_format_place_includes_outdoor_seating():
+    place = SAMPLE_PLACE.model_copy(update={"outdoor_seating": True})
+    formatted = format_place(place, eta_seconds=None)
+    assert formatted["outdoor_seating"] is True
+
+
+def test_format_place_outdoor_seating_defaults_to_false():
+    formatted = format_place(SAMPLE_PLACE, eta_seconds=None)
+    assert formatted["outdoor_seating"] is False
 
 
 def test_chat_endpoint_returns_clarifying_question_when_llm_finds_no_match(monkeypatch):

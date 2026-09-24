@@ -39,6 +39,15 @@ class Place(BaseModel):
     # "$"/"$$"/"$$$", typed into the pin description as "#$$" (see
     # parser._PRICE_RE) - a place has exactly one, unlike dietary_tags.
     price_tier: Literal["$", "$$", "$$$"] | None = None
+    # 0-23, typed into the description as "#until23" (see
+    # parser._CLOSES_AT_RE) - used to deprioritize (not exclude) a place
+    # that's likely closed right now. None means "unknown", never treated
+    # as closed.
+    closes_at_hour: int | None = None
+    # "#outdoor" in the description (see parser._OUTDOOR_RE) - used to
+    # deprioritize an outdoor-only place during rain. Defaults to False
+    # (indoor/unknown), the safe assumption for an untagged place.
+    outdoor_seating: bool = False
     last_synced_at: datetime | None = None
 
 

@@ -85,6 +85,8 @@ async def sync() -> None:
             instagram_url=place["instagram_url"],
             dietary_tags=place["dietary_tags"],
             price_tier=place["price_tier"],
+            closes_at_hour=place["closes_at_hour"],
+            outdoor_seating=place["outdoor_seating"],
             last_synced_at=sync_time,
         )
         location_doc = validated.location.model_dump()
@@ -108,6 +110,8 @@ async def sync() -> None:
                         "location": location_doc,
                         "dietary_tags": validated.dietary_tags,
                         "price_tier": validated.price_tier,
+                        "closes_at_hour": validated.closes_at_hour,
+                        "outdoor_seating": validated.outdoor_seating,
                         "last_synced_at": validated.last_synced_at,
                     }
                 },
@@ -121,6 +125,8 @@ async def sync() -> None:
                     "instagram_url": validated.instagram_url,
                     "dietary_tags": validated.dietary_tags,
                     "price_tier": validated.price_tier,
+                    "closes_at_hour": validated.closes_at_hour,
+                    "outdoor_seating": validated.outdoor_seating,
                     "last_synced_at": validated.last_synced_at,
                 }
             )

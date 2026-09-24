@@ -166,6 +166,80 @@ def test_price_tier_rejected_when_more_than_three_dollar_signs():
     assert places[0]["price_tier"] is None
 
 
+def test_closes_at_hour_extracted_from_until_hashtag():
+    for hour in (0, 9, 20, 23):
+        kml = f"""<?xml version="1.0" encoding="UTF-8"?>
+        <kml xmlns="http://www.opengis.net/kml/2.2">
+          <Document>
+            <Folder>
+              <name>Coffee</name>
+              <Placemark>
+                <name>Spot</name>
+                <description>#until{hour}</description>
+                <Point><coordinates>34.77,32.08,0</coordinates></Point>
+              </Placemark>
+            </Folder>
+          </Document>
+        </kml>
+        """
+        places = parse_kml_text(kml)
+        assert places[0]["closes_at_hour"] == hour
+
+
+def test_closes_at_hour_none_when_no_until_hashtag_in_description():
+    places = parse_kml_text(SAMPLE_KML)
+    by_name = {p["name"]: p for p in places}
+    assert by_name["Cafelix"]["closes_at_hour"] is None
+    assert by_name["Meaty Place"]["closes_at_hour"] is None
+
+
+def test_closes_at_hour_rejected_when_out_of_24_hour_range():
+    # #until24 isn't a valid 24h-clock hour - rejected outright, same
+    # "typo, not silently coerced" philosophy as price_tier's "$$$$".
+    kml = """<?xml version="1.0" encoding="UTF-8"?>
+    <kml xmlns="http://www.opengis.net/kml/2.2">
+      <Document>
+        <Folder>
+          <name>Coffee</name>
+          <Placemark>
+            <name>Spot</name>
+            <description>#until24</description>
+            <Point><coordinates>34.77,32.08,0</coordinates></Point>
+          </Placemark>
+        </Folder>
+      </Document>
+    </kml>
+    """
+    places = parse_kml_text(kml)
+    assert places[0]["closes_at_hour"] is None
+
+
+def test_outdoor_seating_true_when_outdoor_hashtag_present():
+    kml = """<?xml version="1.0" encoding="UTF-8"?>
+    <kml xmlns="http://www.opengis.net/kml/2.2">
+      <Document>
+        <Folder>
+          <name>Coffee</name>
+          <Placemark>
+            <name>Spot</name>
+            <description>Lovely patio. #outdoor</description>
+            <Point><coordinates>34.77,32.08,0</coordinates></Point>
+          </Placemark>
+        </Folder>
+      </Document>
+    </kml>
+    """
+    places = parse_kml_text(kml)
+    assert places[0]["outdoor_seating"] is True
+
+
+def test_outdoor_seating_false_by_default():
+    places = parse_kml_text(SAMPLE_KML)
+    by_name = {p["name"]: p for p in places}
+    assert by_name["Cafelix"]["outdoor_seating"] is False
+    assert by_name["Meaty Place"]["outdoor_seating"] is False
+
+
 def test_placemark_without_coordinates_is_skipped():
     kml = """<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2">

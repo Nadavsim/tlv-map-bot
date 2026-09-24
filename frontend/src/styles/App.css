@@ -500,7 +500,9 @@ header h1 svg {
 }
 
 .place-card .tag-chip,
-.place-card .price-chip {
+.place-card .price-chip,
+.place-card .hours-chip,
+.place-card .outdoor-chip {
   background: transparent;
   color: var(--muted);
   border: 1.5px solid var(--border);
@@ -510,7 +512,9 @@ header h1 svg {
   border-radius: 999px;
 }
 
-.place-card .price-chip {
+.place-card .price-chip,
+.place-card .hours-chip,
+.place-card .outdoor-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;

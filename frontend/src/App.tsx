@@ -16,6 +16,12 @@ import './styles/App.css'
 // bot expects this one command in.
 const HELP_COMMANDS = ['help', 'עזרה']
 
+// Not in the DOM lib's standard event types (it's a Chromium-only, still
+// non-standard event) - just enough of the shape this app actually uses.
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>
+}
+
 // How long an accidental "New Conversation" tap stays undoable.
 const UNDO_WINDOW_MS = 5000
 
@@ -68,6 +74,13 @@ export default function App() {
   // token value itself, only whether someone is signed in.
   const accessTokenRef = useRef<string | null>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The browser's own automatic install banner is suppressed (preventDefault
+  // below) in favor of firing it ourselves at a more deliberate moment - the
+  // warmest one available: right after a visitor who arrived via a shared
+  // link gets their first real result, not on generic first load.
+  const deferredInstallPromptRef = useRef<BeforeInstallPromptEvent | null>(null)
+  const cameFromShareRef = useRef(false)
+  const hasPromptedInstallRef = useRef(false)
 
   useEffect(() => {
     return () => {
@@ -75,6 +88,33 @@ export default function App() {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    cameFromShareRef.current = new URLSearchParams(window.location.search).get('src') === 'share'
+
+    function handleBeforeInstallPrompt(e: Event) {
+      e.preventDefault()
+      deferredInstallPromptRef.current = e as BeforeInstallPromptEvent
+    }
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+  }, [])
+
+  // Fires once, the moment both conditions are actually true - the browser
+  // may not have offered a deferred prompt yet when the first result lands
+  // (or ever, if it's already installed/ineligible), so this re-checks on
+  // every entries change rather than only right after sending a message.
+  useEffect(() => {
+    if (!cameFromShareRef.current || hasPromptedInstallRef.current) return
+    const deferred = deferredInstallPromptRef.current
+    if (!deferred) return
+    const hasGoodResult = entries.some((entry) => entry.kind === 'places' && entry.places.length > 0)
+    if (!hasGoodResult) return
+
+    hasPromptedInstallRef.current = true
+    deferredInstallPromptRef.current = null
+    deferred.prompt()
+  }, [entries])
 
   // The Client ID isn't secret, but it lives in the backend's env rather
   // than being duplicated into a frontend build-time config - one source of
