@@ -103,6 +103,13 @@ size or a release calendar - the real constraint is one maintainer's spare
 time, not money or a deadline, so cheap-and-certain beats big-and-
 speculative every time.
 
+**Standing guardrail (from the Marketing review):** deliberately hold off
+on any public or group-chat distribution push - no invite mechanics, no
+landing page optimized for strangers. At this stage the thing being
+protected is trust depth in a small, known cohort; trading that for
+breadth is a real cost, not a free win, and none of the items below
+change that call.
+
 **Already shipped** (context, not a to-do - full history in "Done since
 the priority ordering" below): custom domain explicitly declined, a full
 Impeccable design pass (score 31 -> 36/40), privacy policy/404/error
@@ -151,23 +158,24 @@ call):
   the primary one.
 - **Usability** - Favorites (save a spot for later), once the schema
   above is locked in.
+- **Trust** - a private "I'd go back" signal, visible only to the
+  curator - the user's explicit 2026-09-24 call on the open "Ratings"
+  question this review raised: not public star ratings (risks the
+  product's whole "curated, not crowdsourced" identity - a friend
+  circle's one-star drive-by would carry outsized weight against the
+  curator's own pick, with no volume to average it out), but a private
+  signal that feeds curation the same way the closed-place feedback
+  action does, without ever becoming a crowd signal shown to other users.
+  Not blocked on anything, so pulled forward into Next once the call was
+  made.
 
 **Later** (needs a real decision first, or is a bigger technical bet):
 - **Usability** - two-person / meet-in-the-middle search, reusing the
   existing manual-location geocoding almost entirely.
-- **Trust** - Ratings. **Recommendation: don't build as originally
-  scoped** (public star ratings visible to every signed-in user) - risks
-  the product's whole "curated, not crowdsourced" identity, since a
-  friend circle's one-star drive-by carries outsized weight against a
-  founder's own pick with no volume to average it out. A private "I'd go
-  back" signal, visible only to the curator, may be the better version -
-  keeps the information, drops the identity risk.
-- **Growth** - multi-curator map uploads. Hold the general self-serve
-  build; pilot with exactly one hand-picked second curator instead
-  (existing sync script, a second `MYMAPS_ID`, separate attribution in
-  the UI), with an explicit trigger: if their friend group is actually
-  using it within a month, invest in the general feature; if not, it
-  stays shelved.
+- **Usability** - map view: plot the set location and the recommended
+  spot(s) together, on top of the existing chat/list view. Leaflet + free
+  OpenStreetMap tiles, matching the OSRM/Nominatim pattern already in
+  place rather than a paid Maps API.
 - **Intelligence** - semantic search over place descriptions:
   precomputed embeddings, in-process cosine similarity. Deliberately
   **not** MongoDB Atlas Vector Search, which alone needs an M10+ cluster
@@ -179,12 +187,20 @@ call):
   `token_version`) - before Favorites makes staying signed in matter.
 - **Usability** - session-local "don't suggest what I already navigated
   to" - may end up folded into Favorites instead of built separately.
+- **Trust** - user-suggested new places, with a moderation queue (never
+  auto-publish user input to the shared list) - carried over unchanged
+  from the original roadmap; not part of the three-perspective review's
+  scope, so it wasn't independently re-examined the way Ratings and
+  multi-curator uploads were. Complements the informal "I added the place
+  you asked about" follow-up habit in Next with a real submission flow,
+  once that outgrows a few close friends.
 
-Also still open, carried over unchanged from "Visual upgrades" below: the
-map view, category icons on the result chips, and generating a formal
-`DESIGN.md`. None of these were in scope for the three-perspective review,
-so they're not yet placed on a horizon - revisit alongside whichever theme
-they end up serving.
+Also still open, carried over unchanged from "Visual upgrades" below:
+category icons on the result chips, and generating a formal `DESIGN.md`.
+Neither was in scope for the three-perspective review, so they're not yet
+placed on a horizon - revisit alongside whichever theme they end up
+serving. (The map view itself was added to the Later horizon above,
+2026-09-24, at the user's explicit request.)
 
 ## To-do list
 
@@ -817,6 +833,15 @@ they end up serving.
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
   tradeoff vs. the free OSRM walk/drive ETAs already in place)
+- Multi-curator map uploads — the review flagged this as the one roadmap
+  item with real growth-loop shape (each curator brings their own
+  network), and proposed a low-cost pilot (one hand-picked second
+  curator, one-month trigger) to test that hypothesis before building the
+  general self-serve feature. The user's explicit 2026-09-24 call: hold
+  entirely for now, not even the pilot - stay single-curator for the
+  foreseeable future. Revisit if that changes; the general build still
+  needs the KML parser hardened first (`defusedxml`, size caps, per-user
+  namespacing) either way.
 
 ### Scoped, not yet built (priority order)
 1. ~~Rate limiting on `/api/chat`~~ - done, see above.
@@ -928,10 +953,11 @@ filtering) - revisit once favorites/the user system make session-level
 state worth adding.
 
 ### Visual upgrades
-- Map view, category icons on the chips, and generating a formal
-  `DESIGN.md` are still open - not part of the three-perspective review's
-  scope, so tracked as a loose end under "## Roadmap" above rather than
-  placed on a horizon yet.
+- Category icons on the chips, and generating a formal `DESIGN.md`, are
+  still open - not part of the three-perspective review's scope, so
+  tracked as a loose end under "## Roadmap" above rather than placed on a
+  horizon yet. (Map view has its own entry under "## Roadmap" -> Later,
+  added 2026-09-24.)
 - "Plan ahead for the header before it's forced" (2026-09-11) - resolved
   2026-09-13: the slide-out menu drawer (see "Bigger builds - user
   system" below) replaced the whole header icon row with two fixed
@@ -1473,10 +1499,13 @@ full product later.
      2026-09-13 - auth core (item 1's whole scope, including this drawer
      redesign) is now live for real users, not just staging.
 2-5. Favorites, Ratings, user-suggested places, and map uploads -
-   superseded by the theme+horizon restructure; see "## Roadmap" above.
-   Ratings and map uploads specifically now carry an explicit
-   product-management recommendation (not "build as originally scoped")
-   rather than sitting in this flat sequence unexamined.
+   superseded by the theme+horizon restructure; see "## Roadmap" above
+   (Next: Favorites, and the private "I'd go back" signal that Ratings
+   resolved into; Later: user-suggested places; Deferred: multi-curator
+   map uploads, held entirely as of 2026-09-24). Ratings and multi-curator
+   uploads were flagged as open tensions by the review and resolved by
+   the user that same day, rather than sitting in this flat sequence
+   unexamined.
 
 Update (2026-09-10): the tradeoff flagged here already happened, sooner
 than expected - not from real friends-and-family traffic, but from this
