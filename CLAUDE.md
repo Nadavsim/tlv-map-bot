@@ -84,46 +84,107 @@ project with real (if modest) usage, not a toy or a tutorial exercise.
 
 See `README.md` for setup/run instructions and the full directory structure.
 
-## Roadmap (agreed 2026-09-08, milestone: base app ready for friends/family)
+## Roadmap (revised 2026-09-24 - organized by theme and horizon)
 
-In order:
-1. ~~Buy a custom domain~~ - explicitly declined for now (2026-09-10): once
-   the production Basic-tier upgrade was decided anyway (see below), a
-   clean URL was judged purely cosmetic and not worth the added cost/setup
-   on top of it. Revisit later if it starts to matter (e.g. once the app
-   is shared more widely, or for OAuth redirect URI aesthetics during auth
-   work) - nothing about the current setup blocks adding one later.
-2. ~~Install the "Impeccable" design skill for a second design pass~~ -
-   done: installed by the user (its own installer was blocked by this
-   sandbox's safety classifier, same as the earlier Taste Skill attempt),
-   then run through four full critique-and-fix rounds on 2026-09-10 (see
-   "Visual upgrades" below) - score went 31 -> 28 -> 34 -> 36/40, every
-   flagged issue either fixed or resolved as a documented tradeoff.
-3. ~~A few minor clarity/completeness features~~ - done 2026-09-11 (privacy
-   policy, custom 404, React error boundary, `robots.txt`) - see "Finished
-   the rest of Roadmap #3" and "Pre-public security hardening" below for
-   the full writeups.
-   - Considered and deliberately left out for now: formal terms of use,
-     and a self-serve data-export/delete-my-data flow - reasonable to skip
-     at friends-and-family scale; revisit once real auth/accounts (item 6
-     below) make this less informal.
-4. ~~Set up separate production and test/staging environments~~ - done
-   2026-09-10, see "Production/staging environment split" above (under
-   Done) for the full story, gotchas included. Ended up costing real money
-   (~$14.45/month for production's Basic tier) rather than staying free,
-   after the free-tier approach caused a real production outage during
-   setup - see that entry for why. Budget raised to $15/month accordingly.
-5. ~~Manual-location as a real mode, not just a permission fallback~~ -
-   done 2026-09-11, see "Done since the priority ordering" below for the
-   full design writeup. A natural follow-on now that this exists:
-   saved/frequent addresses (see "Scoped, not yet built" below).
-6. Implement auth and the user system - **in progress**: auth core
-   (Google Sign-In + JWT session layer, plus the slide-out menu drawer
-   that houses it) built, tested, verified live, and deployed to
-   production 2026-09-13, see "Bigger builds - user system" below for the
-   full writeup. Favorites, ratings, user-suggested spots, and map uploads
-   remain sequenced after it, not started.
-7. Add the map view visual feature (see "Visual upgrades" below).
+Restructured from a flat, numbered priority list into the shape a real
+product team uses - by **theme** (what problem it serves) and **horizon**
+(Now / Next / Later, not fake dates), following a three-perspective review
+(Customer, R&D, Marketing, run independently and blind to each other)
+reconciled by a product-management pass. Full source material: "The
+Trusted List" (the raw three-perspective review) and "Next Stops" (the
+same material as a Now/Next/Later board) - both are session artifacts, not
+committed to the repo, since they're planning documents rather than app
+code. The old items 1-7 below are superseded by this structure; everything
+in them that shipped is still true and is summarized in "Already shipped"
+below.
+
+**Prioritization principle:** ordered by leverage-per-hour, not feature
+size or a release calendar - the real constraint is one maintainer's spare
+time, not money or a deadline, so cheap-and-certain beats big-and-
+speculative every time.
+
+**Already shipped** (context, not a to-do - full history in "Done since
+the priority ordering" below): custom domain explicitly declined, a full
+Impeccable design pass (score 31 -> 36/40), privacy policy/404/error
+boundary/robots.txt, the production/staging environment split, manual-
+location mode, and auth core (Google Sign-In + JWT sessions with the
+slide-out account menu) - built, verified live, and in production as of
+2026-09-13.
+
+**Now** (ready to start, no open decisions, mostly $0):
+- **Trust** - put "one trusted list, not reviews" into the product's own
+  copy: the chat greeting, the WhatsApp share text, help text, OG tags.
+  The single most agreed-upon idea across all three reviews - the story
+  is already true, it's just never told where a first-time user sees it.
+- **Trust** - hours + weather hashtags (`#until23`, `#breakfast`,
+  `#indoor`), reusing the exact `#kosher`/`#$$$` pattern already proven.
+  The cheapest way to stop recommending a place that's actually closed.
+- **Reliability** - a `/health` endpoint wired into Azure B1's built-in
+  health check, plus free uptime and error alerts. This app has already
+  failed silently once, mid-project, with nobody alerted.
+- **Reliability** - swap `parser.py`'s XML parsing to `defusedxml` now,
+  ahead of any user-uploaded map.
+- **Growth** - fire the PWA install prompt right after a shared link's
+  first good result, not on generic first load.
+
+**Next** (queued - mostly build on something in Now, or need one small
+call):
+- **Usability** - let free text set price/occasion ("something cheap," "a
+  date spot") onto the `price_tier` field that already exists.
+- **Usability** - a one-time guided first message for a brand-new
+  session, reusing the Help flow's own chat-bubble pattern.
+- **Usability** - saved/frequent manual address, tied to the account that
+  just shipped. Privacy constraint carries forward unchanged: no semantic
+  labels like "Home"/"Work" (see the original note below).
+- **Reliability** - cache + graceful degradation around OSRM/Nominatim,
+  before real concurrent friend-group traffic trips their usage limits.
+- **Reliability** - lock the Favorites schema now: a dedicated
+  `{user_id, place_id}` collection with a compound unique index, not an
+  array on the user document - free to decide now, expensive to fix
+  under real data later.
+- **Growth** - make "I added the place you asked about" a standing habit
+  when curating - the one growth move no competitor at any size can copy.
+- **Intelligence** - a weekly, manual-trigger LLM pass over
+  `unmatched_queries` proposing new categories/tags.
+- **Trust** - "this place closed / wrong category" feedback action - now
+  explicitly the second line of defense behind hours-tagging above, not
+  the primary one.
+- **Usability** - Favorites (save a spot for later), once the schema
+  above is locked in.
+
+**Later** (needs a real decision first, or is a bigger technical bet):
+- **Usability** - two-person / meet-in-the-middle search, reusing the
+  existing manual-location geocoding almost entirely.
+- **Trust** - Ratings. **Recommendation: don't build as originally
+  scoped** (public star ratings visible to every signed-in user) - risks
+  the product's whole "curated, not crowdsourced" identity, since a
+  friend circle's one-star drive-by carries outsized weight against a
+  founder's own pick with no volume to average it out. A private "I'd go
+  back" signal, visible only to the curator, may be the better version -
+  keeps the information, drops the identity risk.
+- **Growth** - multi-curator map uploads. Hold the general self-serve
+  build; pilot with exactly one hand-picked second curator instead
+  (existing sync script, a second `MYMAPS_ID`, separate attribution in
+  the UI), with an explicit trigger: if their friend group is actually
+  using it within a month, invest in the general feature; if not, it
+  stays shelved.
+- **Intelligence** - semantic search over place descriptions:
+  precomputed embeddings, in-process cosine similarity. Deliberately
+  **not** MongoDB Atlas Vector Search, which alone needs an M10+ cluster
+  - roughly 4x the entire monthly budget.
+- **Growth** - a static About/story page, same cost pattern as the
+  existing privacy/404 pages.
+- **Reliability** - decide on purpose whether sign-out should revoke
+  every device or just one (currently: every device, via
+  `token_version`) - before Favorites makes staying signed in matter.
+- **Usability** - session-local "don't suggest what I already navigated
+  to" - may end up folded into Favorites instead of built separately.
+
+Also still open, carried over unchanged from "Visual upgrades" below: the
+map view, category icons on the result chips, and generating a formal
+`DESIGN.md`. None of these were in scope for the three-perspective review,
+so they're not yet placed on a horizon - revisit alongside whichever theme
+they end up serving.
 
 ## To-do list
 
@@ -769,19 +830,13 @@ In order:
 9. ~~Conversational refinement / short-lived session memory~~ - done, see
    above.
 10. ~~Kosher/dietary tags and filtering~~ - done, see above.
-11. Feedback option for bad data - a lightweight "this place closed" /
-    "wrong category" action from a place card, feeding curation the same
-    way `unmatched_queries` already does (see "Light usage stats" above)
-    rather than a moderation queue - that's already sequenced separately
-    for user-suggested places under "Bigger builds" below, once real
-    accounts exist to attribute submissions to.
-12. Saved/frequent addresses - a natural follow-on once manual-location
-    mode (Roadmap item 5 above) exists. Explicit constraint from the user
-    (2026-09-11): no semantic labels like "Home" or "Work" - those would
-    let anyone (including the app operator) infer where a specific user
-    actually lives or works, which this app has no business collecting.
-    Generic saved entries (a nickname the user picks, or just a plain
-    recency-ordered list) only.
+11-12. Feedback option for bad data, and saved/frequent addresses - both
+    superseded by the theme+horizon restructure; see "## Roadmap" above
+    (Next horizon, Trust and Usability themes respectively). The privacy
+    constraint on saved addresses carries forward unchanged: no semantic
+    labels like "Home"/"Work" - those would let anyone, including the app
+    operator, infer where a specific user actually lives or works, which
+    this app has no business collecting.
 13. ~~Price tag per place~~ - done end-to-end 2026-09-12: app-side
     implementation shipped 2026-09-11, and the user finished hand-tagging
     all the real pins in My Maps the next day. A manually-triggered run of
@@ -873,30 +928,15 @@ filtering) - revisit once favorites/the user system make session-level
 state worth adding.
 
 ### Visual upgrades
-- Map view - a visible map showing the recommended place(s), on top of the
-  existing chat/list view (the original "chat now, map later" plan from
-  early in the project). (Improved icons moved into the priority list
-  above, at #2.)
-- Category icons on the chips (2026-09-11, not yet built) - a small icon
-  per category (coffee cup, pizza slice, etc.) next to the existing text
-  in `.category-chip`, using the lucide-react set already depended on
-  everywhere else in the app, so a result list is scannable at a glance
-  rather than read word by word.
-- Plan ahead for the header before it's forced (2026-09-11, not yet
-  built) - the header already carries 4 icon buttons plus the Walk/Drive
-  toggle, and it took real design work this session just to fit a single
-  visible text label on one of them (see the fourth critique-round fixes
-  below). Both auth (a profile/avatar control) and manual-location mode
-  (Roadmap item 5) will likely want their own header presence next -
-  worth designing that next header state deliberately rather than letting
-  two unrelated features independently fight for the same cramped row.
-- Run `/impeccable document` to generate a formal `DESIGN.md` (2026-09-11,
-  not yet done) - the actual design system (two deliberate palettes, the
-  pill/radius system, the RTL patterns) currently only lives as prose
-  scattered across this file. Worth codifying now that it's been through
-  four critique rounds, so future visual work (map view, auth UI) starts
-  from a real spec instead of re-deriving conventions from old commit
-  messages.
+- Map view, category icons on the chips, and generating a formal
+  `DESIGN.md` are still open - not part of the three-perspective review's
+  scope, so tracked as a loose end under "## Roadmap" above rather than
+  placed on a horizon yet.
+- "Plan ahead for the header before it's forced" (2026-09-11) - resolved
+  2026-09-13: the slide-out menu drawer (see "Bigger builds - user
+  system" below) replaced the whole header icon row with two fixed
+  elements (title + hamburger), structurally closing this concern rather
+  than just working around it.
 - Considered and declined for now (2026-09-11): a distinct visual badge
   for "surprise me" results (e.g. marking those cards differently from a
   normal category match) - not needed at this scale.
@@ -1432,15 +1472,11 @@ full product later.
      themes render correctly. Pushed to `main` and deployed to production
      2026-09-13 - auth core (item 1's whole scope, including this drawer
      redesign) is now live for real users, not just staging.
-2. Favorites (save spots from the list)
-3. Ratings
-4. User-suggested new places, with a moderation queue (never auto-publish
-   user input to the shared list) - simpler than map uploads, so it comes
-   first
-5. User map uploads + switching between multiple maps/datasets - needs the
-   KML parser hardened first (`defusedxml`, size caps, per-user namespacing,
-   since `xml.etree.ElementTree` is vulnerable to entity-expansion attacks on
-   untrusted input)
+2-5. Favorites, Ratings, user-suggested places, and map uploads -
+   superseded by the theme+horizon restructure; see "## Roadmap" above.
+   Ratings and map uploads specifically now carry an explicit
+   product-management recommendation (not "build as originally scoped")
+   rather than sitting in this flat sequence unexamined.
 
 Update (2026-09-10): the tradeoff flagged here already happened, sooner
 than expected - not from real friends-and-family traffic, but from this
