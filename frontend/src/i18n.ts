@@ -8,7 +8,7 @@ import type { Lang } from './types'
 const STRINGS = {
   en: {
     greeting:
-      "Hi! I'll find the closest spot from my own hand-picked Tel Aviv food list - real places I trust, not crowd reviews. Tell me your location below, or tap Live up top to share where you are. 📍",
+      "Hi! I'll find the closest spot from my own Tel Aviv list - places I've been hunting down since my teens, not crowd reviews. Tell me your location below, or tap Live up top to share where you are. 📍",
     locationNotSet: 'Insert a location below, or switch to Live.',
     locationRequesting: 'Requesting your location...',
     locationSet: 'Location set. Ask away!',
@@ -44,7 +44,7 @@ const STRINGS = {
     showMoreLoading: 'Loading...',
     shareSpots: 'Share these spots',
     shareHeader: 'TLV Bot recommends:',
-    shareFooterPitch: 'A real, personally curated Tel Aviv list - not crowd reviews.',
+    shareFooterPitch: "One person's real Tel Aviv list - not crowd reviews.",
     shareFooterCta: 'Try it yourself:',
     conversationCleared: 'Conversation cleared',
     undo: 'Undo',
@@ -52,7 +52,7 @@ const STRINGS = {
     themeToggleToDark: 'Switch to dark mode',
     themeToggleToLight: 'Switch to light mode',
     helpIntro: "Here's how I work:",
-    helpCraving: 'Tell me what you\'re craving - e.g. "ramen" or "coffee" - and I\'ll find the closest match from my own curated Tel Aviv list, not crowd reviews.',
+    helpCraving: 'Tell me what you\'re craving - e.g. "ramen" or "coffee" - and I\'ll find the closest match from my list.',
     helpSurprise: 'Say "surprise me" or "anything" for the closest spot no matter the category.',
     helpResults:
       'Each answer shows distance, ETA, price range when I have it, a one-tap navigation link, and Instagram when I have it. Tap "Show more" for further matches, or "Share" to send them to WhatsApp.',
@@ -76,7 +76,7 @@ const STRINGS = {
   },
   he: {
     greeting:
-      'היי! אני אמצא לך את המקום הכי קרוב מהרשימה האישית שלי של מקומות אוכל בתל אביב - מקומות אמיתיים שאני סומך עליהם, לא ביקורות מהקהל. ספר לי את המיקום שלך למטה, או הקש על "נוכחי" למעלה כדי לשתף איפה אתה נמצא. 📍',
+      'היי! אני אמצא לך את המקום הכי קרוב מהרשימה שלי - מקומות אוכל וקפה בתל אביב שאני אוסף כבר שנים, לא ביקורות מהקהל. ספר לי איפה אתה, או הקש למעלה על "נוכחי". 📍',
     locationNotSet: 'הזן מיקום למטה, או עבור למצב נוכחי.',
     locationRequesting: 'מבקש את המיקום שלך...',
     locationSet: 'המיקום נקבע. שאל בבקשה!',
@@ -112,15 +112,15 @@ const STRINGS = {
     showMoreLoading: 'טוען...',
     shareSpots: 'שתף את המקומות',
     shareHeader: 'TLV Bot ממליץ:',
-    shareFooterPitch: 'רשימה אמיתית ומוקפדת אישית של תל אביב - לא ביקורות מהקהל.',
-    shareFooterCta: 'נסו בעצמכם:',
+    shareFooterPitch: 'רשימה של מקומות שאני אוסף בתל אביב - לא ביקורות מהקהל.',
+    shareFooterCta: 'תנסה בעצמך:',
     conversationCleared: 'השיחה נמחקה',
     undo: 'בטל',
     languageToggle: 'EN',
     themeToggleToDark: 'עבור למצב כהה',
     themeToggleToLight: 'עבור למצב בהיר',
     helpIntro: 'הנה איך אני עובד:',
-    helpCraving: 'ספר לי מה מתחשק לך - למשל "ראמן" או "קפה" - ואמצא את ההתאמה הכי קרובה מהרשימה המוקפדת שלי בתל אביב, לא מביקורות של הקהל.',
+    helpCraving: 'ספר לי מה מתחשק לך - למשל "ראמן" או "קפה" - ואמצא את ההתאמה הכי קרובה מהרשימה שלי בתל אביב.',
     helpSurprise: 'תגיד "תפתיע אותי" או "כל דבר" בשביל המקום הכי קרוב בלי קשר לקטגוריה.',
     helpResults: 'כל תשובה מציגה מרחק, זמן הגעה, טווח מחירים כשיש לי, קישור ניווט בלחיצה אחת, ואינסטגרם כשיש לי. לחץ על "הצג עוד" להתאמות נוספות, או "שתף" כדי לשלוח לוואטסאפ.',
     helpMode: 'השתמש במתג הליכה / נסיעה למעלה כדי לשנות איך זמני ההגעה מחושבים.',

@@ -936,6 +936,38 @@ serving. (The map view itself was added to the Later horizon above,
     - **Hand-tagging real places** with `#until<hour>`/`#outdoor` in My
       Maps - the app-side implementation is ready and synced the same way
       price tiers were, but no real place has either tag yet.
+- Trust-copy refinement (2026-09-25) - the initial trust-pitch strings from
+  the pass above ("personally curated... not crowd reviews," repeated
+  near-verbatim across five surfaces) got a second pass via two independent
+  marketing-copy review agents, one for English and one for Hebrew - each
+  writing/critiquing natively in its own language, not translating the
+  other's output. Both converged independently on the same structural
+  finding without seeing each other's work: keep a hint of the real
+  personal backstory (the creator has been exploring Tel Aviv's food scene
+  since their early teens, and keeps the list current as new places open)
+  only on the surfaces where it's an actual first impression - the
+  greeting, the WhatsApp share footer, and the English social-preview meta
+  tags - and drop the repeated "not crowd reviews" line from the help text
+  bubble entirely, since by then a visitor has already seen it once and
+  it's just doing wallpaper duty in a purely functional instruction.
+  Concrete outcome: "personally curated ... not crowd reviews," used
+  identically five times, retired in favor of one concrete detail per
+  surface (English: "places I've been hunting down since my teens" /
+  "one person's real Tel Aviv list"; Hebrew: "שאני אוסף כבר שנים" / "רשימה
+  של מקומות שאני אוסף") - most of the rewrites landed the same length or
+  shorter than what they replaced, not longer.
+  The Hebrew reviewer also caught a real, independent bug while at it: the
+  WhatsApp share CTA ("נסו בעצמכם") was plural while the greeting and help
+  text both address the reader in singular - the app's Hebrew "voice"
+  wasn't the same person consistently. Flagged as a judgment call (a
+  forwarded WhatsApp message can reach a group, so plural isn't wrong,
+  just inconsistent) rather than silently fixed - the user chose singular
+  ("תנסה בעצמך") for voice consistency across the whole app.
+  Verified live in both languages via the Vite dev server (not the stale
+  prebuilt bundle on the FastAPI dev port): greeting, help text, and a
+  real WhatsApp share link all confirmed to match the approved copy
+  exactly, including the corrected singular Hebrew CTA. Frontend typecheck
+  and build both clean.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
