@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -223,3 +224,108 @@ def test_unknown_mode_does_not_count_toward_backing_off(monkeypatch):
     monkeypatch.setattr(requests, "get", lambda url, timeout: fake_response)
 
     assert routing._fetch_eta_seconds_batch("walking", ORIGIN, [DEST_A]) == [50.0]
+
+
+def test_osrm_request_caps_how_long_a_stall_can_cost(monkeypatch):
+    # The whole point of the short timeout: a stalled call must not hold a chat
+    # reply for the old 5s. Asserts ceilings rather than exact values so
+    # tuning within the intent doesn't break it.
+    captured = {}
+
+    def fake_get(url, timeout):
+        captured["timeout"] = timeout
+        response = MagicMock()
+        response.json.return_value = {"durations": [[0.0, 10.0]]}
+        response.raise_for_status.return_value = None
+        return response
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    routing._fetch_eta_seconds_batch("walking", ORIGIN, [DEST_A])
+
+    connect, read = captured["timeout"]
+    assert connect <= 2
+    assert read <= 3
+
+
+def test_a_read_timeout_returns_no_eta_and_counts_toward_backing_off(monkeypatch):
+    state = {"calls": 0}
+
+    def fake_get(url, timeout):
+        state["calls"] += 1
+        raise requests.ReadTimeout("stalled")
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    for _ in range(3):
+        assert routing._fetch_eta_seconds_batch("walking", ORIGIN, [DEST_A]) == [None]
+    routing._fetch_eta_seconds_batch("walking", ORIGIN, [DEST_A])
+
+    assert state["calls"] == 3  # the fourth was skipped by the back-off
+
+
+def _osrm_lines(caplog):
+    return [r.getMessage() for r in caplog.records if r.name == routing.logger.name]
+
+
+def test_a_successful_call_logs_one_ok_line_with_timing(monkeypatch, caplog):
+    fake_response = MagicMock()
+    fake_response.json.return_value = {"durations": [[0.0, 50.0]]}
+    fake_response.raise_for_status.return_value = None
+    monkeypatch.setattr(requests, "get", lambda url, timeout: fake_response)
+
+    with caplog.at_level(logging.INFO, logger=routing.logger.name):
+        routing._fetch_eta_seconds_batch("walking", ORIGIN, [DEST_A])
+
+    (line,) = _osrm_lines(caplog)
+    assert "outcome=ok" in line
+    assert "mode=walking" in line
+    assert "destinations=1" in line
+    assert "ms=" in line
+
+
+def test_a_timeout_is_logged_distinctly_from_other_errors(monkeypatch, caplog):
+    def raise_timeout(url, timeout):
+        raise requests.ReadTimeout("stalled")
+
+    monkeypatch.setattr(requests, "get", raise_timeout)
+    with caplog.at_level(logging.INFO, logger=routing.logger.name):
+        routing._fetch_eta_seconds_batch("walking", ORIGIN, [DEST_A])
+        routing._osrm_backoff.reset()
+
+        def raise_error(url, timeout):
+            raise requests.ConnectionError("refused")
+
+        monkeypatch.setattr(requests, "get", raise_error)
+        routing._fetch_eta_seconds_batch("walking", ORIGIN, [DEST_A])
+
+    first, second = _osrm_lines(caplog)
+    assert "outcome=timeout" in first
+    assert "outcome=error" in second
+
+
+def test_a_skipped_call_is_logged_without_a_duration(monkeypatch, caplog):
+    for _ in range(3):
+        routing._osrm_backoff.record_failure()
+
+    with caplog.at_level(logging.INFO, logger=routing.logger.name):
+        routing._fetch_eta_seconds_batch("walking", ORIGIN, [DEST_A])
+
+    (line,) = _osrm_lines(caplog)
+    assert "outcome=skipped_backoff" in line
+    assert "ms=" not in line
+
+
+def test_timing_lines_never_contain_coordinates(monkeypatch, caplog):
+    # The privacy policy promises locations are never stored - logs are storage.
+    fake_response = MagicMock()
+    fake_response.json.return_value = {"durations": [[0.0, 50.0]]}
+    fake_response.raise_for_status.return_value = None
+    monkeypatch.setattr(requests, "get", lambda url, timeout: fake_response)
+
+    with caplog.at_level(logging.INFO, logger=routing.logger.name):
+        routing._fetch_eta_seconds_batch("walking", ORIGIN, [DEST_A])
+
+    text = " ".join(_osrm_lines(caplog))
+    assert "32.08" not in text and "34.78" not in text
+    assert "32.09" not in text and "34.79" not in text

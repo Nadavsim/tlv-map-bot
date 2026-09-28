@@ -152,6 +152,17 @@ call):
   `{user_id, place_id}` collection with a compound unique index, not an
   array on the user document~~ - done 2026-09-28 (collection, index and
   validator only - the feature itself is still the Favorites item below).
+- ~~**Reliability** - cap the public OSRM instance's random stalls with a
+  shorter timeout, and log each call's duration/outcome so the real stall
+  rate can be counted~~ - done 2026-09-28, see "Next-horizon items
+  shipped" below.
+- **Usability** - results first, ETAs after: `/api/chat` returns the
+  places immediately with distance only, and each card then fetches its
+  ETA from a new endpoint and fills it in, so an OSRM stall becomes
+  invisible instead of holding the whole reply (and every search gets
+  ~0.5s faster even without one). Added 2026-09-28 after production
+  showed a real 8s stall; needs a per-card loading state, and care that a
+  late ETA for an old conversation entry can't land on the wrong card.
 - **Growth** - make "I added the place you asked about" a standing habit
   when curating - the one growth move no competitor at any size can copy.
 - **Intelligence** - a weekly, manual-trigger LLM pass over
@@ -1015,6 +1026,21 @@ serving. (The map view itself was added to the Later horizon above,
     before it engages. Not tuned on one sample of a flaky service, but the
     obvious follow-ups are a shorter timeout or returning results without
     ETAs immediately.
+    **Production check after this shipped (2026-09-28) - and a false alarm
+    worth remembering:** probing production from the dev machine showed
+    seven 13-20s responses and two dropped connections (`000`), which
+    looked like the new code stalling. It wasn't the server: Azure's own
+    Max Response Time chart for the window peaked at ~8s, so no request
+    took 13-20s server-side. curl reports `000` when it can't resolve the
+    hostname, and two near-identical 15.09s/15.10s calls on a cached
+    endpoint match DNS retry timeouts on the dev machine. The one genuinely
+    slow server-side request - 8.0s in Azure vs 8.1s measured, the first
+    chat call after the deploy, first place's ETA null - fits an OSRM stall
+    (5s timeout + ~2-3s of LLM), and shows the stall is a real production
+    event, not just a local observation. When probing latency, log curl's
+    `time_namelookup` separately and check Azure's Max Response Time before
+    concluding the server is slow. Azure also showed essentially no other
+    requests in the prior 24h.
   - **Favorites schema locked** - a dedicated `favorites` collection, one
     document per `{user_id, place_id, created_at}`, a unique compound index
     on `(user_id, place_id)` (which also serves "all favorites for this
@@ -1050,6 +1076,33 @@ serving. (The map view itself was added to the Later horizon above,
     its first run), so `test_location.py` and `test_routing.py` each got an
     autouse fixture resetting that state, the same shape as `test_db.py`'s
     existing cache-reset fixture.
+  - **OSRM stall cap + timing log** (2026-09-28) - the follow-up to the
+    stalls above, after production confirmed one for real (8.0s in Azure).
+    `requests`' `timeout=5` is really a 5s connect limit plus a separate
+    5s read limit, and the stalls are read stalls (the instance accepts the
+    connection, then never answers). Now `(2, 3)`: healthy calls measured
+    0.7-1.7s even cold, so a 3s read keeps headroom while cutting a stall
+    from ~5s to ~3s. It only shrinks the stall; making it invisible is the
+    "results first, ETAs after" item in Next. A timeout counts toward the
+    back-off like any other failure, so three in a row still pause OSRM for
+    30s.
+    Each real OSRM call now logs one greppable line -
+    `osrm outcome=ok|timeout|error|skipped_backoff mode=... destinations=N
+    ms=...` - so the real stall rate can be counted instead of guessed from
+    a few samples. **No coordinates in it, deliberately:** the privacy
+    policy says locations are never stored, and logs are storage. Uvicorn
+    only attaches handlers to its own loggers, so app-level INFO lines were
+    being dropped silently; `app.py` now attaches a stream handler to just
+    the `backend` logger (not the root logger, which would also turn on
+    every third-party library's INFO chatter). Reading the lines needs
+    Azure App Service logging (Log stream / filesystem logs) turned on,
+    which couldn't be checked from here.
+    Verified: a real OSRM call logged `outcome=ok ms=885`, and a local
+    server that accepts the connection and never replies (the real failure
+    shape) returned after 3.01s with `outcome=timeout ms=3014`, where it
+    used to hold for 5s. 6 new tests (222 total): the timeout ceilings,
+    timeouts feeding the back-off, each outcome's log line, and that no
+    log line ever contains a coordinate.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup

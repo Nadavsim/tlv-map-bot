@@ -1,8 +1,12 @@
 import asyncio
+import logging
+import time
 
 import requests
 
 from .resilience import FailureBackoff, TTLCache
+
+logger = logging.getLogger(__name__)
 
 # routing.openstreetmap.de (FOSSGIS) is a free public OSRM deployment with
 # separate per-mode instances - unlike router.project-osrm.org's public demo,
@@ -23,6 +27,20 @@ _MODE_CONFIG = {
 _eta_cache = TTLCache(ttl_seconds=60 * 60, max_entries=5000)
 _osrm_backoff = FailureBackoff(threshold=3, cooldown_seconds=30)
 
+# requests treats (connect, read) as two separate limits, and this instance's
+# stalls are read stalls: it accepts the connection, then never answers.
+# Healthy calls measured 0.7-1.7s even with a cold connection, so a 3s read
+# limit keeps headroom while cutting a stall's cost from 5s to about 3s.
+_OSRM_TIMEOUT = (2, 3)
+
+
+def _log_call(mode: str, destination_count: int, outcome: str, started: float | None = None) -> None:
+    # One greppable line per call so the real stall rate can be counted.
+    # Deliberately no coordinates - the privacy policy says locations are
+    # never stored, and logs are storage.
+    elapsed = f" ms={(time.perf_counter() - started) * 1000:.0f}" if started is not None else ""
+    logger.info("osrm outcome=%s mode=%s destinations=%d%s", outcome, mode, destination_count, elapsed)
+
 
 def _point_key(point: tuple[float, float]) -> tuple[float, float]:
     # ~1m of rounding, just to keep float noise from splitting one key in two.
@@ -39,6 +57,7 @@ def _fetch_eta_seconds_batch(
     if _osrm_backoff.is_open():
         # Cards fall back to distance-only when an ETA is None, so skipping
         # the call costs the user nothing they'd have had while OSRM is down.
+        _log_call(mode, len(destinations), "skipped_backoff")
         return [None] * len(destinations)
 
     origin_lat, origin_lon = origin
@@ -49,16 +68,23 @@ def _fetch_eta_seconds_batch(
     # itself) - still one HTTP request regardless of destination count.
     url = f"{_OSRM_BASE}/{config['service']}/table/v1/{config['profile']}/{';'.join(coords)}"
 
+    started = time.perf_counter()
     try:
-        resp = requests.get(url, timeout=5)
+        resp = requests.get(url, timeout=_OSRM_TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
         durations = data["durations"][0][1:]
+    except requests.Timeout:
+        _osrm_backoff.record_failure()
+        _log_call(mode, len(destinations), "timeout", started)
+        return [None] * len(destinations)
     except (requests.RequestException, KeyError, IndexError, ValueError):
         _osrm_backoff.record_failure()
+        _log_call(mode, len(destinations), "error", started)
         return [None] * len(destinations)
 
     _osrm_backoff.record_success()
+    _log_call(mode, len(destinations), "ok", started)
     return durations
 
 

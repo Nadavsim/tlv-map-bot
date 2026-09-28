@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
@@ -19,6 +20,15 @@ from .models import PlaceResult
 from .services import auth, llm, location, routing
 
 load_dotenv()
+
+# Uvicorn only wires up its own loggers, so without a handler here the app's
+# own INFO lines (e.g. routing.py's per-call OSRM timing) are silently
+# dropped. Scoped to the "backend" namespace on purpose - turning INFO on
+# globally would also surface every third-party library's chatter.
+_app_log_handler = logging.StreamHandler()
+_app_log_handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+logging.getLogger("backend").addHandler(_app_log_handler)
+logging.getLogger("backend").setLevel(logging.INFO)
 
 # .parent.parent, not .parent: this file lives in backend/, but static/ (built
 # by frontend/'s Vite build) sits at the repo root, a sibling of backend/.
