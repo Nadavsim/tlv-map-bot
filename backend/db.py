@@ -81,6 +81,25 @@ USERS_JSON_SCHEMA = {
     },
 }
 
+# One document per (user, place) pair - a dedicated collection rather than an
+# array on the user document, so "who favorited place X" stays a plain indexed
+# query and a heavy user's favorites can't grow a single document unbounded.
+# Both ids are stored as ObjectId (not the str form the JWT/API hands around)
+# so a future $lookup from favorites into places joins on matching types.
+# place_id points at places._id, which sync_places.py deliberately preserves
+# across renames/small moves (proximity matching) - but a place removed from
+# the map is deleted, leaving its favorites dangling; a listing query using
+# $lookup + $unwind skips those naturally.
+FAVORITES_JSON_SCHEMA = {
+    "bsonType": "object",
+    "required": ["user_id", "place_id", "created_at"],
+    "properties": {
+        "user_id": {"bsonType": "objectId"},
+        "place_id": {"bsonType": "objectId"},
+        "created_at": {"bsonType": "date"},
+    },
+}
+
 _client: AsyncIOMotorClient | None = None
 _categories_cache: list[str] | None = None
 _categories_cache_expires_at: float = 0.0
@@ -127,6 +146,10 @@ def get_users_collection():
     return _get_collection("users")
 
 
+def get_favorites_collection():
+    return _get_collection("favorites")
+
+
 async def ensure_indexes() -> None:
     places = get_places_collection()
     await places.create_index([("location", "2dsphere")])
@@ -153,6 +176,12 @@ async def ensure_indexes() -> None:
     users = get_users_collection()
     await users.create_index("google_sub", unique=True)
     await _ensure_schema_validator(users, "users", USERS_JSON_SCHEMA)
+
+    # user_id leads the compound key, so this one index also serves the
+    # common "all favorites for this user" lookup - no separate user_id index.
+    favorites = get_favorites_collection()
+    await favorites.create_index([("user_id", 1), ("place_id", 1)], unique=True)
+    await _ensure_schema_validator(favorites, "favorites", FAVORITES_JSON_SCHEMA)
 
 
 async def _ensure_schema_validator(collection, name: str, schema: dict) -> None:

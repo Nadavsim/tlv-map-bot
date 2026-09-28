@@ -142,6 +142,28 @@ def test_proximity_pipeline_applies_extra_query_filter():
 
 
 @pytest.mark.asyncio
+async def test_ensure_indexes_sets_up_favorites_with_unique_pair_index_and_validator(monkeypatch):
+    def fake_collection():
+        collection = MagicMock()
+        collection.create_index = AsyncMock()
+        collection.index_information = AsyncMock(return_value={})
+        return collection
+
+    places, unmatched, users, favorites = (fake_collection() for _ in range(4))
+    monkeypatch.setattr(db, "get_places_collection", lambda: places)
+    monkeypatch.setattr(db, "get_unmatched_queries_collection", lambda: unmatched)
+    monkeypatch.setattr(db, "get_users_collection", lambda: users)
+    monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
+    validator_mock = AsyncMock()
+    monkeypatch.setattr(db, "_ensure_schema_validator", validator_mock)
+
+    await db.ensure_indexes()
+
+    favorites.create_index.assert_awaited_once_with([("user_id", 1), ("place_id", 1)], unique=True)
+    validator_mock.assert_any_await(favorites, "favorites", db.FAVORITES_JSON_SCHEMA)
+
+
+@pytest.mark.asyncio
 async def test_ping_database_returns_true_when_mongo_responds(monkeypatch):
     fake_client = MagicMock()
     fake_client.admin.command = AsyncMock(return_value={"ok": 1})

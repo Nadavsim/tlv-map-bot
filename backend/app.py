@@ -292,7 +292,13 @@ async def resolve_location(req: LocationLinkRequest):
     if not coords:
         # Not a coordinate pair or a Maps link (or the link didn't resolve) -
         # try it as a free-text address/landmark instead.
-        coords = await asyncio.to_thread(location.geocode_address, text)
+        try:
+            coords = await asyncio.to_thread(location.geocode_address, text)
+        except location.GeocodingUnavailable:
+            # 503, not the nulls below: "couldn't look it up right now" and
+            # "that address doesn't exist" need different messages - the
+            # frontend turns any non-OK response into its "try again" copy.
+            raise HTTPException(status_code=503, detail="geocoding service unavailable")
     if not coords:
         return {"lat": None, "lon": None}
     lat, lon = coords

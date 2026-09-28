@@ -1,8 +1,40 @@
+import time
 from unittest.mock import MagicMock
 
+import pytest
 import requests
 
 from backend.services import location
+
+
+@pytest.fixture(autouse=True)
+def reset_geocoding_state():
+    # The geocode cache and back-off are module-level, so without this one
+    # test's "Rothschild 12" (or a run of simulated failures) would leak into
+    # every test after it.
+    location._geocode_cache.clear()
+    location._geocode_backoff.reset()
+    yield
+    location._geocode_cache.clear()
+    location._geocode_backoff.reset()
+
+
+def _counting_get(monkeypatch, *, json=None, error=None):
+    """Patches requests.get, returning a dict whose "calls" count shows how
+    many real network calls the code under test made."""
+    state = {"calls": 0}
+
+    def fake_get(url, params, headers, timeout):
+        state["calls"] += 1
+        if error is not None:
+            raise error
+        response = MagicMock()
+        response.json.return_value = json
+        response.raise_for_status.return_value = None
+        return response
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    return state
 
 
 def test_extracts_coords_from_q_param():
@@ -123,10 +155,121 @@ def test_geocode_address_returns_none_when_no_results(monkeypatch):
     assert location.geocode_address("asdkfjaslkdfj nonsense") is None
 
 
-def test_geocode_address_returns_none_on_request_failure(monkeypatch):
-    def raise_error(*args, **kwargs):
-        raise requests.RequestException("boom")
+def test_geocode_address_raises_unavailable_on_request_failure(monkeypatch):
+    _counting_get(monkeypatch, error=requests.RequestException("boom"))
 
-    monkeypatch.setattr(requests, "get", raise_error)
+    with pytest.raises(location.GeocodingUnavailable):
+        location.geocode_address("Rothschild 12")
 
-    assert location.geocode_address("Rothschild 12") is None
+
+def test_geocode_address_raises_unavailable_on_http_error_status(monkeypatch):
+    # e.g. Nominatim answering 429 when it's rate limiting us.
+    def fake_get(url, params, headers, timeout):
+        response = MagicMock()
+        response.raise_for_status.side_effect = requests.HTTPError("429")
+        return response
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    with pytest.raises(location.GeocodingUnavailable):
+        location.geocode_address("Rothschild 12")
+
+
+def test_geocode_address_raises_unavailable_on_malformed_response(monkeypatch):
+    _counting_get(monkeypatch, json=[{"unexpected": "shape"}])
+
+    with pytest.raises(location.GeocodingUnavailable):
+        location.geocode_address("Rothschild 12")
+
+
+def test_geocode_address_caches_successful_lookups(monkeypatch):
+    state = _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77"}])
+
+    first = location.geocode_address("Rothschild 12")
+    second = location.geocode_address("Rothschild 12")
+
+    assert first == second == (32.06, 34.77)
+    assert state["calls"] == 1
+
+
+def test_geocode_cache_ignores_case_and_extra_whitespace(monkeypatch):
+    state = _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77"}])
+
+    location.geocode_address("Rothschild 12")
+    location.geocode_address("  rothschild   12 ")
+
+    assert state["calls"] == 1
+
+
+def test_geocode_does_not_cache_no_result(monkeypatch):
+    state = _counting_get(monkeypatch, json=[])
+
+    assert location.geocode_address("nonsense") is None
+    assert location.geocode_address("nonsense") is None
+
+    assert state["calls"] == 2
+
+
+def test_geocode_does_not_cache_a_failure(monkeypatch):
+    _counting_get(monkeypatch, error=requests.RequestException("boom"))
+    with pytest.raises(location.GeocodingUnavailable):
+        location.geocode_address("Rothschild 12")
+
+    state = _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77"}])
+
+    assert location.geocode_address("Rothschild 12") == (32.06, 34.77)
+    assert state["calls"] == 1
+
+
+def test_geocode_backs_off_after_three_consecutive_failures(monkeypatch):
+    state = _counting_get(monkeypatch, error=requests.RequestException("boom"))
+
+    for _ in range(3):
+        with pytest.raises(location.GeocodingUnavailable):
+            location.geocode_address("Rothschild 12")
+    assert state["calls"] == 3
+
+    with pytest.raises(location.GeocodingUnavailable):
+        location.geocode_address("Dizengoff 50")
+    assert state["calls"] == 3  # the fourth attempt never touched the network
+
+
+def test_geocode_retries_once_the_cooldown_has_passed(monkeypatch):
+    fake_time = [1000.0]
+    monkeypatch.setattr(time, "monotonic", lambda: fake_time[0])
+    _counting_get(monkeypatch, error=requests.RequestException("boom"))
+    for _ in range(3):
+        with pytest.raises(location.GeocodingUnavailable):
+            location.geocode_address("Rothschild 12")
+
+    fake_time[0] += 31
+    state = _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77"}])
+
+    assert location.geocode_address("Dizengoff 50") == (32.06, 34.77)
+    assert state["calls"] == 1
+
+
+def test_geocode_no_result_does_not_count_toward_backing_off(monkeypatch):
+    # A user typing several unresolvable addresses is not an outage.
+    state = _counting_get(monkeypatch, json=[])
+
+    for query in ("nonsense a", "nonsense b", "nonsense c", "nonsense d"):
+        assert location.geocode_address(query) is None
+
+    assert state["calls"] == 4
+
+
+def test_geocode_success_resets_the_failure_count(monkeypatch):
+    _counting_get(monkeypatch, error=requests.RequestException("boom"))
+    for _ in range(2):
+        with pytest.raises(location.GeocodingUnavailable):
+            location.geocode_address("a")
+
+    _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77"}])
+    location.geocode_address("b")
+
+    state = _counting_get(monkeypatch, error=requests.RequestException("boom"))
+    for _ in range(2):
+        with pytest.raises(location.GeocodingUnavailable):
+            location.geocode_address("c")
+    assert state["calls"] == 2  # 2 + 2 failures around a success never reached 3 in a row

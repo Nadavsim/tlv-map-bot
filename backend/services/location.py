@@ -2,6 +2,8 @@ import re
 
 import requests
 
+from .resilience import FailureBackoff, TTLCache
+
 # Covers the URL shapes Google Maps produces when someone taps "Share" on a
 # pin or their own location: ?q=lat,lon, /@lat,lon,zoom (also inside
 # /maps/place/.../@lat,lon,zoom), and the !3d..!4d.. pair embedded in some
@@ -48,6 +50,21 @@ def resolve_maps_link(text: str) -> tuple[float, float] | None:
 _NOMINATIM_HEADERS = {"User-Agent": "tlv-bot (personal project - github.com/Nadavsim/tlv-whatsapp-map-bot)"}
 
 
+class GeocodingUnavailable(Exception):
+    """Nominatim couldn't answer (timeout, HTTP error like a 429, a malformed
+    body) or we're deliberately backing off from it. Distinct from a query
+    that simply has no match, which is a normal None result - the user
+    should be told "try again", not "that address doesn't exist"."""
+
+
+# An address's coordinates don't change, so a day is conservative - it just
+# bounds how long an OpenStreetMap correction takes to show up. Only
+# successful lookups are cached: a "no match" or a failure is cheap to retry
+# and shouldn't stick around.
+_geocode_cache = TTLCache(ttl_seconds=24 * 60 * 60, max_entries=1000)
+_geocode_backoff = FailureBackoff(threshold=3, cooldown_seconds=30)
+
+
 def geocode_address(text: str) -> tuple[float, float] | None:
     """Free-text address/landmark -> (lat, lon) via Nominatim (OpenStreetMap's
     free geocoder, no API key/billing). "Tel Aviv-Yafo" (the official
@@ -56,7 +73,18 @@ def geocode_address(text: str) -> tuple[float, float] | None:
     a street name in Holon and Bat Yam), and this app's entire domain is
     Tel Aviv anyway, so it's a safe, deliberate bias rather than a
     restriction - the full text is still sent, so an address that already
-    names a different city still resolves there."""
+    names a different city still resolves there.
+
+    Returns None when Nominatim answered but found nothing. Raises
+    GeocodingUnavailable when it couldn't answer at all."""
+    cache_key = " ".join(text.lower().split())
+    cached = _geocode_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    if _geocode_backoff.is_open():
+        raise GeocodingUnavailable("backing off after repeated Nominatim failures")
+
     params = {
         "q": f"{text.strip()}, Tel Aviv-Yafo",
         "format": "json",
@@ -72,8 +100,12 @@ def geocode_address(text: str) -> tuple[float, float] | None:
         )
         resp.raise_for_status()
         results = resp.json()
-        if not results:
-            return None
-        return float(results[0]["lat"]), float(results[0]["lon"])
-    except (requests.RequestException, KeyError, IndexError, ValueError):
-        return None
+        coords = (float(results[0]["lat"]), float(results[0]["lon"])) if results else None
+    except (requests.RequestException, KeyError, IndexError, ValueError) as exc:
+        _geocode_backoff.record_failure()
+        raise GeocodingUnavailable("Nominatim request failed") from exc
+
+    _geocode_backoff.record_success()
+    if coords is not None:
+        _geocode_cache.set(cache_key, coords)
+    return coords

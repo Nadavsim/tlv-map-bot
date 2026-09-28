@@ -293,6 +293,22 @@ def test_resolve_location_endpoint_returns_nulls_when_unresolved(monkeypatch):
     assert resp.json() == {"lat": None, "lon": None}
 
 
+def test_resolve_location_endpoint_returns_503_when_geocoding_is_unavailable(monkeypatch):
+    # "Couldn't look it up right now" must not look like "no such address" -
+    # the frontend shows its "try again" copy for any non-OK response.
+    def unavailable(text):
+        raise location.GeocodingUnavailable("down")
+
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(location, "resolve_maps_link", lambda text: None)
+    monkeypatch.setattr(location, "geocode_address", unavailable)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/resolve-location", json={"text": "Rothschild 12"})
+
+    assert resp.status_code == 503
+
+
 def test_chat_endpoint_defaults_to_walking_mode(monkeypatch):
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
     monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))

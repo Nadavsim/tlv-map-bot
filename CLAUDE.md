@@ -143,12 +143,15 @@ call):
 - **Usability** - saved/frequent manual address, tied to the account that
   just shipped. Privacy constraint carries forward unchanged: no semantic
   labels like "Home"/"Work" (see the original note below).
-- **Reliability** - cache + graceful degradation around OSRM/Nominatim,
-  before real concurrent friend-group traffic trips their usage limits.
-- **Reliability** - lock the Favorites schema now: a dedicated
+- ~~**Reliability** - cache + graceful degradation around OSRM/Nominatim,
+  before real concurrent friend-group traffic trips their usage limits~~ -
+  done 2026-09-28, see "Next-horizon items shipped" below (scope turned
+  out smaller than the review assumed: degradation already existed, the
+  real gaps were caching and a misleading error message).
+- ~~**Reliability** - lock the Favorites schema now: a dedicated
   `{user_id, place_id}` collection with a compound unique index, not an
-  array on the user document - free to decide now, expensive to fix
-  under real data later.
+  array on the user document~~ - done 2026-09-28 (collection, index and
+  validator only - the feature itself is still the Favorites item below).
 - **Growth** - make "I added the place you asked about" a standing habit
   when curating - the one growth move no competitor at any size can copy.
 - **Intelligence** - a weekly, manual-trigger LLM pass over
@@ -968,6 +971,85 @@ serving. (The map view itself was added to the Later horizon above,
   real WhatsApp share link all confirmed to match the approved copy
   exactly, including the corrected singular Hebrew CTA. Frontend typecheck
   and build both clean.
+- Next-horizon items shipped (started 2026-09-28) - a running entry, each
+  Next item appended as it lands:
+  - **OSRM/Nominatim cache + back-off** - checked against the real code
+    before building, and the roadmap card's premise was partly wrong (it
+    came from a review that never read the source): graceful degradation
+    already existed - a failed OSRM call returned no ETA and the card
+    showed distance only, a failed geocode returned nothing. The real
+    gaps were (1) nothing was cached, (2) a hung service cost a full 5s
+    timeout on every request, and (3) a Nominatim outage told the user
+    "couldn't find that location", i.e. that their (fine) address was bad.
+    New `services/resilience.py`: `TTLCache` (per-entry expiry, size cap
+    evicting oldest first, thread-safe since lookups run in
+    `asyncio.to_thread` workers) and `FailureBackoff` (after 3
+    consecutive failures, skip the service for 30s; after the cooldown one
+    failure re-opens it immediately, one success resets it - half-open
+    behavior with no extra state).
+    Nominatim (`location.py`): successful lookups cached 24h, keyed on
+    lowercased/whitespace-collapsed text; "no match" and failures are
+    deliberately NOT cached. `geocode_address` now distinguishes "answered,
+    found nothing" (returns None, and does not count toward backing off -
+    someone typing several unresolvable addresses isn't an outage) from
+    "couldn't answer" (raises `GeocodingUnavailable`: timeout, HTTP error
+    such as a 429, malformed body, or currently backing off). The endpoint
+    turns the latter into a 503, which the frontend already renders as its
+    "try again" message with no frontend change (`postJSON` throws on any
+    non-OK status) - so an outage no longer reads as a bad address.
+    OSRM (`routing.py`): ETAs cached 1h per (mode, origin, destination)
+    pair, not per batch, so an overlapping follow-up request ("show more",
+    same address) only fetches destinations it hasn't seen; the public
+    instance has no live traffic, so durations only change with its map
+    data. Only real durations are cached - `None` means unreachable-or-
+    failed and stays retryable. An unknown transport mode doesn't count
+    as a failure.
+    Verified against the real services: geocode 847ms -> 0.0ms and a
+    3-destination ETA batch 1715ms -> 0.0ms on repeat; a nonsense address
+    returns normally as "no match", not an outage. **Observed live, worth
+    knowing:** the public OSRM instance stalls intermittently and
+    independent of input - one coordinate hung to the 5s timeout, then
+    answered in 695ms a minute later, while a different point that had
+    worked earlier stalled for 8.5s. The back-off caps how many stalls in
+    a row a user can hit, but each individual stall still costs a full 5s
+    before it engages. Not tuned on one sample of a flaky service, but the
+    obvious follow-ups are a shorter timeout or returning results without
+    ETAs immediately.
+  - **Favorites schema locked** - a dedicated `favorites` collection, one
+    document per `{user_id, place_id, created_at}`, a unique compound index
+    on `(user_id, place_id)` (which also serves "all favorites for this
+    user" since `user_id` leads the key), and a warn-mode `$jsonSchema`
+    validator (`FAVORITES_JSON_SCHEMA`), wired into `ensure_indexes()` the
+    same way `users` was. Both ids stored as `ObjectId`, not the `str`
+    form the JWT/API passes around, so a listing query can `$lookup` into
+    `places` on matching types. `place_id` points at `places._id`, which
+    sync deliberately preserves across renames (proximity matching); a
+    place removed from the map is deleted, leaving its favorites dangling -
+    a listing query using `$lookup` + `$unwind` skips those naturally, and
+    sync could cascade-delete them if that ever matters. Deliberately no
+    Pydantic model or CRUD functions yet: nothing would call them until
+    the Favorites feature itself, and unused code is untested code.
+    Verified against a real MongoDB: `ensure_indexes()` run twice
+    (idempotent), the index is unique and the validator is
+    `warn`/`moderate`, a duplicate `(user, place)` insert is rejected, and
+    the same user favoriting a different place is accepted; test documents
+    cleaned up afterward.
+    **Operational note: local dev's `.env` points at `MONGODB_DB_NAME=tlvbot`
+    - the PRODUCTION database.** Starting the local server therefore runs
+    `ensure_indexes()` (and any dev write) against production data. The
+    schema check above was deliberately run against `tlvbot_staging` by
+    overriding the variable (`load_dotenv()` doesn't override an
+    already-set environment variable); do the same for any write-path
+    verification going forward.
+  - 32 new backend tests (216 total): the two helpers, both services'
+    caching/back-off behavior (including the cooldown, half-open re-trip,
+    success-resets-count, and no-result-isn't-a-failure cases), the 503,
+    and `ensure_indexes` itself, which had no direct coverage before.
+    Module-level caches/back-off state leaked between tests immediately
+    (a cached "Rothschild 12" broke the next test - caught by the suite on
+    its first run), so `test_location.py` and `test_routing.py` each got an
+    autouse fixture resetting that state, the same shape as `test_db.py`'s
+    existing cache-reset fixture.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup

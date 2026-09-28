@@ -201,6 +201,10 @@ backend/                                FastAPI app package.
     location.py                             resolution, and Google
     auth.py                                 Sign-In verification + this
                                              app's own JWT issuing
+    weather.py                              (Open-Meteo rain check, used
+                                             to reorder results)
+    resilience.py                           (shared cache + back-off for
+                                             the free public services)
 scripts/                                Maintenance CLI scripts, run as
   sync_places.py                          python -m scripts.sync_places
   seed_instagram_from_csv.py              python -m scripts.seed_instagram_from_csv
