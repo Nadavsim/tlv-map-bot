@@ -367,6 +367,7 @@ export default function App() {
             id: makeEntryId(),
             kind: 'places',
             places: data.places,
+            origin: activeLocation,
             category: data.category,
             dietaryTag: data.dietary_tag,
             offset: data.offset,

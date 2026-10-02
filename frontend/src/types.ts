@@ -34,6 +34,8 @@ export interface Place {
   closes_at_hour: number | null
   outdoor_seating: boolean
   maps_url: string
+  lat: number
+  lon: number
 }
 
 export interface ChatResponse {

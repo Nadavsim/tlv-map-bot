@@ -22,6 +22,9 @@
   --accent-fg: #ffffff;
   --chip-bg: #ffede3;
   --chip-fg: #c23f19;
+  /* Map tiles are always OSM's light style; dark mode inverts them via CSS
+     (no second tile provider, no extra host in the CSP). */
+  --map-tile-filter: none;
   /* Tinted to the warm palette rather than flat black - a pure-black shadow
      on a cream background reads as generic/AI-default. */
   --shadow-sm: 0 1px 2px rgba(42, 27, 18, 0.06), 0 4px 10px rgba(255, 90, 54, 0.08);
@@ -50,6 +53,7 @@
     --accent-fg: #15161a;
     --chip-bg: #23281a;
     --chip-fg: #c9ff3d;
+    --map-tile-filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
     /* A dark card is still slightly lighter than the near-black page bg, so
        a dark shadow against that page bg still reads as real elevation -
        paired with a faint top highlight for a premium glass-like edge. */
@@ -71,6 +75,7 @@
   --accent-fg: #15161a;
   --chip-bg: #23281a;
   --chip-fg: #c9ff3d;
+  --map-tile-filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
   --shadow-sm: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 12px rgba(0, 0, 0, 0.35);
   --shadow-md: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.45);
 }

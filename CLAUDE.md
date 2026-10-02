@@ -50,7 +50,9 @@ project with real (if modest) usage, not a toy or a tutorial exercise.
   `services/` (one module per external integration: `llm.py` for Claude NLU,
   `routing.py` for OSRM ETAs, `location.py` for Google Maps link resolution).
 - **Frontend:** React + TypeScript, in `frontend/`, built with Vite straight
-  into `static/` for FastAPI to serve.
+  into `static/` for FastAPI to serve. The results map (Leaflet +
+  `react-leaflet`, OpenStreetMap tiles) lives in its own lazy-loaded chunk -
+  see "Later-horizon items shipped".
 - **Database:** MongoDB Atlas, free M0 tier, one cluster hosting two
   databases — `tlvbot` (production, real data) and `tlvbot_staging`
   (staging, an isolated copy, not auto-synced — see below). Places are
@@ -59,6 +61,10 @@ project with real (if modest) usage, not a toy or a tutorial exercise.
   `warn` mode as defense-in-depth alongside the Pydantic models.
 - **NLU:** Claude Haiku 4.5, one tool-call per chat message to match
   free text to a known category.
+- **Map tiles:** OpenStreetMap's public tile server
+  (`tile.openstreetmap.org`), loaded browser-direct, only once someone opens
+  a map. No key, no billing; the CSP allows exactly that one host in
+  `img-src`.
 - **Routing:** free public OSRM instances (routing.openstreetmap.de) for
   real walking/driving ETAs - no API key, no billing.
 - **Hosting:** Azure App Service, split into two environments (see
@@ -186,10 +192,12 @@ call):
 **Later** (needs a real decision first, or is a bigger technical bet):
 - **Usability** - two-person / meet-in-the-middle search, reusing the
   existing manual-location geocoding almost entirely.
-- **Usability** - map view: plot the set location and the recommended
+- ~~**Usability** - map view: plot the set location and the recommended
   spot(s) together, on top of the existing chat/list view. Leaflet + free
   OpenStreetMap tiles, matching the OSRM/Nominatim pattern already in
-  place rather than a paid Maps API.
+  place rather than a paid Maps API.~~ - **built 2026-10-02, pending
+  verification** (written in a sandbox with no real data or real tiles; see
+  "Later-horizon items shipped" below for what was and wasn't verified).
 - **Intelligence** - semantic search over place descriptions:
   precomputed embeddings, in-process cosine similarity. Deliberately
   **not** MongoDB Atlas Vector Search, which alone needs an M10+ cluster
@@ -1103,6 +1111,121 @@ serving. (The map view itself was added to the Later horizon above,
     used to hold for 5s. 6 new tests (222 total): the timeout ceilings,
     timeouts feeding the back-off, each outcome's log line, and that no
     log line ever contains a coordinate.
+
+### Later-horizon items shipped
+
+- **Map view** (2026-10-02) - **built pending verification**: written in a
+  cloud sandbox with no `.env`, no Atlas, no real place data, and outbound
+  access to OSM's tile server blocked, so everything below was verified
+  against mocked API responses and fake Tel Aviv coordinates only. The PR
+  carries a "verify locally" checklist.
+  - **UX: a per-results-block toggle, not a global map or a tab.** Each
+    results block gets a "Show on map" button (same style as "Show more",
+    next to it) that opens a 260px map directly below that block's cards.
+    Chosen over a persistent/global map because the chat is the product -
+    a map that is always there costs vertical space on a 375px phone for
+    everyone, while a collapsed-by-default toggle costs nothing until used,
+    and a per-entry map keeps old results' maps correct (each remembers the
+    location it was searched from: `origin` is stored on the `places`
+    chat entry, not read from live app state, so switching Live/Custom
+    afterward doesn't move an old result's "you are here" pin). Open/closed
+    and the highlighted pin are local state in `PlaceCards.tsx`, not App
+    state - nothing outside a results block needs them.
+  - **Lazy-loaded**: `MapView` is a default export loaded via `React.lazy`
+    and is only mounted once the map is opened, so Leaflet (~155KB, ~45KB
+    gzipped) and its CSS are a separate chunk the chat never pays for -
+    confirmed in a real browser: zero requests for it until the toggle is
+    clicked. A `MapErrorBoundary` scopes a failed chunk load (offline, or
+    a deploy replacing the hashed filename mid-session) to the map alone;
+    without it the rejection would reach the app-wide `ErrorBoundary` and
+    replace the whole chat with the crash screen over an optional extra.
+    Message says to refresh because `React.lazy` caches a rejected import,
+    so an in-place retry wouldn't work.
+  - **Markers are `L.divIcon`s**, not Leaflet's default image marker (whose
+    PNG paths break under Vite bundling, and which can't carry a number
+    anyway). Results are numbered 1..N in card order; the user's own spot
+    is a different *shape* (ringed dot), not just a different color, so it
+    never reads as "result 0". Styled entirely from the existing theme
+    tokens. Bounds auto-fit the user + all pins and refit whenever the
+    place list changes, which is what makes "Show more" pins land in view.
+  - **Pin <-> card linking**: tapping a pin highlights its card and scrolls
+    it into view (`block: 'nearest'`); the number badge on each card (only
+    shown while the map is open, and a real `<button>` so it's reachable by
+    keyboard/screen reader; the whole card is clickable too) highlights its
+    pin and pans to it only if it's currently out of view.
+  - **Dark mode**: OSM only serves a light style, so dark mode inverts the
+    tile pane with a CSS filter (`--map-tile-filter` token in `theme.css`,
+    `none` in light). Deliberately not a second tile provider - that would
+    be another host in the CSP, another policy to follow, and likely an API
+    key. Popups, zoom buttons and attribution use the card/border tokens.
+  - **RTL**: the map container is pinned `direction: ltr` - Leaflet places
+    its panes and controls with physical left/top offsets, which misplace
+    under `dir="rtl"`. Popup text opts back in with `dir="auto"` so a
+    Hebrew place name still reads correctly. New strings are in both
+    languages in `i18n.ts`.
+  - **Scroll-trap avoidance**: the map sits inside the scrolling chat log,
+    so mouse-wheel zoom is off, and on touch devices one-finger drag is off
+    (`dragging={!L.Browser.mobile}`) so swiping past the map scrolls the
+    page instead of grabbing it; pinch still zooms and pans, and the +/-
+    buttons work everywhere. A judgment call - flip it if it feels wrong
+    on a real phone.
+  - **Backend**: `format_place()` returns `lat`/`lon` as numbers, unpacked
+    by name from the GeoJSON `[lon, lat]` pair (a test asserts they aren't
+    swapped). Flows through `/api/chat` and `/api/more-places` unchanged -
+    no ETA-flow changes, so the "results first, ETAs after" item in Next
+    should merge cleanly (it touches the same function, but only adds/removes
+    the `eta` field).
+  - **CSP: one origin added, to `img-src` only** - `https://tile.openstreetmap.org`.
+    **Surprise:** the obvious first guess, `https://*.tile.openstreetmap.org`,
+    would have been wrong and silently blocked every tile - a CSP wildcard
+    needs at least one subdomain label, so it does not match the bare host,
+    and OSM deprecated the old `a/b/c` subdomains, so Leaflet's actual
+    template (`https://tile.openstreetmap.org/{z}/{x}/{y}.png`) is the bare
+    host. Caught by checking what Leaflet would really request instead of
+    trusting the brief. Tiles are plain `<img>` loads, so no `connect-src`
+    or `script-src` change; a test asserts both the host in `img-src` and
+    that no other directive mentions OSM.
+  - **Privacy tradeoff (accepted, same category as OSRM/Nominatim):** the
+    tile requests the browser makes reveal the viewed area (roughly the
+    user's neighborhood) and IP to OSM's tile servers - browser-direct, so
+    our backend never sees or logs anything new, and no coordinates were
+    added to any request or log line. Because `privacy.html` promises to
+    list exactly who receives what, it now discloses this in both languages
+    (including that it only happens if the map is opened) - not in the
+    original brief, but leaving it stale would have made the policy wrong.
+    **OSM's tile usage policy** allows light use with visible attribution
+    (the "(c) OpenStreetMap contributors" link is shown) and a valid
+    Referer/User-Agent (the browser's normal ones; our
+    `Referrer-Policy: strict-origin-when-cross-origin` still sends the
+    origin). Fine for the small-trusted-cohort stance and an on-demand map;
+    not for bulk or heavy use. **Escape hatch:** swap `TILE_URL` in
+    `MapView.tsx` and the one CSP host for a MapTiler/Stadia free-tier
+    provider (needs an API key - and a dark tile style would then replace
+    the CSS filter).
+  - **Tests**: 2 new backend tests (224 total with the 222 existing:
+    `lat`/`lon` present and unswapped; CSP `img-src` contains the tile host
+    and nothing else was loosened). `npm run build` (`tsc -b`) passes and
+    `npm run lint` shows only the one pre-existing `react(immutability)`
+    warning at `App.tsx` (`applySession`), nothing from this change.
+    Verified in headless Chromium against the real FastAPI-served build
+    (real CSP headers, DB startup mocked, `/api/*` and tiles fulfilled by
+    the test harness) in light/English at desktop width and dark/Hebrew
+    at 375px: zero CSP violations, chunk fetched only on open, correct
+    pins (user + 1..3, then 1..6 after Show more), pin->card and card->pin
+    both ways, no horizontal overflow, RTL layout and popups fine.
+  - **Not verified (sandbox limits):** real OSM tiles (blocked - so the
+    dark-mode filter has only been seen on a flat mock tile, not real
+    map imagery), real place data, a real touch device, and the Show-more
+    case where the user changed location between pages (new places are
+    fetched relative to the *current* location while the map's origin pin
+    stays at the first search's - same pre-existing quirk as the cards'
+    own distances, noted rather than fixed).
+  - **Environment note for next time:** 3 existing auth tests fail with
+    `HMAC key must not be empty` when `JWT_SECRET` isn't set (it comes from
+    `.env`, which a fresh sandbox lacks) - they pass with any dummy value
+    (`JWT_SECRET=x pytest`). Not a regression; just don't mistake it for
+    one. Also `static/` must exist (run `npm run build`) before `pytest`
+    will even collect `test_app.py`, since the app mounts it at import.
 
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup

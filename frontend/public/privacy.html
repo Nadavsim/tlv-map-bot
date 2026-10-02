@@ -34,7 +34,11 @@
           OSRM). If you type an address instead of sharing live location, the text
           you type is sent to OpenStreetMap's free address lookup
           (<a href="https://nominatim.openstreetmap.org" target="_blank" rel="noopener noreferrer">nominatim.openstreetmap.org</a>)
-          to turn it into coordinates.
+          to turn it into coordinates. If you open the map view, your browser
+          also loads map images straight from OpenStreetMap's tile server
+          (<a href="https://tile.openstreetmap.org" target="_blank" rel="noopener noreferrer">tile.openstreetmap.org</a>);
+          the tiles it asks for reveal roughly which part of the city the map
+          is showing, and your IP address, to OpenStreetMap.
         </p>
 
         <h2>Your chat messages</h2>
@@ -68,7 +72,8 @@
           The anonymous usage stats above are stored in MongoDB Atlas. Third
           parties involved in answering a request: Anthropic (Claude API), OSRM
           (routing.openstreetmap.de), and OpenStreetMap's Nominatim
-          (nominatim.openstreetmap.org).
+          (nominatim.openstreetmap.org); and, only if you open the map view,
+          OpenStreetMap's tile server (tile.openstreetmap.org).
         </p>
 
         <h2>Changes</h2>
@@ -95,7 +100,11 @@
           OSRM). אם הקלדת כתובת במקום לשתף מיקום נוכחי, הטקסט שהקלדת נשלח
           לשירות איתור הכתובות החינמי של OpenStreetMap
           (<a href="https://nominatim.openstreetmap.org" target="_blank" rel="noopener noreferrer">nominatim.openstreetmap.org</a>)
-          כדי להפוך אותו לקואורדינטות.
+          כדי להפוך אותו לקואורדינטות. אם אתה פותח את תצוגת המפה, הדפדפן שלך
+          טוען גם תמונות מפה ישירות משרת האריחים של OpenStreetMap
+          (<a href="https://tile.openstreetmap.org" target="_blank" rel="noopener noreferrer">tile.openstreetmap.org</a>);
+          האריחים שהוא מבקש חושפים ל-OpenStreetMap בערך איזה אזור בעיר המפה
+          מציגה, ואת כתובת ה-IP שלך.
         </p>
 
         <h2>הודעות הצ'אט שלך</h2>
@@ -125,7 +134,8 @@
           נתוני השימוש האנונימיים שלמעלה מאוחסנים ב-MongoDB Atlas. צדדים
           שלישיים המעורבים במענה לבקשה: Anthropic (API של Claude), OSRM
           (routing.openstreetmap.de), ו-Nominatim של OpenStreetMap
-          (nominatim.openstreetmap.org).
+          (nominatim.openstreetmap.org); ורק אם אתה פותח את תצוגת המפה, שרת
+          האריחים של OpenStreetMap (tile.openstreetmap.org).
         </p>
 
         <h2>שינויים</h2>
