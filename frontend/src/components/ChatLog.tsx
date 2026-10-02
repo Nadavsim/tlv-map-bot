@@ -58,6 +58,7 @@ export function ChatLog({
               <PlaceCards
                 key={entry.id}
                 places={entry.places}
+                origin={entry.origin}
                 hasMore={entry.hasMore}
                 isLoadingMore={loadingMoreId === entry.id}
                 onShowMore={() => onShowMore(entry.id)}

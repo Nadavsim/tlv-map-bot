@@ -8,10 +8,35 @@ function formatClosesAt(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`
 }
 
-export function PlaceCard({ place, lang }: { place: Place; lang: Lang }) {
+interface PlaceCardProps {
+  place: Place
+  lang: Lang
+  // Only set while the entry's map is open: the card then shows its pin's
+  // number and can be selected to highlight that pin (and vice versa).
+  mapNumber?: number
+  isActive?: boolean
+  onSelect?: () => void
+}
+
+export function PlaceCard({ place, lang, mapNumber, isActive = false, onSelect }: PlaceCardProps) {
   return (
-    <div className="place-card">
-      <div className="name">{place.name}</div>
+    <div className={`place-card${isActive ? ' is-active' : ''}`} onClick={onSelect}>
+      <div className="name">
+        {mapNumber !== undefined && (
+          // A real button (not just the card's click handler) so the link to
+          // the pin is reachable by keyboard and screen readers too.
+          <button
+            type="button"
+            className={`place-number${isActive ? ' is-active' : ''}`}
+            aria-label={`${t(lang, 'showOnMapPin')} ${mapNumber}`}
+            aria-pressed={isActive}
+            onClick={onSelect}
+          >
+            {mapNumber}
+          </button>
+        )}
+        {place.name}
+      </div>
       <div className="meta">
         <span className="category-chip">{place.category}</span>
         {place.price_tier && (

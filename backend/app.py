@@ -71,7 +71,10 @@ async def security_headers(request, call_next):
     exactly what the app actually loads: same-origin scripts/API calls, the
     Google Fonts stylesheet + font files, data: URIs for the inline SVG
     favicon, and (since Google Sign-In) Google Identity Services' own script/
-    frame/network calls and Google-hosted profile pictures - nothing else.
+    frame/network calls and Google-hosted profile pictures. The map view
+    adds exactly one more origin, to img-src only: OpenStreetMap's tile
+    server (Leaflet loads tiles as plain <img> elements, so nothing else -
+    no connect-src/script-src - is needed). Nothing else.
     Permissions-Policy explicitly keeps geolocation available to the page
     itself (the app's core feature) while locking out unrelated device APIs
     this app never uses."""
@@ -93,7 +96,7 @@ async def security_headers(request, call_next):
         # rendering path that could exploit it.
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; "
         "font-src 'self' https://fonts.gstatic.com; "
-        "img-src 'self' data: https://*.googleusercontent.com; "
+        "img-src 'self' data: https://*.googleusercontent.com https://tile.openstreetmap.org; "
         "connect-src 'self' https://accounts.google.com; "
         "frame-src https://accounts.google.com; "
         "object-src 'none'; "
@@ -250,6 +253,10 @@ def format_place(place: PlaceResult, eta_seconds: float | None) -> dict:
         "closes_at_hour": place.closes_at_hour,
         "outdoor_seating": place.outdoor_seating,
         "maps_url": maps_url,
+        # GeoJSON order is [lon, lat] - unpacked above, returned by name so
+        # no caller (the map view) has to remember which way round it is.
+        "lat": lat,
+        "lon": lon,
     }
 
 

@@ -367,6 +367,7 @@ export default function App() {
             id: makeEntryId(),
             kind: 'places',
             places: data.places,
+            origin: activeLocation,
             category: data.category,
             dietaryTag: data.dietary_tag,
             offset: data.offset,
@@ -386,15 +387,19 @@ export default function App() {
 
   async function handleShowMore(entryId: string) {
     const entry = entries.find((e) => e.id === entryId)
-    if (!entry || entry.kind !== 'places' || !activeLocation) return
+    if (!entry || entry.kind !== 'places') return
 
     setLoadingMoreId(entryId)
     try {
+      // From the entry's own origin, not the current location: "Show more" is a
+      // continuation of that search (offset N only means something relative to
+      // the same point), and the map plots every pin against that origin - a
+      // different location here made new cards' distances disagree with their pins.
       const data = await postMorePlaces({
         category: entry.category,
         tag: entry.dietaryTag,
-        lat: activeLocation.lat,
-        lon: activeLocation.lon,
+        lat: entry.origin.lat,
+        lon: entry.origin.lon,
         mode,
         offset: entry.offset,
       })

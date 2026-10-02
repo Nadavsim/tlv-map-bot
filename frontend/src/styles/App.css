@@ -817,3 +817,138 @@ header h1 svg {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Map view. The container is pinned to ltr: Leaflet positions its panes with
+   physical left/top offsets, which break under dir="rtl". Text inside popups
+   opts back in via dir="auto" (see MapView). */
+.map-view {
+  direction: ltr;
+  height: 260px;
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  animation: rise-in 0.25s ease both;
+}
+
+.map-view .leaflet-container {
+  height: 100%;
+  width: 100%;
+  background: var(--card-bg);
+  font-family: inherit;
+}
+
+.map-view .leaflet-tile-pane {
+  filter: var(--map-tile-filter);
+}
+
+.map-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  direction: inherit;
+}
+
+.map-pin-wrapper {
+  background: none;
+  border: none;
+}
+
+.map-pin {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: 2.5px solid var(--card-bg);
+  box-shadow: var(--shadow-md);
+  font-weight: 800;
+  font-size: 0.8rem;
+  transition: transform 0.15s ease;
+}
+
+.map-pin-active {
+  transform: scale(1.3);
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* The user's own location: a different shape (ringed dot), not just a
+   different color, so it never reads as "result number 0". */
+.map-pin-origin {
+  width: 20px;
+  height: 20px;
+  margin: 5px;
+  background: var(--fg);
+  border: 4px solid var(--card-bg);
+  outline: 2px solid var(--fg);
+}
+
+.map-view .leaflet-popup-content-wrapper,
+.map-view .leaflet-popup-tip {
+  background: var(--card-bg);
+  color: var(--fg);
+}
+
+.map-view .leaflet-popup-content {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin: 0.6rem 0.9rem;
+}
+
+.map-view .leaflet-bar a {
+  background: var(--card-bg);
+  color: var(--fg);
+  border-bottom-color: var(--border);
+}
+
+.map-view .leaflet-bar a:hover {
+  background: var(--chip-bg);
+}
+
+/* Three classes on purpose: Leaflet's own rule is
+   `.leaflet-container .leaflet-control-attribution` (same specificity as
+   `.map-view .leaflet-control-attribution`), and its stylesheet loads with the
+   lazy map chunk - after this file - so a tie went to Leaflet's white panel. */
+.map-view .leaflet-container .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--card-bg) 85%, transparent);
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+.map-view .leaflet-control-attribution a {
+  color: var(--accent);
+}
+
+.place-card.is-active {
+  border-color: var(--accent);
+}
+
+.place-card .name .place-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-inline-end: 0.5rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.place-card .name .place-number.is-active {
+  background: var(--accent);
+  color: var(--accent-fg);
+}

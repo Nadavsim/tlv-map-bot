@@ -952,3 +952,23 @@ def test_auth_me_rejects_an_invalid_access_token(monkeypatch):
         resp = client.get("/api/auth/me", headers={"Authorization": "Bearer garbage"})
 
     assert resp.status_code == 401
+
+
+def test_format_place_returns_lat_and_lon_not_swapped():
+    # GeoJSON stores [lon, lat]; SAMPLE_PLACE is lon=34.77, lat=32.06 (Tel Aviv).
+    formatted = format_place(SAMPLE_PLACE, eta_seconds=None)
+    assert formatted["lat"] == 32.06
+    assert formatted["lon"] == 34.77
+
+
+def test_csp_allows_osm_tiles_in_img_src_only(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "ping_database", AsyncMock(return_value=True))
+    with TestClient(app_module.app) as client:
+        csp = client.get("/health").headers["Content-Security-Policy"]
+    directives = {d.split()[0]: d.split()[1:] for d in csp.split("; ") if d}
+    assert "https://tile.openstreetmap.org" in directives["img-src"]
+    # Tiles are <img> loads - nothing else may have been loosened for them.
+    for name, sources in directives.items():
+        if name != "img-src":
+            assert not any("openstreetmap" in s for s in sources)
