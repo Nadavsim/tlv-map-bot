@@ -195,9 +195,11 @@ call):
 - ~~**Usability** - map view: plot the set location and the recommended
   spot(s) together, on top of the existing chat/list view. Leaflet + free
   OpenStreetMap tiles, matching the OSRM/Nominatim pattern already in
-  place rather than a paid Maps API.~~ - **built 2026-10-02, pending
-  verification** (written in a sandbox with no real data or real tiles; see
-  "Later-horizon items shipped" below for what was and wasn't verified).
+  place rather than a paid Maps API.~~ - **built 2026-10-02 in a cloud
+  session, then verified against real tiles and the real (staging)
+  database the same day** - which found and fixed two real bugs (see
+  "Later-horizon items shipped" below). Still unchecked: a real finger on
+  a real phone.
 - **Intelligence** - semantic search over place descriptions:
   precomputed embeddings, in-process cosine similarity. Deliberately
   **not** MongoDB Atlas Vector Search, which alone needs an M10+ cluster
@@ -1114,11 +1116,12 @@ serving. (The map view itself was added to the Later horizon above,
 
 ### Later-horizon items shipped
 
-- **Map view** (2026-10-02) - **built pending verification**: written in a
-  cloud sandbox with no `.env`, no Atlas, no real place data, and outbound
-  access to OSM's tile server blocked, so everything below was verified
-  against mocked API responses and fake Tel Aviv coordinates only. The PR
-  carries a "verify locally" checklist.
+- **Map view** (2026-10-02) - built in a cloud sandbox with no `.env`, no
+  Atlas, no real place data, and outbound access to OSM's tile server
+  blocked, so the build-time claims below were verified against mocked API
+  responses and fake Tel Aviv coordinates only. The PR carried a "verify
+  locally" checklist; the **"Verification pass" bullet at the end of this
+  entry** records the real run, including two bugs it found.
   - **UX: a per-results-block toggle, not a global map or a tab.** Each
     results block gets a "Show on map" button (same style as "Show more",
     next to it) that opens a 260px map directly below that block's cards.
@@ -1213,13 +1216,67 @@ serving. (The map view itself was added to the Later horizon above,
     at 375px: zero CSP violations, chunk fetched only on open, correct
     pins (user + 1..3, then 1..6 after Show more), pin->card and card->pin
     both ways, no horizontal overflow, RTL layout and popups fine.
-  - **Not verified (sandbox limits):** real OSM tiles (blocked - so the
-    dark-mode filter has only been seen on a flat mock tile, not real
-    map imagery), real place data, a real touch device, and the Show-more
-    case where the user changed location between pages (new places are
-    fetched relative to the *current* location while the map's origin pin
-    stays at the first search's - same pre-existing quirk as the cards'
-    own distances, noted rather than fixed).
+  - **Not verified in the sandbox** (all but the last since checked - see
+    the verification pass below): real OSM tiles, real place data, the
+    dark-mode filter on real imagery, a real touch device, and the
+    Show-more case where the user changed location between pages (found
+    to be a real bug, fixed below - not just a quirk).
+  - **Verification pass (2026-10-02, against real tiles and the real
+    staging DB, production build served by FastAPI, local `.env` overridden
+    to `MONGODB_DB_NAME=tlvbot_staging` so no usage stats were written to
+    production):**
+    - *Bug 1 - dark-mode attribution was effectively invisible, which is
+      also an OSM-licence problem.* Measured contrast of the "(c)
+      OpenStreetMap contributors" text was **1.77:1 (link 1.31:1)**. The
+      PR's `.map-view .leaflet-control-attribution` rule and Leaflet's own
+      `.leaflet-container .leaflet-control-attribution` have identical
+      specificity, and Leaflet's stylesheet ships inside the lazy map chunk
+      so it loads *after* `App.css` - the tie went to Leaflet's default
+      `rgba(255,255,255,.8)` panel under our light-gray text and lime link.
+      Only that one rule collided (popup, zoom and link rules all outrank
+      Leaflet's). Fix: a third class in the selector, so it no longer
+      depends on load order. Now 6.35:1 / 14.75:1 in dark mode; light mode
+      was fine (5.62 / 5.16). Lesson: **any override of a Leaflet rule
+      needs strictly higher specificity than Leaflet's, never equal** - the
+      lazy chunk's CSS always wins ties.
+    - *Bug 2 - "Show more" after the location changed gave a map that
+      lied.* It requested the next page from the *current* location while
+      the map pinned everything against the *original* origin, so new
+      cards' distances disagreed with their pins (reproduced: a card saying
+      1.1 km sat 3.3 km from the "you are here" pin) - and `offset` only
+      means something relative to the same point, so it wasn't even a true
+      continuation. Fix (`App.tsx` `handleShowMore`): search from
+      `entry.origin`, i.e. "more of *this* result". Re-run: worst
+      pin-vs-card disagreement 5 m (was 2.2 km). Side effect to know: Show
+      more under an old result stays anchored to where that search was run,
+      even if the user has since moved.
+    - *Verified OK:* pins match the data (6 pins from the real DB; each
+      coordinate agrees with its card's distance to within 4 m - rules out
+      a lat/lon swap); pin numbers match card order; Custom *and* Live
+      origin pins correct (Live via a mocked geolocation fix) and each
+      results block keeps its own origin when the location changes later
+      (checked by tile coordinates and by pin-pixel geometry vs card
+      distances); real tiles load, all from exactly `tile.openstreetmap.org`
+      - the bare host the PR's CSP guess turned out to be right about - with
+      no CSP violations in the console; the map chunk is requested only
+      after the first "Show on map"; pin<->card highlighting both ways
+      (badge is a real `<button>` with `aria-pressed`); Show more adds pins
+      and keeps them all in view; Hebrew/RTL (map stays ltr, controls
+      stay top-left, popup `dir="auto"`, 16.6:1); light and dark themes; no
+      horizontal overflow at 375 px in English or Hebrew; on a touch UA
+      the container is `leaflet-touch-zoom` with `touch-action: pan-x
+      pan-y`, i.e. the browser scrolls on a one-finger swipe and Leaflet
+      still handles pinch; Privacy page reads correctly and accurately in
+      both languages (kept as written).
+    - *Still not verified:* an actual finger on an actual phone - the
+      browser pane turns taps into mouse events, so the scroll-trap
+      behaviour was checked via the CSS state the browser acts on, not a
+      real swipe. Real-device taste calls remain: whether one-finger drag
+      being off feels right, and the dark-tile filter's look.
+    - *Design notes worth a human eye (not bugs):* tapping a pin scrolls
+      its card into view, which on a short viewport can push the map itself
+      off-screen; and pins whose places are a few metres apart overlap (4 and
+      5 did) - inherent to numbered pins at this zoom, no clustering.
   - **Environment note for next time:** 3 existing auth tests fail with
     `HMAC key must not be empty` when `JWT_SECRET` isn't set (it comes from
     `.env`, which a fresh sandbox lacks) - they pass with any dummy value
