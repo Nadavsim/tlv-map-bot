@@ -149,8 +149,9 @@ call):
   **occasion half is wired but dormant**: it reuses the dietary-tag
   mechanism, so it does nothing until you hand-tag pins with occasion
   hashtags (`#date`, ...) in My Maps - no place has any hashtag yet.
-- **Usability** - a one-time guided first message for a brand-new
-  session, reusing the Help flow's own chat-bubble pattern.
+- ~~**Usability** - a one-time guided first message for a brand-new
+  session, reusing the Help flow's own chat-bubble pattern~~ - **built
+  2026-10-02**, see "Next-horizon items shipped" below.
 - **Usability** - saved/frequent manual address, tied to the account that
   just shipped. Privacy constraint carries forward unchanged: no semantic
   labels like "Home"/"Work" (see the original note below).
@@ -1200,6 +1201,42 @@ serving. (The map view itself was added to the Later horizon above,
       languages. Existing tests only needed `price_tier` added to their
       mocked extractions and `price=None` to their `find_nearest`
       assertions.
+  - **First-visit prompt** (2026-10-02, built; see the roadmap line for
+    where it's deployed) - after a brand-new visitor's location is first
+    set, a bot bubble ("Location set - ask away! Tap one to try it, or
+    type your own. After any result, 'something else' or 'cheaper' refines
+    it.") plus three tappable example chips: coffee / something cheap /
+    surprise me (Hebrew: קפה / משהו זול / תפתיע אותי). Reuses `ChatBubble`;
+    the chips are a new `starter` chat-entry kind and double as the message
+    sent when tapped, so each must be something the bot handles well.
+    - **When**: not on page load - there's no location yet, so a tap
+      couldn't search. `maybeShowStarter()` runs from both ways a location
+      becomes active (typed/Maps-link/coordinates, and a successful Live
+      fix) and uses a functional `setEntries` because the geolocation
+      callback is a stale closure. Skipped if the log already has content
+      (Help opened first). At most once per page load (`starterShownRef`),
+      so "New conversation" doesn't resurrect it.
+    - **One-time**: `tlv-bot-intro-seen` in localStorage, set by
+      `retireStarter()` when the visitor sends anything or opens Help; that
+      also removes the chips from the log (an invitation, not history).
+      Deliberately NOT set when merely shown: someone who closes the tab
+      before asking should still get it next time. Blocked storage means
+      it shows every visit rather than never. **`privacy.html` updated in
+      both languages** to mention the new flag, since it promises to list
+      what's stored.
+    - **Why it includes the refine hint**: "something else"/"cheaper" work
+      but nothing on screen suggested them, and "cheaper" only exists as of
+      the price search above.
+    - Verified in the real UI against the staging DB: fresh visitor sees
+      nothing at load, the starter after setting a location; tapping
+      "something cheap" sends it, returns cheap results, removes the chips
+      and sets the flag; a returning visitor sees no starter; Hebrew/RTL at
+      375px with no horizontal overflow and 44px chips; "New conversation"
+      doesn't bring it back; the Hebrew chip and hint phrases ("משהו אחר",
+      "יותר זול", etc.) all behave on the real model. Not covered: the
+      frontend has no automated test suite, so none of this is under test;
+      and the Live-geolocation path to `maybeShowStarter()` was reasoned
+      about, not exercised (no real geolocation in the sandbox).
 
 ### Later-horizon items shipped
 

@@ -32,6 +32,13 @@ const STRINGS = {
     chatSend: 'Send',
     chatRateLimited: "You're sending messages a bit fast - give it a moment and try again.",
     chatNetworkError: "Couldn't reach the server - check your connection.",
+    introText:
+      'Location set - ask away! Tap one to try it, or type your own.\n\nAfter any result, "something else" or "cheaper" refines it.',
+    // These double as the message that gets sent when tapped, so each one
+    // must be something the bot genuinely handles well.
+    introPrompt1: 'coffee',
+    introPrompt2: 'something cheap',
+    introPrompt3: 'surprise me',
     walk: 'Walk',
     drive: 'Drive',
     help: 'Help',
@@ -107,6 +114,11 @@ const STRINGS = {
     chatSend: 'שלח',
     chatRateLimited: 'אתה שולח הודעות מהר מדי - חכה רגע ונסה שוב.',
     chatNetworkError: 'לא הצלחתי להתחבר לשרת - בדוק את החיבור שלך.',
+    introText:
+      'המיקום נקבע - שאל בכיף! הקש על אחת הדוגמאות, או הקלד משלך.\n\nאחרי כל תוצאה אפשר לכתוב "משהו אחר" או "יותר זול" כדי לדייק.',
+    introPrompt1: 'קפה',
+    introPrompt2: 'משהו זול',
+    introPrompt3: 'תפתיע אותי',
     walk: 'הליכה',
     drive: 'נסיעה',
     help: 'עזרה',

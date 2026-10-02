@@ -952,3 +952,45 @@ header h1 svg {
   background: var(--accent);
   color: var(--accent-fg);
 }
+
+/* First-visit prompt: a bot bubble followed by tappable example messages. */
+.starter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.starter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.starter-chip {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.starter-chip:hover:not(:disabled) {
+  background: var(--chip-bg);
+}
+
+.starter-chip:active {
+  transform: scale(0.97);
+}
+
+.starter-chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

@@ -5,7 +5,7 @@ import { ChatInput } from './components/ChatInput'
 import { ChatLog } from './components/ChatLog'
 import { Header } from './components/Header'
 import { t, type StringKey } from './i18n'
-import { loadLang, loadTheme, saveLang, saveTheme } from './preferences'
+import { loadIntroSeen, loadLang, loadTheme, saveIntroSeen, saveLang, saveTheme } from './preferences'
 import type { AuthUser, Coordinates, Lang, LocationMode, PriceTier, Theme, TransportMode } from './types'
 import { PAGE_SIZE } from './types'
 import './styles/theme.css'
@@ -81,6 +81,11 @@ export default function App() {
   const deferredInstallPromptRef = useRef<BeforeInstallPromptEvent | null>(null)
   const cameFromShareRef = useRef(false)
   const hasPromptedInstallRef = useRef(false)
+  // The first-visit prompt shows at most once per page load (so "New
+  // conversation" doesn't bring it back) and only until this browser has
+  // actually used the app - see maybeShowStarter / retireStarter.
+  const introSeenRef = useRef(loadIntroSeen())
+  const starterShownRef = useRef(false)
 
   useEffect(() => {
     return () => {
@@ -212,6 +217,7 @@ export default function App() {
       (pos) => {
         setLiveLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude })
         setLocationStatusKey('locationSet')
+        maybeShowStarter()
         setLocationMode('live')
         setShowLocationForm(false)
         setIsRequestingLocation(false)
@@ -254,6 +260,7 @@ export default function App() {
     setManualLocationLabel(label)
     setLocationMode('manual')
     setShowLocationForm(false)
+    maybeShowStarter()
   }
 
   // The toggle always reflects the click immediately - `setLocationMode`
@@ -282,11 +289,44 @@ export default function App() {
     setShowLocationForm(true)
   }
 
+  // The one-time first-visit prompt, offered the moment a location first
+  // becomes usable - before that, tapping an example couldn't do anything.
+  // The functional update (rather than reading `entries`) matters because
+  // the geolocation callback that calls this was created before later renders.
+  // Skipped if the conversation already has content (e.g. Help was opened).
+  function maybeShowStarter() {
+    if (introSeenRef.current || starterShownRef.current) return
+    starterShownRef.current = true
+    setEntries((prev) =>
+      prev.length > 0
+        ? prev
+        : [
+            {
+              id: makeEntryId(),
+              kind: 'starter',
+              text: t(lang, 'introText'),
+              prompts: [t(lang, 'introPrompt1'), t(lang, 'introPrompt2'), t(lang, 'introPrompt3')],
+            },
+          ],
+    )
+  }
+
+  // Using the app (sending anything, or opening Help) ends the first-visit
+  // state for good in this browser and clears the tappable examples.
+  function retireStarter() {
+    if (!introSeenRef.current) {
+      introSeenRef.current = true
+      saveIntroSeen()
+    }
+    setEntries((prev) => (prev.some((e) => e.kind === 'starter') ? prev.filter((e) => e.kind !== 'starter') : prev))
+  }
+
   function handleLocationError(message: string) {
     setEntries((prev) => [...prev, { id: makeEntryId(), kind: 'bot-text', text: message }])
   }
 
   async function showHelp(userMessageText: string | null) {
+    retireStarter()
     if (userMessageText !== null) {
       setEntries((prev) => [...prev, { id: makeEntryId(), kind: 'user-text', text: userMessageText }])
     }
@@ -347,6 +387,7 @@ export default function App() {
     // cleared history at this point would silently discard whatever the user
     // just sent instead.
     dismissUndo()
+    retireStarter()
 
     // Answered locally - free, instant, no LLM call needed for a fixed command.
     if (HELP_COMMANDS.includes(message.trim().toLowerCase())) {
@@ -509,6 +550,7 @@ export default function App() {
         showLiveRetry={locationMode === 'live'}
         onShowMore={handleShowMore}
         loadingMoreId={loadingMoreId}
+        onPickStarter={handleSend}
         lang={lang}
       />
       {clearedEntries && (

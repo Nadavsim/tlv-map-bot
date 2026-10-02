@@ -18,6 +18,7 @@ interface ChatLogProps {
   showLiveRetry: boolean
   onShowMore: (entryId: string) => void
   loadingMoreId: string | null
+  onPickStarter: (prompt: string) => void
   lang: Lang
 }
 
@@ -33,6 +34,7 @@ export function ChatLog({
   showLiveRetry,
   onShowMore,
   loadingMoreId,
+  onPickStarter,
   lang,
 }: ChatLogProps) {
   const logRef = useRef<HTMLElement>(null)
@@ -53,6 +55,25 @@ export function ChatLog({
             return <ChatBubble key={entry.id} role="bot" text={entry.text} />
           case 'user-text':
             return <ChatBubble key={entry.id} role="user" text={entry.text} />
+          case 'starter':
+            return (
+              <div key={entry.id} className="starter">
+                <ChatBubble role="bot" text={entry.text} />
+                <div className="starter-chips">
+                  {entry.prompts.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      className="starter-chip"
+                      disabled={isWaitingForReply}
+                      onClick={() => onPickStarter(prompt)}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
           case 'places':
             return (
               <PlaceCards
