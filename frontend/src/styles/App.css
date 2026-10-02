@@ -912,7 +912,11 @@ header h1 svg {
   background: var(--chip-bg);
 }
 
-.map-view .leaflet-control-attribution {
+/* Three classes on purpose: Leaflet's own rule is
+   `.leaflet-container .leaflet-control-attribution` (same specificity as
+   `.map-view .leaflet-control-attribution`), and its stylesheet loads with the
+   lazy map chunk - after this file - so a tie went to Leaflet's white panel. */
+.map-view .leaflet-container .leaflet-control-attribution {
   background: color-mix(in srgb, var(--card-bg) 85%, transparent);
   color: var(--muted);
   font-size: 0.65rem;
