@@ -145,6 +145,7 @@ def test_chat_endpoint_returns_nearest_places_on_match(monkeypatch):
             return_value={
                 "category": "coffee",
                 "dietary_tag": None,
+                "price_tier": None,
                 "clarifying_question": None,
                 "any_category": False,
             }
@@ -174,6 +175,7 @@ def test_chat_endpoint_replies_in_hebrew_when_lang_is_he(monkeypatch):
         return_value={
             "category": "coffee",
             "dietary_tag": None,
+            "price_tier": None,
             "clarifying_question": None,
             "any_category": False,
         }
@@ -199,6 +201,7 @@ def test_chat_endpoint_replies_in_hebrew_when_lang_is_he(monkeypatch):
         previous_category=None,
         previous_dietary_tag=None,
         has_previous_context=False,
+        previous_price_tier=None,
     )
 
 
@@ -225,6 +228,7 @@ def test_chat_endpoint_handles_any_category_surprise_me(monkeypatch):
             return_value={
                 "category": None,
                 "dietary_tag": None,
+                "price_tier": None,
                 "clarifying_question": None,
                 "any_category": True,
             }
@@ -243,7 +247,7 @@ def test_chat_endpoint_handles_any_category_surprise_me(monkeypatch):
     body = resp.json()
     assert "Surprise" in body["reply"]
     assert body["category"] is None
-    find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3, tag=None)
+    find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3, tag=None, price=None)
     record_stat_mock.assert_awaited_once_with(db.ANY_CATEGORY_KEY)
 
 
@@ -319,6 +323,7 @@ def test_chat_endpoint_defaults_to_walking_mode(monkeypatch):
             return_value={
                 "category": "coffee",
                 "dietary_tag": None,
+                "price_tier": None,
                 "clarifying_question": None,
                 "any_category": False,
             }
@@ -348,6 +353,7 @@ def test_chat_endpoint_rate_limits_after_too_many_requests(monkeypatch):
             return_value={
                 "category": "coffee",
                 "dietary_tag": None,
+                "price_tier": None,
                 "clarifying_question": None,
                 "any_category": False,
             }
@@ -382,6 +388,7 @@ def test_chat_endpoint_requests_one_batched_eta_call_for_multiple_places(monkeyp
             return_value={
                 "category": "coffee",
                 "dietary_tag": None,
+                "price_tier": None,
                 "clarifying_question": None,
                 "any_category": False,
             }
@@ -416,7 +423,7 @@ def test_more_places_endpoint_passes_offset_through_to_find_nearest(monkeypatch)
     assert resp.status_code == 200
     body = resp.json()
     assert body["places"][0]["name"] == "Cafelix"
-    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3, offset=3, tag=None)
+    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3, offset=3, tag=None, price=None)
 
 
 def test_more_places_endpoint_supports_any_category_with_null_category(monkeypatch):
@@ -429,7 +436,7 @@ def test_more_places_endpoint_supports_any_category_with_null_category(monkeypat
         resp = client.post("/api/more-places", json={"category": None, "lat": 32.08, "lon": 34.78, "offset": 3})
 
     assert resp.status_code == 200
-    find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3, offset=3, tag=None)
+    find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3, offset=3, tag=None, price=None)
 
 
 def test_more_places_endpoint_passes_tag_through_to_find_nearest(monkeypatch):
@@ -445,7 +452,7 @@ def test_more_places_endpoint_passes_tag_through_to_find_nearest(monkeypatch):
         )
 
     assert resp.status_code == 200
-    find_nearest_mock.assert_awaited_once_with("burger", 32.08, 34.78, limit=3, offset=3, tag="vegan")
+    find_nearest_mock.assert_awaited_once_with("burger", 32.08, 34.78, limit=3, offset=3, tag="vegan", price=None)
 
 
 def test_service_worker_is_served_from_the_root_path_not_under_static(monkeypatch):
@@ -486,6 +493,7 @@ def test_chat_endpoint_treats_a_followup_as_continuing_the_previous_category(mon
                 "clarifying_question": None,
                 "any_category": False,
                 "is_followup": True,
+                "price_tier": None,
             }
         ),
     )
@@ -513,7 +521,7 @@ def test_chat_endpoint_treats_a_followup_as_continuing_the_previous_category(mon
     assert body["category"] == "coffee"
     assert "coffee" in body["reply"]
     assert body["offset"] == 4
-    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3, offset=3, tag=None)
+    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3, offset=3, tag=None, price=None)
     record_stat_mock.assert_awaited_once_with("coffee")
 
 
@@ -524,7 +532,7 @@ def test_chat_endpoint_followup_continues_any_category_when_previous_was_surpris
         llm,
         "parse_food_request",
         AsyncMock(
-            return_value={"category": None, "clarifying_question": None, "any_category": False, "is_followup": True}
+            return_value={"category": None, "clarifying_question": None, "any_category": False, "is_followup": True, "price_tier": None}
         ),
     )
     find_nearest_mock = AsyncMock(return_value=[SAMPLE_PLACE])
@@ -550,7 +558,7 @@ def test_chat_endpoint_followup_continues_any_category_when_previous_was_surpris
     body = resp.json()
     assert body["category"] is None
     assert "Surprise" in body["reply"]
-    find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3, offset=3, tag=None)
+    find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3, offset=3, tag=None, price=None)
     record_stat_mock.assert_awaited_once_with(db.ANY_CATEGORY_KEY)
 
 
@@ -561,7 +569,7 @@ def test_chat_endpoint_followup_replies_gracefully_when_pagination_exhausted(mon
         llm,
         "parse_food_request",
         AsyncMock(
-            return_value={"category": "coffee", "clarifying_question": None, "any_category": False, "is_followup": True}
+            return_value={"category": "coffee", "clarifying_question": None, "any_category": False, "is_followup": True, "price_tier": None}
         ),
     )
     monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[]))
@@ -596,9 +604,11 @@ def test_chat_endpoint_no_more_matches_mentions_dietary_tag_when_present(monkeyp
             return_value={
                 "category": "coffee",
                 "dietary_tag": "vegan",
+                "price_tier": None,
                 "clarifying_question": None,
                 "any_category": False,
                 "is_followup": True,
+                "price_tier": None,
             }
         ),
     )
@@ -639,9 +649,11 @@ def test_chat_endpoint_ignores_followup_flag_when_no_previous_context_given(monk
             return_value={
                 "category": "coffee",
                 "dietary_tag": None,
+                "price_tier": None,
                 "clarifying_question": None,
                 "any_category": False,
                 "is_followup": True,
+                "price_tier": None,
             }
         ),
     )
@@ -654,7 +666,7 @@ def test_chat_endpoint_ignores_followup_flag_when_no_previous_context_given(monk
         resp = client.post("/api/chat", json={"message": "coffee", "lat": 32.08, "lon": 34.78})
 
     assert resp.status_code == 200
-    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3, tag=None)
+    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3, tag=None, price=None)
 
 
 def test_chat_endpoint_fresh_match_includes_offset_for_future_followups(monkeypatch):
@@ -667,6 +679,7 @@ def test_chat_endpoint_fresh_match_includes_offset_for_future_followups(monkeypa
             return_value={
                 "category": "coffee",
                 "dietary_tag": None,
+                "price_tier": None,
                 "clarifying_question": None,
                 "any_category": False,
                 "is_followup": False,
@@ -692,6 +705,7 @@ def test_chat_endpoint_filters_by_dietary_tag_and_mentions_it_in_the_reply(monke
         return_value={
             "category": "burger",
             "dietary_tag": "vegan",
+            "price_tier": None,
             "clarifying_question": None,
             "any_category": False,
         }
@@ -710,7 +724,7 @@ def test_chat_endpoint_filters_by_dietary_tag_and_mentions_it_in_the_reply(monke
     assert body["dietary_tag"] == "vegan"
     assert "vegan" in body["reply"]
     assert "burger" in body["reply"]
-    find_nearest_mock.assert_awaited_once_with("burger", 32.08, 34.78, limit=3, tag="vegan")
+    find_nearest_mock.assert_awaited_once_with("burger", 32.08, 34.78, limit=3, tag="vegan", price=None)
     parse_mock.assert_awaited_once_with(
         "vegan burger",
         ["burger"],
@@ -719,6 +733,7 @@ def test_chat_endpoint_filters_by_dietary_tag_and_mentions_it_in_the_reply(monke
         previous_category=None,
         previous_dietary_tag=None,
         has_previous_context=False,
+        previous_price_tier=None,
     )
 
 
@@ -733,6 +748,7 @@ def test_chat_endpoint_any_category_with_dietary_tag_mentions_tag_in_reply(monke
             return_value={
                 "category": None,
                 "dietary_tag": "kosher",
+                "price_tier": None,
                 "clarifying_question": None,
                 "any_category": True,
             }
@@ -751,7 +767,7 @@ def test_chat_endpoint_any_category_with_dietary_tag_mentions_tag_in_reply(monke
     assert body["category"] is None
     assert body["dietary_tag"] == "kosher"
     assert "kosher" in body["reply"]
-    find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3, tag="kosher")
+    find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3, tag="kosher", price=None)
 
 
 def test_chat_endpoint_followup_continues_with_previous_dietary_tag(monkeypatch):
@@ -765,9 +781,11 @@ def test_chat_endpoint_followup_continues_with_previous_dietary_tag(monkeypatch)
             return_value={
                 "category": None,
                 "dietary_tag": None,
+                "price_tier": None,
                 "clarifying_question": None,
                 "any_category": False,
                 "is_followup": True,
+                "price_tier": None,
             }
         ),
     )
@@ -793,7 +811,7 @@ def test_chat_endpoint_followup_continues_with_previous_dietary_tag(monkeypatch)
     assert resp.status_code == 200
     body = resp.json()
     assert body["dietary_tag"] == "vegan"
-    find_nearest_mock.assert_awaited_once_with("burger", 32.08, 34.78, limit=3, offset=3, tag="vegan")
+    find_nearest_mock.assert_awaited_once_with("burger", 32.08, 34.78, limit=3, offset=3, tag="vegan", price=None)
 
 
 SAMPLE_USER = User(
@@ -972,3 +990,186 @@ def test_csp_allows_osm_tiles_in_img_src_only(monkeypatch):
     for name, sources in directives.items():
         if name != "img-src":
             assert not any("openstreetmap" in s for s in sources)
+
+
+def _price_extraction(**overrides):
+    base = {
+        "category": "coffee",
+        "dietary_tag": None,
+        "price_tier": "$",
+        "clarifying_question": None,
+        "any_category": False,
+        "is_followup": False,
+    }
+    return {**base, **overrides}
+
+
+def _mock_price_chat(monkeypatch, extraction, found=None):
+    """The mocks every price test needs; returns the find_nearest mock."""
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
+    monkeypatch.setattr(llm, "parse_food_request", AsyncMock(return_value=extraction))
+    find_nearest_mock = AsyncMock(return_value=[SAMPLE_PLACE] if found is None else found)
+    monkeypatch.setattr(db, "find_nearest", find_nearest_mock)
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300]))
+    monkeypatch.setattr(db, "record_category_request", AsyncMock())
+    return find_nearest_mock
+
+
+def test_chat_endpoint_filters_by_price_and_says_so_in_the_reply(monkeypatch):
+    find_nearest_mock = _mock_price_chat(monkeypatch, _price_extraction())
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/chat", json={"message": "cheap coffee", "lat": 32.08, "lon": 34.78})
+
+    body = resp.json()
+    assert body["reply"] == "Here are the closest cheap coffee spots:"
+    assert body["price_tier"] == "$"
+    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3, tag=None, price="$")
+
+
+def test_chat_endpoint_price_and_tag_combine_in_one_phrase(monkeypatch):
+    _mock_price_chat(monkeypatch, _price_extraction(dietary_tag="vegan", price_tier="$$"))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/chat", json={"message": "x", "lat": 32.08, "lon": 34.78})
+
+    assert resp.json()["reply"] == "Here are the closest mid-range vegan coffee spots:"
+
+
+def test_chat_endpoint_price_only_request_searches_any_category(monkeypatch):
+    find_nearest_mock = _mock_price_chat(
+        monkeypatch, _price_extraction(category=None, any_category=True, price_tier="$$$")
+    )
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/chat", json={"message": "somewhere fancy", "lat": 32.08, "lon": 34.78})
+
+    assert resp.json()["reply"] == "Here are the closest high-end spots overall:"
+    find_nearest_mock.assert_awaited_once_with(None, 32.08, 34.78, limit=3, tag=None, price="$$$")
+
+
+def test_chat_endpoint_no_matches_reply_names_the_price(monkeypatch):
+    _mock_price_chat(monkeypatch, _price_extraction(price_tier="$$$"), found=[])
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/chat", json={"message": "x", "lat": 32.08, "lon": 34.78})
+
+    body = resp.json()
+    assert body["reply"] == "I don't have any high-end coffee spots saved yet."
+    assert body["price_tier"] == "$$$"
+
+
+def test_chat_endpoint_hebrew_reply_includes_the_price_word(monkeypatch):
+    _mock_price_chat(monkeypatch, _price_extraction(dietary_tag="vegan"))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/chat", json={"message": "x", "lat": 32.08, "lon": 34.78, "lang": "he"})
+
+    assert resp.json()["reply"] == "הנה המקומות הכי קרובים מסוג coffee (זול, vegan):"
+
+
+def test_chat_endpoint_followup_keeps_the_previous_price_and_offset(monkeypatch):
+    find_nearest_mock = _mock_price_chat(
+        monkeypatch, _price_extraction(category=None, price_tier=None, is_followup=True)
+    )
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/chat",
+            json={
+                "message": "something else",
+                "lat": 32.08,
+                "lon": 34.78,
+                "previous_category": "coffee",
+                "previous_price_tier": "$",
+                "previous_offset": 3,
+                "has_previous_context": True,
+            },
+        )
+
+    body = resp.json()
+    assert body["price_tier"] == "$"
+    assert body["offset"] == 4
+    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3, offset=3, tag=None, price="$")
+
+
+def test_chat_endpoint_followup_that_changes_price_restarts_from_the_top(monkeypatch):
+    # "cheaper" after two pages of $$ coffee: the new price is a different
+    # result set, so the old offset (6) must not be applied to it.
+    find_nearest_mock = _mock_price_chat(
+        monkeypatch, _price_extraction(category=None, price_tier="$", is_followup=True)
+    )
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/chat",
+            json={
+                "message": "cheaper",
+                "lat": 32.08,
+                "lon": 34.78,
+                "previous_category": "coffee",
+                "previous_price_tier": "$$",
+                "previous_offset": 6,
+                "has_previous_context": True,
+            },
+        )
+
+    body = resp.json()
+    assert body["category"] == "coffee"
+    assert body["price_tier"] == "$"
+    assert body["offset"] == 1
+    assert body["reply"] == "Here are the closest cheap coffee spots:"
+    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3, offset=0, tag=None, price="$")
+
+
+def test_chat_endpoint_followup_with_new_price_and_no_results_is_not_called_exhausted(monkeypatch):
+    # Nothing at the new price is "no matches", not "that's all I have" -
+    # the latter would imply earlier pages of this same search existed.
+    _mock_price_chat(monkeypatch, _price_extraction(category=None, price_tier="$$$", is_followup=True), found=[])
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/chat",
+            json={
+                "message": "fancier",
+                "lat": 32.08,
+                "lon": 34.78,
+                "previous_category": "coffee",
+                "previous_price_tier": "$",
+                "previous_offset": 3,
+                "has_previous_context": True,
+            },
+        )
+
+    assert resp.json()["reply"] == "I don't have any high-end coffee spots saved yet."
+
+
+def test_more_places_endpoint_passes_price_through_to_find_nearest(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    find_nearest_mock = AsyncMock(return_value=[SAMPLE_PLACE])
+    monkeypatch.setattr(db, "find_nearest", find_nearest_mock)
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[300]))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/more-places",
+            json={"category": "coffee", "price": "$$", "lat": 32.08, "lon": 34.78, "offset": 3},
+        )
+
+    assert resp.status_code == 200
+    find_nearest_mock.assert_awaited_once_with("coffee", 32.08, 34.78, limit=3, offset=3, tag=None, price="$$")
+
+
+@pytest.mark.parametrize(
+    "path,extra",
+    [("/api/more-places", {"price": "$$$$"}), ("/api/chat", {"previous_price_tier": "cheap"})],
+)
+def test_endpoints_reject_an_unknown_price_tier(monkeypatch, path, extra):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    body = {"message": "x", "category": "coffee", "lat": 32.08, "lon": 34.78, "offset": 0, **extra}
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(path, json=body)
+
+    assert resp.status_code == 422

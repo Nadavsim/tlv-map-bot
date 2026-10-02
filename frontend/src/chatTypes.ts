@@ -1,4 +1,4 @@
-import type { Coordinates, Place } from './types'
+import type { Coordinates, Place, PriceTier } from './types'
 
 export type ChatEntry =
   | { id: string; kind: 'bot-text'; text: string }
@@ -19,6 +19,7 @@ export type ChatEntry =
       // categorization.
       category: string | null
       dietaryTag: string | null
+      priceTier: PriceTier | null
       offset: number
       hasMore: boolean
     }

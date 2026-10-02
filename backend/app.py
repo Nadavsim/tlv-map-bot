@@ -121,6 +121,9 @@ async def cache_control(request, call_next):
     return response
 
 
+PriceTier = Literal["$", "$$", "$$$"]
+
+
 class ChatRequest(BaseModel):
     # Capped well above any real craving/follow-up message - mainly a guard
     # against someone pasting a huge blob into the (paid, per-token) LLM call.
@@ -138,6 +141,7 @@ class ChatRequest(BaseModel):
     # turn at all" - that distinction is what has_previous_context is for.
     previous_category: str | None = None
     previous_dietary_tag: str | None = None
+    previous_price_tier: PriceTier | None = None
     previous_offset: int = 0
     has_previous_context: bool = False
 
@@ -151,6 +155,7 @@ class LocationLinkRequest(BaseModel):
 class MorePlacesRequest(BaseModel):
     category: str | None = None
     tag: str | None = None
+    price: PriceTier | None = None
     lat: float
     lon: float
     mode: Literal["walking", "driving"] = "walking"
@@ -180,6 +185,8 @@ REPLIES = {
         "surprise": "Surprise! Here are the closest spots overall:",
         "surprise_with_tag": "Here are the closest {tag} spots overall:",
         "any_label": "any",
+        "price_words": {"$": "cheap", "$$": "mid-range", "$$$": "high-end"},
+        "qualifier_sep": " ",
     },
     "he": {
         "empty_db": "מסד הנתונים של המקומות ריק. הרץ `python -m scripts.sync_places` כדי לטעון מקומות קודם.",
@@ -191,8 +198,10 @@ REPLIES = {
         "matched": "הנה המקומות הכי קרובים מסוג {category}:",
         "matched_with_tag": "הנה המקומות הכי קרובים מסוג {category} ({tag}):",
         "surprise": "הפתעה! הנה המקומות הכי קרובים בסך הכל:",
-        "surprise_with_tag": "הנה המקומות הכי קרובים מסוג {tag}:",
+        "surprise_with_tag": "הנה המקומות הכי קרובים בסך הכל ({tag}):",
         "any_label": "כלשהו",
+        "price_words": {"$": "זול", "$$": "בינוני", "$$$": "יקר"},
+        "qualifier_sep": ", ",
     },
 }
 
@@ -201,26 +210,39 @@ def replies_for(lang: str) -> dict:
     return REPLIES.get(lang, REPLIES["en"])
 
 
-def _no_results_reply(base_key: str, category: str | None, dietary_tag: str | None, replies: dict) -> str:
+def _qualifier(dietary_tag: str | None, price_tier: str | None, replies: dict) -> str | None:
+    """The price word and/or tag, as one phrase the reply templates drop in
+    where a bare tag used to go ("closest cheap vegan coffee spots"), so each
+    template doesn't need a variant per price/tag combination."""
+    parts = [w for w in (replies["price_words"].get(price_tier), dietary_tag) if w]
+    return replies["qualifier_sep"].join(parts) or None
+
+
+def _no_results_reply(
+    base_key: str, category: str | None, dietary_tag: str | None, price_tier: str | None, replies: dict
+) -> str:
     label = category or replies["any_label"]
-    if dietary_tag:
-        return replies[f"{base_key}_with_tag"].format(tag=dietary_tag, label=label)
+    qualifier = _qualifier(dietary_tag, price_tier, replies)
+    if qualifier:
+        return replies[f"{base_key}_with_tag"].format(tag=qualifier, label=label)
     return replies[base_key].format(label=label)
 
 
 def _places_reply(
     category: str | None,
     dietary_tag: str | None,
+    price_tier: str | None,
     any_category: bool,
     matches: list,
     etas: list,
     offset: int,
     replies: dict,
 ) -> dict:
+    qualifier = _qualifier(dietary_tag, price_tier, replies)
     if any_category:
-        reply = replies["surprise_with_tag"].format(tag=dietary_tag) if dietary_tag else replies["surprise"]
-    elif dietary_tag:
-        reply = replies["matched_with_tag"].format(tag=dietary_tag, category=category)
+        reply = replies["surprise_with_tag"].format(tag=qualifier) if qualifier else replies["surprise"]
+    elif qualifier:
+        reply = replies["matched_with_tag"].format(tag=qualifier, category=category)
     else:
         reply = replies["matched"].format(category=category)
     return {
@@ -231,6 +253,7 @@ def _places_reply(
         # "something else") without re-running the LLM categorization.
         "category": category,
         "dietary_tag": dietary_tag,
+        "price_tier": price_tier,
         "offset": offset,
     }
 
@@ -345,26 +368,36 @@ async def chat(request: Request, req: ChatRequest):
         previous_category=req.previous_category,
         previous_dietary_tag=req.previous_dietary_tag,
         has_previous_context=req.has_previous_context,
+        previous_price_tier=req.previous_price_tier,
     )
 
-    # A refinement of the previous turn ("something else", "another one") -
-    # keep the same category/tag (or "any", if that's what the previous
-    # turn was) and continue past what was already shown, rather than
-    # treating this message as its own fresh, independent request.
+    # A refinement of the previous turn ("something else", "another one",
+    # "cheaper") - keep the same category/tag (or "any", if that's what the
+    # previous turn was) and continue past what was already shown, rather
+    # than treating this message as its own fresh, independent request.
     if req.has_previous_context and extraction["is_followup"]:
         category = req.previous_category
         dietary_tag = req.previous_dietary_tag
+        # A follow-up that names a price ("cheaper") swaps it in; otherwise
+        # the previous price keeps applying to "something else".
+        price_tier = extraction["price_tier"] or req.previous_price_tier
+        # Offset only means something against the same filters: a changed
+        # price is a different result set, so it starts from the top.
+        offset = req.previous_offset if price_tier == req.previous_price_tier else 0
         await db.record_category_request(category or db.ANY_CATEGORY_KEY)
         matches = await db.find_nearest(
-            category, req.lat, req.lon, limit=PAGE_SIZE, offset=req.previous_offset, tag=dietary_tag
+            category, req.lat, req.lon, limit=PAGE_SIZE, offset=offset, tag=dietary_tag, price=price_tier
         )
         if not matches:
             return {
-                "reply": _no_results_reply("no_more_matches", category, dietary_tag, replies),
+                "reply": _no_results_reply(
+                    "no_more_matches" if offset else "no_matches", category, dietary_tag, price_tier, replies
+                ),
                 "places": [],
                 "category": category,
                 "dietary_tag": dietary_tag,
-                "offset": req.previous_offset,
+                "price_tier": price_tier,
+                "offset": offset,
             }
         etas = await routing.get_eta_seconds_batch(
             req.mode,
@@ -372,7 +405,7 @@ async def chat(request: Request, req: ChatRequest):
             [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
         )
         return _places_reply(
-            category, dietary_tag, category is None, matches, etas, req.previous_offset + len(matches), replies
+            category, dietary_tag, price_tier, category is None, matches, etas, offset + len(matches), replies
         )
 
     if not extraction["any_category"] and not extraction["category"]:
@@ -385,14 +418,16 @@ async def chat(request: Request, req: ChatRequest):
 
     category = extraction["category"]
     dietary_tag = extraction["dietary_tag"]
+    price_tier = extraction["price_tier"]
     await db.record_category_request(category or db.ANY_CATEGORY_KEY)
-    matches = await db.find_nearest(category, req.lat, req.lon, limit=PAGE_SIZE, tag=dietary_tag)
+    matches = await db.find_nearest(category, req.lat, req.lon, limit=PAGE_SIZE, tag=dietary_tag, price=price_tier)
     if not matches:
         return {
-            "reply": _no_results_reply("no_matches", category, dietary_tag, replies),
+            "reply": _no_results_reply("no_matches", category, dietary_tag, price_tier, replies),
             "places": [],
             "category": category,
             "dietary_tag": dietary_tag,
+            "price_tier": price_tier,
         }
 
     etas = await routing.get_eta_seconds_batch(
@@ -400,14 +435,16 @@ async def chat(request: Request, req: ChatRequest):
         (req.lat, req.lon),
         [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
     )
-    return _places_reply(category, dietary_tag, extraction["any_category"], matches, etas, len(matches), replies)
+    return _places_reply(
+        category, dietary_tag, price_tier, extraction["any_category"], matches, etas, len(matches), replies
+    )
 
 
 @app.post("/api/more-places")
 @limiter.limit("20/minute;200/day")
 async def more_places(request: Request, req: MorePlacesRequest):
     matches = await db.find_nearest(
-        req.category, req.lat, req.lon, limit=PAGE_SIZE, offset=req.offset, tag=req.tag
+        req.category, req.lat, req.lon, limit=PAGE_SIZE, offset=req.offset, tag=req.tag, price=req.price
     )
     if not matches:
         return {"places": []}

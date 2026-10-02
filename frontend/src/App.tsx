@@ -6,7 +6,7 @@ import { ChatLog } from './components/ChatLog'
 import { Header } from './components/Header'
 import { t, type StringKey } from './i18n'
 import { loadLang, loadTheme, saveLang, saveTheme } from './preferences'
-import type { AuthUser, Coordinates, Lang, LocationMode, Theme, TransportMode } from './types'
+import type { AuthUser, Coordinates, Lang, LocationMode, PriceTier, Theme, TransportMode } from './types'
 import { PAGE_SIZE } from './types'
 import './styles/theme.css'
 import './styles/App.css'
@@ -320,11 +320,21 @@ export default function App() {
   // derived from in-memory entries (not persisted) - a page reload starts
   // a fresh conversation, which is exactly the "short-lived" scope this
   // was meant to have.
-  function getPreviousContext(): { category: string | null; dietaryTag: string | null; offset: number } | null {
+  function getPreviousContext(): {
+    category: string | null
+    dietaryTag: string | null
+    priceTier: PriceTier | null
+    offset: number
+  } | null {
     for (let i = entries.length - 1; i >= 0; i--) {
       const entry = entries[i]
       if (entry.kind === 'places') {
-        return { category: entry.category, dietaryTag: entry.dietaryTag, offset: entry.offset }
+        return {
+          category: entry.category,
+          dietaryTag: entry.dietaryTag,
+          priceTier: entry.priceTier,
+          offset: entry.offset,
+        }
       }
     }
     return null
@@ -357,6 +367,7 @@ export default function App() {
         lang,
         previous_category: previous?.category ?? null,
         previous_dietary_tag: previous?.dietaryTag ?? null,
+        previous_price_tier: previous?.priceTier ?? null,
         previous_offset: previous?.offset ?? 0,
         has_previous_context: previous !== null,
       })
@@ -370,6 +381,7 @@ export default function App() {
             origin: activeLocation,
             category: data.category,
             dietaryTag: data.dietary_tag,
+            priceTier: data.price_tier,
             offset: data.offset,
             hasMore: data.places.length >= PAGE_SIZE,
           })
@@ -398,6 +410,7 @@ export default function App() {
       const data = await postMorePlaces({
         category: entry.category,
         tag: entry.dietaryTag,
+        price: entry.priceTier,
         lat: entry.origin.lat,
         lon: entry.origin.lon,
         mode,

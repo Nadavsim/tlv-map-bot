@@ -19,9 +19,12 @@ export interface ChatRequest {
   // previous turn at all".
   previous_category: string | null
   previous_dietary_tag: string | null
+  previous_price_tier: PriceTier | null
   previous_offset: number
   has_previous_context: boolean
 }
+
+export type PriceTier = '$' | '$$' | '$$$'
 
 export interface Place {
   name: string
@@ -30,7 +33,7 @@ export interface Place {
   eta: string | null
   instagram_url: string | null
   dietary_tags: string[]
-  price_tier: '$' | '$$' | '$$$' | null
+  price_tier: PriceTier | null
   closes_at_hour: number | null
   outdoor_seating: boolean
   maps_url: string
@@ -43,12 +46,14 @@ export interface ChatResponse {
   places: Place[]
   category: string | null
   dietary_tag: string | null
+  price_tier: PriceTier | null
   offset: number
 }
 
 export interface MorePlacesRequest {
   category: string | null
   tag: string | null
+  price: PriceTier | null
   lat: number
   lon: number
   mode: TransportMode

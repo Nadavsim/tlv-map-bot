@@ -31,6 +31,7 @@ async def test_returns_matched_category(monkeypatch):
     assert result == {
         "category": "coffee",
         "dietary_tag": None,
+        "price_tier": None,
         "clarifying_question": None,
         "any_category": False,
         "is_followup": False,
@@ -73,6 +74,7 @@ async def test_any_category_true_ignores_matched_category(monkeypatch):
     assert result == {
         "category": None,
         "dietary_tag": None,
+        "price_tier": None,
         "clarifying_question": None,
         "any_category": True,
         "is_followup": False,
@@ -200,6 +202,7 @@ async def test_is_followup_forced_false_when_model_names_a_different_category(mo
     assert result == {
         "category": "pizza",
         "dietary_tag": None,
+        "price_tier": None,
         "clarifying_question": None,
         "any_category": False,
         "is_followup": False,
@@ -355,3 +358,240 @@ async def test_degrades_gracefully_when_no_tool_use_block_returned(monkeypatch):
 
     assert result["category"] is None
     assert result["clarifying_question"]
+
+
+@pytest.mark.asyncio
+async def test_extracts_price_tier_alongside_category(monkeypatch):
+    fake_client = make_fake_client(
+        {
+            "any_category": False,
+            "matched_category": "pizza",
+            "matched_price_tier": "$",
+            "is_followup": False,
+            "clarifying_question": "",
+        }
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request("cheap pizza", ["coffee", "pizza"])
+
+    assert result["category"] == "pizza"
+    assert result["price_tier"] == "$"
+
+
+@pytest.mark.asyncio
+async def test_price_only_request_is_any_category_with_a_price(monkeypatch):
+    fake_client = make_fake_client(
+        {
+            "any_category": True,
+            "matched_category": "",
+            "matched_price_tier": "$$$",
+            "is_followup": False,
+            "clarifying_question": "",
+        }
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request("somewhere fancy", ["coffee", "pizza"])
+
+    assert result["any_category"] is True
+    assert result["category"] is None
+    assert result["price_tier"] == "$$$"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bogus", ["", None, "$$$$", "cheap", "€", 2])
+async def test_price_tier_outside_the_known_set_is_dropped(monkeypatch, bogus):
+    # The enum in the tool schema isn't a guarantee on the response side; an
+    # unknown value reaching the Mongo query would silently match nothing.
+    fake_client = make_fake_client(
+        {
+            "any_category": False,
+            "matched_category": "pizza",
+            "matched_price_tier": bogus,
+            "is_followup": False,
+            "clarifying_question": "",
+        }
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request("pizza", ["coffee", "pizza"])
+
+    assert result["price_tier"] is None
+
+
+@pytest.mark.asyncio
+async def test_missing_price_field_means_no_price(monkeypatch):
+    fake_client = make_fake_client({"any_category": False, "matched_category": "pizza", "clarifying_question": ""})
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request("pizza", ["coffee", "pizza"])
+
+    assert result["price_tier"] is None
+
+
+@pytest.mark.asyncio
+async def test_naming_only_a_different_price_stays_a_followup(monkeypatch):
+    # "cheaper" after coffee: unlike a different category or tag, a price
+    # change refines the previous search instead of replacing it.
+    fake_client = make_fake_client(
+        {
+            "any_category": False,
+            "matched_category": "",
+            "matched_price_tier": "$",
+            "is_followup": True,
+            "clarifying_question": "",
+        }
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request(
+        "cheaper",
+        ["coffee", "pizza"],
+        previous_category="coffee",
+        previous_price_tier="$$",
+        has_previous_context=True,
+    )
+
+    assert result["is_followup"] is True
+    assert result["price_tier"] == "$"
+
+
+@pytest.mark.asyncio
+async def test_previous_price_is_described_in_the_system_prompt(monkeypatch):
+    fake_client = make_fake_client(
+        {
+            "any_category": False,
+            "matched_category": "",
+            "matched_price_tier": "",
+            "is_followup": True,
+            "clarifying_question": "",
+        }
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    await llm.parse_food_request(
+        "something else", ["coffee"], previous_category="coffee", previous_price_tier="$$", has_previous_context=True
+    )
+
+    _, kwargs = fake_client.messages.create.call_args
+    assert "price $$" in kwargs["system"]
+
+
+@pytest.mark.asyncio
+async def test_tool_schema_offers_exactly_the_three_tiers_and_an_empty_value(monkeypatch):
+    fake_client = make_fake_client({"any_category": False, "matched_category": "pizza", "clarifying_question": ""})
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    await llm.parse_food_request("pizza", ["pizza"])
+
+    _, kwargs = fake_client.messages.create.call_args
+    schema = kwargs["tools"][0]["input_schema"]
+    assert schema["properties"]["matched_price_tier"]["enum"] == ["", "$", "$$", "$$$"]
+    assert "matched_price_tier" in schema["required"]
+
+
+@pytest.mark.asyncio
+async def test_tag_not_in_the_known_list_is_dropped(monkeypatch):
+    # Seen live: with no tag fitting "a date spot", the model echoed the
+    # user's own words back as the tag, filtering on a value no place has.
+    fake_client = make_fake_client(
+        {
+            "any_category": False,
+            "matched_category": "",
+            "matched_dietary_tag": "a date spot",
+            "clarifying_question": "What cuisine?",
+        }
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request("a date spot", ["coffee"], dietary_tags=["vegan", "kosher"])
+
+    assert result["dietary_tag"] is None
+    # Nothing usable was extracted, so it stays a clarifying question (and so
+    # gets logged as unmatched) rather than becoming a fake "surprise me".
+    assert result["any_category"] is False
+    assert result["clarifying_question"] == "What cuisine?"
+
+
+@pytest.mark.asyncio
+async def test_known_tag_passes_through(monkeypatch):
+    fake_client = make_fake_client(
+        {"any_category": False, "matched_category": "", "matched_dietary_tag": "date", "clarifying_question": ""}
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request("a date spot", ["coffee"], dietary_tags=["date"])
+
+    assert result["dietary_tag"] == "date"
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_says_when_there_are_no_known_tags(monkeypatch):
+    fake_client = make_fake_client({"any_category": False, "matched_category": "coffee", "clarifying_question": ""})
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    await llm.parse_food_request("coffee", ["coffee"])
+
+    _, kwargs = fake_client.messages.create.call_args
+    assert "no known tags" in kwargs["system"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "extra",
+    [{"matched_dietary_tag": "date"}, {"matched_price_tier": "$"}],
+    ids=["tag only", "price only"],
+)
+async def test_a_filter_with_no_category_is_a_search_not_a_question(monkeypatch, extra):
+    # The model often asks "what cuisine?" for "a date spot" / "something
+    # cheap"; a filter alone is a complete request, so any_category is set
+    # here and the question dropped.
+    fake_client = make_fake_client(
+        {
+            "any_category": False,
+            "matched_category": "",
+            "clarifying_question": "What cuisine would you like?",
+            **extra,
+        }
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request("x", ["coffee"], dietary_tags=["date"])
+
+    assert result["any_category"] is True
+    assert result["clarifying_question"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_price_followup_is_not_turned_into_an_any_category_search(monkeypatch):
+    fake_client = make_fake_client(
+        {
+            "any_category": False,
+            "matched_category": "",
+            "matched_price_tier": "$",
+            "is_followup": True,
+            "clarifying_question": "",
+        }
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request(
+        "cheaper", ["coffee"], previous_category="coffee", has_previous_context=True
+    )
+
+    assert result["is_followup"] is True
+    assert result["any_category"] is False
+
+
+@pytest.mark.asyncio
+async def test_no_filter_and_no_category_still_asks_a_question(monkeypatch):
+    fake_client = make_fake_client(
+        {"any_category": False, "matched_category": "", "clarifying_question": "What are you craving?"}
+    )
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request("hmm", ["coffee"])
+
+    assert result["any_category"] is False
+    assert result["clarifying_question"] == "What are you craving?"

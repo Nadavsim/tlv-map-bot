@@ -142,8 +142,12 @@ full writeup:
 
 **Next** (queued - mostly build on something in Now, or need one small
 call):
-- **Usability** - let free text set price/occasion ("something cheap," "a
-  date spot") onto the `price_tier` field that already exists.
+- ~~**Usability** - let free text set price/occasion ("something cheap," "a
+  date spot") onto the `price_tier` field that already exists~~ - **price
+  half done 2026-10-02**, see "Next-horizon items shipped" below. The
+  **occasion half is wired but dormant**: it reuses the dietary-tag
+  mechanism, so it does nothing until you hand-tag pins with occasion
+  hashtags (`#date`, ...) in My Maps - no place has any hashtag yet.
 - **Usability** - a one-time guided first message for a brand-new
   session, reusing the Help flow's own chat-bubble pattern.
 - **Usability** - saved/frequent manual address, tied to the account that
@@ -1131,6 +1135,70 @@ serving. (The map view itself was added to the Later horizon above,
     used to hold for 5s. 6 new tests (222 total): the timeout ceilings,
     timeouts feeding the back-off, each outcome's log line, and that no
     log line ever contains a coordinate.
+  - **Free-text price + occasion** (2026-10-02) - "cheap coffee",
+    "somewhere fancy", "cheaper", "a date spot" now set filters instead of
+    being ignored. Checked against the data first, which changed the plan:
+    all 165 places already carry a price tier, but **no place has any other
+    hashtag**, so the occasion half has nothing to match until pins are
+    tagged. Price was fully buildable; occasion is plumbing only.
+    - **Price** is a new `matched_price_tier` field in the LLM tool schema
+      (enum `"" | $ | $$ | $$$`), threaded exactly like the dietary tag:
+      `parse_food_request` -> `find_nearest`/`build_geo_pipeline`
+      (`price_tier` equality filter) -> `/api/chat` and `/api/more-places`
+      (`price`) -> echoed back as `price_tier` -> stored on the frontend
+      `places` entry so "Show more" and follow-ups keep it. **Exact tier,
+      not "up to"**: "cheap" = `$` only. Simple and explainable, but
+      "not too expensive" (the model answers `$$`) hides the `$` places a
+      person would also accept - the obvious next refinement if it matters.
+    - **Reply wording** - one combined qualifier phrase replaces the bare
+      tag in the existing templates ("closest cheap vegan coffee spots"),
+      so no per-combination template variants. Price words: cheap /
+      mid-range / high-end; Hebrew זול / בינוני / יקר, written by me, **not
+      reviewed by the curator** - worth a read. The Hebrew
+      `surprise_with_tag` template changed from "מסוג {tag}" to
+      "בסך הכל ({tag})" so a price-only qualifier reads naturally.
+    - **Follow-ups**: "cheaper"/"fancier" after a result keep the previous
+      category and move the price **one step** (prompt rule, verified live:
+      $->$$ for "fancier", $$$->$$ for "cheaper", stays put at the ends).
+      Unlike a different category or tag, a different price does NOT force
+      `is_followup` false - it refines the search. A changed price resets
+      the offset to 0 (page 3 of `$$` means nothing for `$`), and an empty
+      result at a new price says "I don't have any ..." rather than
+      "that's all I have".
+    - **Three deterministic guards in `llm.py`**, each added because the
+      real model needed it (not the mocks): (1) the tag must be in the
+      known list - with `[]` known tags, "a date spot" came back as
+      `matched_dietary_tag: "a date spot"` and the reply read "I don't have
+      any a date spot any spots"; (2) price is re-validated against
+      `$/$$/$$$` since a schema enum isn't a response-side guarantee;
+      (3) a filter with no category ("a date spot", "something cheap")
+      becomes an any-category search in code, because the model often asks
+      "what cuisine?" instead. The price prompt says never to infer a price
+      from an occasion ("romantic dinner" had come back `$$$`).
+    - **Unmatched occasions still get logged**: with no matching tag the
+      model asks a clarifying question, which goes through the existing
+      `unmatched_queries` path - so "a date spot" requests become a
+      curation signal for which tag to add, with no new code.
+    - Verified: real Haiku on ~35 phrases (EN + HE, price-only, follow-ups,
+      leakage - a new category never inherits the previous price), the real
+      API on staging data, and the real UI (cheap coffee -> Show more stays
+      `$` -> "something fancier" -> `$$` coffee from the top). Known quirk:
+      a follow-up like "closer"/"something else" sometimes echoes the
+      previous price back; harmless (same filter, offset kept).
+      Pre-existing and not touched: asking for a tag that doesn't exist
+      ("anything kosher" with no kosher pins) can still fall through to an
+      any-category "surprise" with the tag silently dropped.
+    - **Staging data note**: the `tlvbot_staging` seed predated price
+      tagging (166 places, zero tiers), so price search found nothing there.
+      Re-ran the seed on 2026-10-02 (`MONGODB_DB_NAME=tlvbot_staging
+      python -m scripts.sync_places`) - now 165 places, 40/68/57 split, same
+      as production. Re-seed again whenever staging needs newer map data.
+    - 33 new backend tests (257 total): `build_geo_pipeline` price filter,
+      the LLM guards and schema, request validation (422 on an unknown
+      tier), the follow-up offset/price rules, reply wording in both
+      languages. Existing tests only needed `price_tier` added to their
+      mocked extractions and `price=None` to their `find_nearest`
+      assertions.
 
 ### Later-horizon items shipped
 

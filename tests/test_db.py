@@ -411,3 +411,18 @@ def test_deprioritize_never_drops_a_place_just_reorders():
     result = deprioritize_unlikely_matches(places, current_hour=12, is_raining=True)
     assert {p.name for p in result} == {"Closed", "Rained out"}
     assert len(result) == 2
+
+
+def test_geo_pipeline_filters_by_price_tier():
+    pipeline = build_geo_pipeline("coffee", lat=32.08, lon=34.78, limit=3, price="$")
+    assert pipeline[0]["$geoNear"]["query"] == {"category": "coffee", "price_tier": "$"}
+
+
+def test_geo_pipeline_combines_price_and_dietary_tag_with_any_category():
+    pipeline = build_geo_pipeline(None, lat=32.08, lon=34.78, limit=3, tag="date", price="$$$")
+    assert pipeline[0]["$geoNear"]["query"] == {"dietary_tags": "date", "price_tier": "$$$"}
+
+
+def test_geo_pipeline_has_no_price_filter_when_price_is_none():
+    pipeline = build_geo_pipeline("coffee", lat=32.08, lon=34.78, limit=3)
+    assert "price_tier" not in pipeline[0]["$geoNear"]["query"]

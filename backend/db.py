@@ -282,7 +282,13 @@ async def log_unmatched_query(text: str) -> None:
 
 
 def build_geo_pipeline(
-    category: str | None, lat: float, lon: float, limit: int = 3, offset: int = 0, tag: str | None = None
+    category: str | None,
+    lat: float,
+    lon: float,
+    limit: int = 3,
+    offset: int = 0,
+    tag: str | None = None,
+    price: str | None = None,
 ) -> list[dict]:
     """Pure function (no I/O) so the query shape can be unit tested without a
     real MongoDB connection. category=None means "any category" (surprise me).
@@ -290,12 +296,15 @@ def build_geo_pipeline(
     same query rather than re-fetching and re-displaying the top matches.
     tag filters to places whose dietary_tags array contains that value -
     Mongo matches an array field against a scalar query value by "contains"
-    automatically, no special operator needed."""
+    automatically, no special operator needed. price filters to places whose
+    price_tier is exactly that tier (a place has one, unlike tags)."""
     query: dict = {}
     if category:
         query["category"] = category
     if tag:
         query["dietary_tags"] = tag
+    if price:
+        query["price_tier"] = price
     pipeline = [
         {
             "$geoNear": {
@@ -349,9 +358,10 @@ async def find_nearest(
     limit: int = 3,
     offset: int = 0,
     tag: str | None = None,
+    price: str | None = None,
 ) -> list[PlaceResult]:
     places = get_places_collection()
-    pipeline = build_geo_pipeline(category, lat, lon, limit, offset, tag)
+    pipeline = build_geo_pipeline(category, lat, lon, limit, offset, tag, price)
     matches = [PlaceResult(**doc) async for doc in places.aggregate(pipeline)]
     current_hour = datetime.now(_TLV_TZ).hour
     is_raining = await weather.is_raining_now(lat, lon)
