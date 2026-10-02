@@ -151,7 +151,8 @@ call):
   hashtags (`#date`, ...) in My Maps - no place has any hashtag yet.
 - ~~**Usability** - a one-time guided first message for a brand-new
   session, reusing the Help flow's own chat-bubble pattern~~ - **built
-  2026-10-02**, see "Next-horizon items shipped" below.
+  2026-10-02, in staging and production as of 2026-10-03** (checked in a
+  real browser on both), see "Next-horizon items shipped" below.
 - **Usability** - saved/frequent manual address, tied to the account that
   just shipped. Privacy constraint carries forward unchanged: no semantic
   labels like "Home"/"Work" (see the original note below).
@@ -1201,8 +1202,8 @@ serving. (The map view itself was added to the Later horizon above,
       languages. Existing tests only needed `price_tier` added to their
       mocked extractions and `price=None` to their `find_nearest`
       assertions.
-  - **First-visit prompt** (2026-10-02, built; see the roadmap line for
-    where it's deployed) - after a brand-new visitor's location is first
+  - **First-visit prompt** (built 2026-10-02, live in production
+    2026-10-03) - after a brand-new visitor's location is first
     set, a bot bubble ("Location set - ask away! Tap one to try it, or
     type your own. After any result, 'something else' or 'cheaper' refines
     it.") plus three tappable example chips: coffee / something cheap /
