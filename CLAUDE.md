@@ -198,7 +198,11 @@ call):
   place rather than a paid Maps API.~~ - **built 2026-10-02 in a cloud
   session, then verified against real tiles and the real (staging)
   database the same day** - which found and fixed two real bugs (see
-  "Later-horizon items shipped" below). Still unchecked: a real finger on
+  "Later-horizon items shipped" below). **In staging and production as of
+  2026-10-02**, re-verified in a browser on each deployed site (chunk loads
+  only on first open, 6/6 tiles from the one allowed host, no CSP
+  violations, dark-mode attribution 6.35/14.75:1, pins within 5m of their
+  cards' distances on the production DB). Still unchecked: a real finger on
   a real phone.
 - **Intelligence** - semantic search over place descriptions:
   precomputed embeddings, in-process cosine similarity. Deliberately
@@ -1041,16 +1045,30 @@ serving. (The map view itself was added to the Later horizon above,
     seven 13-20s responses and two dropped connections (`000`), which
     looked like the new code stalling. It wasn't the server: Azure's own
     Max Response Time chart for the window peaked at ~8s, so no request
-    took 13-20s server-side. curl reports `000` when it can't resolve the
-    hostname, and two near-identical 15.09s/15.10s calls on a cached
-    endpoint match DNS retry timeouts on the dev machine. The one genuinely
+    took 13-20s server-side. (The first explanation written here, "local
+    DNS retry timeouts", was **wrong about the mechanism** - corrected
+    2026-10-02, see the next paragraph.) The one genuinely
     slow server-side request - 8.0s in Azure vs 8.1s measured, the first
     chat call after the deploy, first place's ETA null - fits an OSRM stall
     (5s timeout + ~2-3s of LLM), and shows the stall is a real production
-    event, not just a local observation. When probing latency, log curl's
-    `time_namelookup` separately and check Azure's Max Response Time before
-    concluding the server is slow. Azure also showed essentially no other
-    requests in the prior 24h.
+    event, not just a local observation. Azure also showed essentially no
+    other requests in the prior 24h.
+    **Corrected mechanism (2026-10-02, measured):** with curl's connection
+    phases logged separately, DNS is always fast (7-29ms) and once a
+    connection exists the app answers in ~0.12s. Every slow/failed request
+    stalls in the **TCP connect** phase: some succeed after exactly ~7s or
+    ~15s and others fail after ~20.7s ("Failed to connect") - the signature
+    of dropped SYN packets retransmitted at 1/2/4/8s. It reproduces
+    against both Azure apps (production and staging, ~10-30% of new
+    connections in samples of 10-14, over the app's single IPv4 address, no
+    IPv6 record) and not against api.github.com (14/14 clean), so it is not
+    this machine's connectivity in general - but the SYN never reaches the
+    app, so nothing in our code can cause it, Azure's app metrics can't see
+    it, and it predates the map deploy. **Open question:** whether real
+    users (friends/family, likely in Israel) hit the same drops from their
+    networks; this one machine can't answer that. When probing latency, log
+    `time_connect`/`time_appconnect`/`time_starttransfer`, not just
+    `time_total`, and expect the occasional `000` from this machine.
   - **Favorites schema locked** - a dedicated `favorites` collection, one
     document per `{user_id, place_id, created_at}`, a unique compound index
     on `(user_id, place_id)` (which also serves "all favorites for this
