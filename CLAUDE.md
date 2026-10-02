@@ -144,7 +144,8 @@ full writeup:
 call):
 - ~~**Usability** - let free text set price/occasion ("something cheap," "a
   date spot") onto the `price_tier` field that already exists~~ - **price
-  half done 2026-10-02**, see "Next-horizon items shipped" below. The
+  half done 2026-10-02** (in staging and production the same day, checked
+  live on both), see "Next-horizon items shipped" below. The
   **occasion half is wired but dormant**: it reuses the dietary-tag
   mechanism, so it does nothing until you hand-tag pins with occasion
   hashtags (`#date`, ...) in My Maps - no place has any hashtag yet.
