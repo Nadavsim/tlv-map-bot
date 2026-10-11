@@ -148,31 +148,66 @@ _geocode_cache = TTLCache(ttl_seconds=24 * 60 * 60, max_entries=1000)
 _geocode_backoff = FailureBackoff(threshold=3, cooldown_seconds=30)
 
 
-def geocode_address(text: str) -> tuple[float, float] | None:
-    """Free-text address/landmark -> (lat, lon) via Nominatim (OpenStreetMap's
-    free geocoder, no API key/billing). "Tel Aviv-Yafo" (the official
-    municipality name) is appended to the query - plain "Tel Aviv" or no
-    city at all is genuinely ambiguous in Israel (e.g. "Rothschild" is also
-    a street name in Holon and Bat Yam), and this app's entire domain is
-    Tel Aviv anyway, so it's a safe, deliberate bias rather than a
-    restriction - the full text is still sent, so an address that already
-    names a different city still resolves there.
+# The areas this app covers: Tel Aviv-Yafo (incl. Jaffa), Ramat Gan and
+# Givatayim. An address anywhere else is "not found" rather than a same-named
+# street in another city (Rothschild exists in Holon and Bat Yam too).
+#
+# Two layers, because neither alone is enough: the viewbox keeps the lookup to
+# the right part of the country, but a rectangle around these three cities
+# also contains Bnei Brak, Holon, Bat Yam, Kiryat Ono and Gan Shmuel - so every
+# result's own municipality is checked against the allowlist as well. The box
+# is deliberately a little generous; the allowlist is what decides.
+_AREA_VIEWBOX = "34.73,32.15,34.87,32.01"  # lon,lat of two opposite corners
 
-    Returns None when Nominatim answered but found nothing. Raises
-    GeocodingUnavailable when it couldn't answer at all."""
-    cache_key = " ".join(text.lower().split())
-    cached = _geocode_cache.get(cache_key)
-    if cached is not None:
-        return cached
 
-    if _geocode_backoff.is_open():
-        raise GeocodingUnavailable("backing off after repeated Nominatim failures")
+def _normalize_name(value: str) -> str:
+    """Lowercased with everything but letters/digits removed, so Hebrew's
+    non-ASCII hyphens and spacing variants (תל־אביב–יפו) compare equal."""
+    return re.sub(r"[\W_]+", "", value.lower())
 
+
+_ALLOWED_MUNICIPALITIES = {
+    _normalize_name(name)
+    for name in (
+        "Tel Aviv-Yafo", "Tel Aviv", "Tel Aviv-Jaffa", "Jaffa", "Yafo",
+        "תל אביב-יפו", "תל אביב", "יפו",
+        "Ramat Gan", "רמת גן",
+        "Givatayim", "Givataim", "גבעתיים",
+    )
+}
+# If the person already typed one of these, adding "Tel Aviv-Yafo" would
+# contradict them ("Jabotinsky 50 Ramat Gan, Tel Aviv-Yafo" found nothing).
+_AREA_NAME_FRAGMENTS = tuple(_normalize_name(n) for n in ("Tel Aviv", "Jaffa", "Yafo", "Ramat Gan", "Givatayim", "Givataim", "תל אביב", "יפו", "רמת גן", "גבעתיים"))
+
+
+def _names_an_area(text: str) -> bool:
+    normalized = _normalize_name(text)
+    return any(fragment in normalized for fragment in _AREA_NAME_FRAGMENTS)
+
+
+def _municipality_is_in_area(result: dict) -> bool:
+    """Nominatim reports the municipality as `city` for Tel Aviv and `town`
+    for the others; a result without one is rejected rather than trusted."""
+    address = result.get("address") or {}
+    for key in ("city", "town", "municipality"):
+        value = address.get(key)
+        if value and _normalize_name(value) in _ALLOWED_MUNICIPALITIES:
+            return True
+    return False
+
+
+def _search_area(query: str) -> tuple[float, float] | None:
+    """One Nominatim lookup restricted to the area box; the first result
+    whose municipality is allowed. Raises GeocodingUnavailable when it can't
+    answer (and updates the back-off either way)."""
     params = {
-        "q": f"{text.strip()}, Tel Aviv-Yafo",
+        "q": query,
         "format": "json",
-        "limit": 1,
+        "limit": 5,
         "countrycodes": "il",
+        "addressdetails": 1,
+        "viewbox": _AREA_VIEWBOX,
+        "bounded": 1,
     }
     try:
         resp = requests.get(
@@ -183,12 +218,48 @@ def geocode_address(text: str) -> tuple[float, float] | None:
         )
         resp.raise_for_status()
         results = resp.json()
-        coords = (float(results[0]["lat"]), float(results[0]["lon"])) if results else None
-    except (requests.RequestException, KeyError, IndexError, ValueError) as exc:
+        found = next(
+            ((float(r["lat"]), float(r["lon"])) for r in results if _municipality_is_in_area(r)),
+            None,
+        )
+    except (requests.RequestException, KeyError, IndexError, ValueError, TypeError) as exc:
         _geocode_backoff.record_failure()
         raise GeocodingUnavailable("Nominatim request failed") from exc
 
     _geocode_backoff.record_success()
+    return found
+
+
+def geocode_address(text: str) -> tuple[float, float] | None:
+    """Free-text address/landmark -> (lat, lon) via Nominatim (OpenStreetMap's
+    free geocoder, no API key/billing), restricted to Tel Aviv-Yafo, Ramat Gan
+    and Givatayim - see _AREA_VIEWBOX.
+
+    Two passes. First the text with "Tel Aviv-Yafo" appended: plain "Tel Aviv"
+    or no city is genuinely ambiguous in Israel, and without that bias
+    "Rothschild 12" has no Tel Aviv result at all in the top five. If that
+    finds nothing (a street that only exists in Ramat Gan or Givatayim), the
+    text is tried as typed. Text that already names one of the areas skips the
+    bias - appending Tel Aviv to "...Ramat Gan" was making those unfindable.
+
+    Returns None when Nominatim answered but found nothing in the area.
+    Raises GeocodingUnavailable when it couldn't answer at all."""
+    cache_key = " ".join(text.lower().split())
+    cached = _geocode_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    if _geocode_backoff.is_open():
+        raise GeocodingUnavailable("backing off after repeated Nominatim failures")
+
+    typed = text.strip()
+    queries = [typed] if _names_an_area(typed) else [f"{typed}, Tel Aviv-Yafo", typed]
+    coords = None
+    for query in queries:
+        coords = _search_area(query)
+        if coords is not None:
+            break
+
     if coords is not None:
         _geocode_cache.set(cache_key, coords)
     return coords

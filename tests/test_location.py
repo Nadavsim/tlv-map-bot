@@ -117,7 +117,7 @@ def test_resolve_maps_link_returns_none_on_request_failure(monkeypatch):
 
 def test_geocode_address_returns_coords_from_first_result(monkeypatch):
     fake_response = MagicMock()
-    fake_response.json.return_value = [{"lat": "32.0627450", "lon": "34.7704470"}]
+    fake_response.json.return_value = [{"lat": "32.0627450", "lon": "34.7704470", "address": {"city": "תל־אביב–יפו"}}]
     fake_response.raise_for_status.return_value = None
     monkeypatch.setattr(requests, "get", lambda url, params, headers, timeout: fake_response)
 
@@ -133,7 +133,7 @@ def test_geocode_address_biases_the_query_toward_tel_aviv(monkeypatch):
         captured["params"] = params
         captured["headers"] = headers
         response = MagicMock()
-        response.json.return_value = [{"lat": "32.0", "lon": "34.7"}]
+        response.json.return_value = [{"lat": "32.0", "lon": "34.7", "address": {"city": "תל־אביב–יפו"}}]
         response.raise_for_status.return_value = None
         return response
 
@@ -141,7 +141,7 @@ def test_geocode_address_biases_the_query_toward_tel_aviv(monkeypatch):
 
     location.geocode_address("Rothschild 12")
 
-    assert "Tel Aviv-Yafo" in captured["params"]["q"]
+    assert captured["params"]["q"] == "Rothschild 12, Tel Aviv-Yafo"
     assert captured["params"]["countrycodes"] == "il"
     assert "User-Agent" in captured["headers"]
 
@@ -176,14 +176,15 @@ def test_geocode_address_raises_unavailable_on_http_error_status(monkeypatch):
 
 
 def test_geocode_address_raises_unavailable_on_malformed_response(monkeypatch):
-    _counting_get(monkeypatch, json=[{"unexpected": "shape"}])
+    # An in-area result with no coordinates in it.
+    _counting_get(monkeypatch, json=[{"address": {"city": "תל־אביב–יפו"}}])
 
     with pytest.raises(location.GeocodingUnavailable):
         location.geocode_address("Rothschild 12")
 
 
 def test_geocode_address_caches_successful_lookups(monkeypatch):
-    state = _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77"}])
+    state = _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77", "address": {"city": "תל־אביב–יפו"}}])
 
     first = location.geocode_address("Rothschild 12")
     second = location.geocode_address("Rothschild 12")
@@ -193,7 +194,7 @@ def test_geocode_address_caches_successful_lookups(monkeypatch):
 
 
 def test_geocode_cache_ignores_case_and_extra_whitespace(monkeypatch):
-    state = _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77"}])
+    state = _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77", "address": {"city": "תל־אביב–יפו"}}])
 
     location.geocode_address("Rothschild 12")
     location.geocode_address("  rothschild   12 ")
@@ -207,7 +208,7 @@ def test_geocode_does_not_cache_no_result(monkeypatch):
     assert location.geocode_address("nonsense") is None
     assert location.geocode_address("nonsense") is None
 
-    assert state["calls"] == 2
+    assert state["calls"] == 4  # two passes per lookup, none of it cached
 
 
 def test_geocode_does_not_cache_a_failure(monkeypatch):
@@ -215,7 +216,7 @@ def test_geocode_does_not_cache_a_failure(monkeypatch):
     with pytest.raises(location.GeocodingUnavailable):
         location.geocode_address("Rothschild 12")
 
-    state = _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77"}])
+    state = _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77", "address": {"city": "תל־אביב–יפו"}}])
 
     assert location.geocode_address("Rothschild 12") == (32.06, 34.77)
     assert state["calls"] == 1
@@ -243,7 +244,7 @@ def test_geocode_retries_once_the_cooldown_has_passed(monkeypatch):
             location.geocode_address("Rothschild 12")
 
     fake_time[0] += 31
-    state = _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77"}])
+    state = _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77", "address": {"city": "תל־אביב–יפו"}}])
 
     assert location.geocode_address("Dizengoff 50") == (32.06, 34.77)
     assert state["calls"] == 1
@@ -256,7 +257,7 @@ def test_geocode_no_result_does_not_count_toward_backing_off(monkeypatch):
     for query in ("nonsense a", "nonsense b", "nonsense c", "nonsense d"):
         assert location.geocode_address(query) is None
 
-    assert state["calls"] == 4
+    assert state["calls"] == 8  # two passes each
 
 
 def test_geocode_success_resets_the_failure_count(monkeypatch):
@@ -265,7 +266,7 @@ def test_geocode_success_resets_the_failure_count(monkeypatch):
         with pytest.raises(location.GeocodingUnavailable):
             location.geocode_address("a")
 
-    _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77"}])
+    _counting_get(monkeypatch, json=[{"lat": "32.06", "lon": "34.77", "address": {"city": "תל־אביב–יפו"}}])
     location.geocode_address("b")
 
     state = _counting_get(monkeypatch, error=requests.RequestException("boom"))
@@ -371,3 +372,155 @@ def test_geocode_candidates_goes_from_full_text_to_name_to_address():
 
 def test_geocode_candidates_for_a_single_part_is_just_that_part():
     assert location.geocode_candidates("Dizengoff Square") == ["Dizengoff Square"]
+
+
+# --- the area restriction (Tel Aviv-Yafo, Ramat Gan, Givatayim) -------------
+
+_TLV = "\u05ea\u05dc\u05be\u05d0\u05d1\u05d9\u05d1\u2013\u05d9\u05e4\u05d5"
+_RAMAT_GAN = "\u05e8\u05de\u05ea \u05d2\u05df"
+_GIVATAYIM = "\u05d2\u05d1\u05e2\u05ea\u05d9\u05d9\u05dd"
+_BAT_YAM = "\u05d1\u05ea \u05d9\u05dd"
+
+
+def _row(lat, lon, **address):
+    return {"lat": str(lat), "lon": str(lon), "address": address}
+
+
+def _scripted_get(monkeypatch, *pages):
+    """Each network call gets the next page of results; records the params."""
+    state = {"params": [], "pages": list(pages)}
+
+    def fake_get(url, params, headers, timeout):
+        state["params"].append(params)
+        response = MagicMock()
+        response.json.return_value = state["pages"].pop(0) if state["pages"] else []
+        response.raise_for_status.return_value = None
+        return response
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    return state
+
+
+def test_geocode_restricts_the_lookup_to_the_area_box(monkeypatch):
+    state = _scripted_get(monkeypatch, [_row(32.06, 34.77, city=_TLV)])
+
+    location.geocode_address("Rothschild 12")
+
+    params = state["params"][0]
+    assert params["bounded"] == 1
+    assert params["viewbox"] == location._AREA_VIEWBOX
+    assert params["addressdetails"] == 1
+    assert params["limit"] == 5
+
+
+def test_geocode_area_box_actually_contains_the_three_cities():
+    left, top, right, bottom = (float(v) for v in location._AREA_VIEWBOX.split(","))
+    landmarks = {  # (lat, lon): rough, deliberately near the edges
+        "Ramat Aviv (north TLV)": (32.115, 34.80),
+        "Jaffa (south TLV)": (32.03, 34.75),
+        "Bar-Ilan side of Ramat Gan": (32.07, 34.84),
+        "Givatayim": (32.07, 34.81),
+        "Dizengoff Square": (32.078, 34.774),
+    }
+    for name, (lat, lon) in landmarks.items():
+        assert left <= lon <= right and bottom <= lat <= top, name
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        {"city": _TLV},
+        {"town": _RAMAT_GAN},
+        {"town": _GIVATAYIM},
+        {"city": "Tel Aviv-Yafo"},
+        {"town": "Ramat Gan"},
+        {"town": "Givatayim"},
+        {"city": "Tel Aviv-Jaffa"},
+    ],
+)
+def test_geocode_accepts_the_three_areas_in_hebrew_and_english(monkeypatch, address):
+    _scripted_get(monkeypatch, [{"lat": "32.07", "lon": "34.78", "address": address}])
+
+    assert location.geocode_address("somewhere") == (32.07, 34.78)
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        {"town": _BAT_YAM},
+        {"town": "\u05d7\u05d5\u05dc\u05d5\u05df"},  # Holon
+        {"town": "\u05d1\u05e0\u05d9 \u05d1\u05e8\u05e7"},  # Bnei Brak - inside the rectangle
+        {"town": "\u05e7\u05e8\u05d9\u05d9\u05ea \u05d0\u05d5\u05e0\u05d5"},  # Kiryat Ono
+        {"city": "Haifa"},
+        {},  # no municipality at all is not trusted
+    ],
+)
+def test_geocode_rejects_results_from_other_municipalities(monkeypatch, address):
+    state = _scripted_get(monkeypatch, [{"lat": "32.02", "lon": "34.74", "address": address}])
+
+    assert location.geocode_address("Rothschild 12") is None
+    assert len(state["params"]) == 2  # tried both passes before giving up
+
+
+def test_geocode_skips_an_out_of_area_hit_for_an_in_area_one_further_down(monkeypatch):
+    # Seen live: unbiased "Rothschild 12" ranks Bat Yam and Holon first.
+    _scripted_get(
+        monkeypatch,
+        [_row(32.026, 34.743, town=_BAT_YAM), _row(32.0627, 34.7704, city=_TLV)],
+    )
+
+    assert location.geocode_address("Rothschild 12") == (32.0627, 34.7704)
+
+
+def test_geocode_tries_the_text_as_typed_when_the_biased_pass_finds_nothing(monkeypatch):
+    # A street that only exists in Ramat Gan: no Tel Aviv-biased hit, then it
+    # is found as typed.
+    state = _scripted_get(monkeypatch, [], [_row(32.085, 34.8104, town=_RAMAT_GAN)])
+
+    assert location.geocode_address("Hamasger 5") == (32.085, 34.8104)
+    assert [p["q"] for p in state["params"]] == ["Hamasger 5, Tel Aviv-Yafo", "Hamasger 5"]
+
+
+def test_geocode_stops_after_the_first_pass_that_hits(monkeypatch):
+    state = _scripted_get(monkeypatch, [_row(32.06, 34.77, city=_TLV)])
+
+    location.geocode_address("Rothschild 12")
+
+    assert len(state["params"]) == 1
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Jabotinsky 50 Ramat Gan",
+        "Jabotinsky 50, Ramat-Gan",
+        "ז'בוטינסקי 50 רמת גן",
+        "Weizmann 20 Givatayim",
+        "Weizmann 20 Givataim",
+        "Dizengoff 50, Tel Aviv",
+        "Clock Tower Jaffa",
+    ],
+)
+def test_geocode_does_not_append_tel_aviv_to_text_that_names_an_area(monkeypatch, text):
+    # "...Ramat Gan, Tel Aviv-Yafo" contradicted itself and found nothing.
+    state = _scripted_get(monkeypatch, [_row(32.08, 34.81, town=_RAMAT_GAN)])
+
+    location.geocode_address(text)
+
+    assert [p["q"] for p in state["params"]] == [text]
+
+
+def test_geocode_still_biases_text_that_names_no_area(monkeypatch):
+    state = _scripted_get(monkeypatch, [_row(32.06, 34.77, city=_TLV)])
+
+    location.geocode_address("Bialik 10")
+
+    assert state["params"][0]["q"] == "Bialik 10, Tel Aviv-Yafo"
+
+
+def test_normalize_name_ignores_hebrew_hyphen_variants_and_spacing():
+    assert (
+        location._normalize_name("\u05ea\u05dc\u05be\u05d0\u05d1\u05d9\u05d1\u2013\u05d9\u05e4\u05d5")
+        == location._normalize_name("\u05ea\u05dc \u05d0\u05d1\u05d9\u05d1-\u05d9\u05e4\u05d5")
+    )
+    assert location._normalize_name("Tel Aviv-Yafo") == location._normalize_name("tel  aviv - yafo")

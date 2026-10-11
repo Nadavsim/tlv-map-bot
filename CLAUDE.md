@@ -1352,6 +1352,41 @@ serving. (The map view itself was added to the Later horizon above,
       link message, label in the status line). 27 new backend tests (324
       total).
 
+  - **Typed addresses restricted to Tel Aviv-Yafo, Ramat Gan and Givatayim**
+    (2026-10-11, first half of "use AI for custom location" - the
+    deterministic half; the AI fallback for typos is still to discuss).
+    Supersedes the "always append Tel Aviv-Yafo" behaviour described under
+    plan-ahead geocoding, which had a real gap: it made **Ramat Gan and
+    Givatayim unfindable** ("Jabotinsky 50 Ramat Gan, Tel Aviv-Yafo" -> no
+    match; the docstring's claim that a named city "still resolves there" was
+    wrong for them).
+    - **Two layers, because neither works alone** (`services/location.py`):
+      a Nominatim `viewbox`+`bounded` over the extreme coordinates of the
+      three cities (lon 34.73-34.87, lat 32.01-32.15), *and* a check of each
+      result's own municipality against an allowlist. The rectangle alone is
+      not enough - measured: it also returns Bat Yam, Holon, Kiryat Ono, Gan
+      Shmuel and Bnei Brak, and Bnei Brak lies *inside Ramat Gan's own
+      bounding rectangle*, so no rectangle containing Ramat Gan can exclude
+      it. Municipality is `city` for Tel Aviv and `town` for the others, in
+      Hebrew; names are compared with all non-letters stripped (Hebrew
+      hyphen variants). A result with no municipality is rejected.
+    - **Two passes**: text + ", Tel Aviv-Yafo" first (without the bias
+      "Rothschild 12" has *no* Tel Aviv result in the top five - Bat Yam and
+      Holon outrank it), then the text as typed for streets that exist only
+      in Ramat Gan/Givatayim. Text that already names an area skips the bias.
+    - Verified live: Rothschild 12 -> Tel Aviv; Jabotinsky 50 Ramat Gan,
+      Bialik 10 Ramat Gan, Weizmann 20 Givatayim -> found (were not found);
+      Herzl 1 Haifa, Herzl 1 Bnei Brak, Holon Mall, "Rothschild 12, Holon"
+      -> not found. The not-found message now names the three areas. 27 new
+      backend tests (351 total).
+    - **Known edges**: municipality is whatever OpenStreetMap tags -
+      Bar-Ilan University is tagged Kiryat Ono, so it won't resolve even
+      though people think of it as Ramat Gan. A "Givatayim" address with no
+      house number in OSM returned nothing either way (data, not logic).
+      The restriction applies to *typed text*; coordinates typed or found in
+      a Maps link are used as given (a deliberate "I mean exactly here").
+      A typo ("Dizengoeff") is still not found - that is the AI step.
+
 ### Later-horizon items shipped
 
 - **Map view** (2026-10-02) - built in a cloud sandbox with no `.env`, no
