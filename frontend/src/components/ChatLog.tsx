@@ -4,7 +4,7 @@ import { ChatBubble } from './ChatBubble'
 import { PlaceCards } from './PlaceCards'
 import { TypingIndicator } from './TypingIndicator'
 import { LocationForm } from './LocationForm'
-import type { Coordinates, Lang } from '../types'
+import type { Coordinates, Lang, SavedAddress } from '../types'
 
 interface ChatLogProps {
   greeting: string
@@ -19,6 +19,7 @@ interface ChatLogProps {
   onShowMore: (entryId: string) => void
   loadingMoreId: string | null
   onPickStarter: (prompt: string) => void
+  savedAddresses: SavedAddress[]
   lang: Lang
 }
 
@@ -35,6 +36,7 @@ export function ChatLog({
   onShowMore,
   loadingMoreId,
   onPickStarter,
+  savedAddresses,
   lang,
 }: ChatLogProps) {
   const logRef = useRef<HTMLElement>(null)
@@ -95,6 +97,7 @@ export function ChatLog({
           onRetryLocation={onRetryLocation}
           isRequestingLocation={isRequestingLocation}
           showLiveRetry={showLiveRetry}
+          savedAddresses={savedAddresses}
           lang={lang}
         />
       )}

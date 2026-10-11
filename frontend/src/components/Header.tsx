@@ -1,8 +1,8 @@
-import { Car, Footprints, LocateFixed, MapPin, Menu } from 'lucide-react'
+import { BookmarkPlus, Car, Check, Footprints, LocateFixed, MapPin, Menu } from 'lucide-react'
 import { useState } from 'react'
 import { SideMenu } from './SideMenu'
 import { t } from '../i18n'
-import type { AuthUser, Lang, LocationMode, Theme, TransportMode } from '../types'
+import type { AuthUser, Lang, LocationMode, SavedAddress, Theme, TransportMode } from '../types'
 
 interface HeaderProps {
   locationStatus: string
@@ -22,6 +22,13 @@ interface HeaderProps {
   googleClientId: string | null
   onGoogleCredential: (credential: string) => void
   onSignOut: () => void
+  // 'save' shows the Save button, 'saved' a quiet confirmation; null when the
+  // current location can't or needn't be saved (signed out, Live, no room).
+  saveAddressState: 'save' | 'saved' | null
+  onSaveAddress: () => void
+  savedAddresses: SavedAddress[]
+  onRemoveSavedAddress: (id: string) => void
+  onDeleteAccount: () => Promise<boolean>
 }
 
 export function Header({
@@ -42,6 +49,11 @@ export function Header({
   googleClientId,
   onGoogleCredential,
   onSignOut,
+  saveAddressState,
+  onSaveAddress,
+  savedAddresses,
+  onRemoveSavedAddress,
+  onDeleteAccount,
 }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -76,6 +88,9 @@ export function Header({
         googleClientId={googleClientId}
         onGoogleCredential={onGoogleCredential}
         onSignOut={onSignOut}
+        savedAddresses={savedAddresses}
+        onRemoveSavedAddress={onRemoveSavedAddress}
+        onDeleteAccount={onDeleteAccount}
       />
       <div className="location-status-row">
         <p className="location-status">{locationStatus}</p>
@@ -83,6 +98,18 @@ export function Header({
           <button type="button" className="change-location-button" onClick={onChangeManualLocation}>
             {t(lang, 'locationChangeButton')}
           </button>
+        )}
+        {saveAddressState === 'save' && (
+          <button type="button" className="change-location-button save-address-button" onClick={onSaveAddress}>
+            <BookmarkPlus size={13} aria-hidden="true" />
+            {t(lang, 'saveAddress')}
+          </button>
+        )}
+        {saveAddressState === 'saved' && (
+          <span className="address-saved-note" role="status">
+            <Check size={13} aria-hidden="true" />
+            {t(lang, 'addressSaved')}
+          </span>
         )}
       </div>
       <div className="mode-toggle" role="group" aria-label={t(lang, 'locationModeGroupLabel')}>

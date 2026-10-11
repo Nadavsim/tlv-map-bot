@@ -2,7 +2,7 @@ import { CircleHelp, Languages, Moon, RotateCcw, Sun, X } from 'lucide-react'
 import { useEffect } from 'react'
 import { AccountSection } from './AccountSection'
 import { t } from '../i18n'
-import type { AuthUser, Lang, Theme } from '../types'
+import type { AuthUser, Lang, SavedAddress, Theme } from '../types'
 
 interface SideMenuProps {
   isOpen: boolean
@@ -17,6 +17,9 @@ interface SideMenuProps {
   googleClientId: string | null
   onGoogleCredential: (credential: string) => void
   onSignOut: () => void
+  savedAddresses: SavedAddress[]
+  onRemoveSavedAddress: (id: string) => void
+  onDeleteAccount: () => Promise<boolean>
 }
 
 // The header's old icon row (language/theme/reset/help, plus the account
@@ -39,6 +42,9 @@ export function SideMenu({
   googleClientId,
   onGoogleCredential,
   onSignOut,
+  savedAddresses,
+  onRemoveSavedAddress,
+  onDeleteAccount,
 }: SideMenuProps) {
   useEffect(() => {
     if (!isOpen) return
@@ -97,6 +103,13 @@ export function SideMenu({
           lang={lang}
           onCredential={onGoogleCredential}
           onSignOut={() => selectAndClose(onSignOut)}
+          savedAddresses={savedAddresses}
+          onRemoveSavedAddress={onRemoveSavedAddress}
+          onDeleteAccount={async () => {
+            const ok = await onDeleteAccount()
+            if (ok) onClose()
+            return ok
+          }}
         />
       </div>
     </>

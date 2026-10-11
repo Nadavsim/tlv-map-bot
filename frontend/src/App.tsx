@@ -1,12 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
-import { ApiError, getAuthConfig, getCategories, postChat, postGoogleAuth, postLogout, postMorePlaces, postRefresh } from './api'
+import {
+  ApiError,
+  deleteAccount,
+  deleteSavedAddress,
+  getAuthConfig,
+  getCategories,
+  getSavedAddresses,
+  postChat,
+  postGoogleAuth,
+  postLogout,
+  postMorePlaces,
+  postRefresh,
+  postSavedAddress,
+} from './api'
 import { type ChatEntry, makeEntryId } from './chatTypes'
 import { ChatInput } from './components/ChatInput'
 import { ChatLog } from './components/ChatLog'
 import { Header } from './components/Header'
 import { t, type StringKey } from './i18n'
 import { loadIntroSeen, loadLang, loadTheme, saveIntroSeen, saveLang, saveTheme } from './preferences'
-import type { AuthUser, Coordinates, Lang, LocationMode, PriceTier, Theme, TransportMode } from './types'
+import type { AuthUser, Coordinates, Lang, LocationMode, PriceTier, SavedAddress, Theme, TransportMode } from './types'
 import { PAGE_SIZE } from './types'
 import './styles/theme.css'
 import './styles/App.css'
@@ -69,6 +82,10 @@ export default function App() {
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [authUser, setAuthUser] = useState<AuthUser | null>(null)
   const [googleClientId, setGoogleClientId] = useState<string | null>(null)
+  // The signed-in person's saved manual addresses (empty when signed out) and
+  // the server's cap on how many they can keep.
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([])
+  const [maxSavedAddresses, setMaxSavedAddresses] = useState(5)
   // Never triggers a re-render on its own (only authUser does) - this is
   // exactly why it's a ref and not state: nothing in the UI reads the raw
   // token value itself, only whether someone is signed in.
@@ -139,7 +156,10 @@ export default function App() {
   useEffect(() => {
     postRefresh()
       .then((result) => {
-        if (result) applySession(result.access_token, result.user)
+        if (result) {
+          applySession(result.access_token, result.user)
+          void loadSavedAddresses(result.access_token)
+        }
       })
       .catch(() => {
         // Silent - an anonymous visitor is the default, expected state.
@@ -172,6 +192,7 @@ export default function App() {
     try {
       const result = await postGoogleAuth(credential)
       applySession(result.access_token, result.user)
+      void loadSavedAddresses(result.access_token)
     } catch {
       // Sign-in failing shouldn't be a chat-log error bubble - it's not part
       // of that conversation. Silently staying signed out is the safe
@@ -179,10 +200,71 @@ export default function App() {
     }
   }
 
+  // Failing here just leaves the list empty - saved addresses are a
+  // convenience on top of typing an address, never something that should
+  // surface an error or block the chat.
+  async function loadSavedAddresses(token: string) {
+    try {
+      const data = await getSavedAddresses(token)
+      setSavedAddresses(data.addresses)
+      setMaxSavedAddresses(data.max)
+    } catch {
+      // see above
+    }
+  }
+
+  async function handleSaveAddress() {
+    const token = accessTokenRef.current
+    if (!token || !manualLocation || !manualLocationLabel) return
+    try {
+      const saved = await postSavedAddress(token, {
+        label: manualLocationLabel,
+        lat: manualLocation.lat,
+        lon: manualLocation.lon,
+      })
+      // A second tap on an already-saved spot comes back as the existing
+      // entry, so merge by id rather than appending blindly.
+      setSavedAddresses((prev) => (prev.some((a) => a.id === saved.id) ? prev : [...prev, saved]))
+    } catch {
+      // Out of room, or the session lapsed: re-sync with the server rather
+      // than guessing, so the button reflects what's really stored.
+      void loadSavedAddresses(token)
+    }
+  }
+
+  async function handleRemoveSavedAddress(id: string) {
+    const token = accessTokenRef.current
+    if (!token) return
+    try {
+      await deleteSavedAddress(token, id)
+      setSavedAddresses((prev) => prev.filter((a) => a.id !== id))
+    } catch {
+      void loadSavedAddresses(token)
+    }
+  }
+
+  // Resolves true only once the server confirms the account is gone - until
+  // then the person stays signed in with everything intact.
+  async function handleDeleteAccount(): Promise<boolean> {
+    const token = accessTokenRef.current
+    if (!token) return false
+    try {
+      await deleteAccount(token)
+    } catch {
+      return false
+    }
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+    accessTokenRef.current = null
+    setAuthUser(null)
+    setSavedAddresses([])
+    return true
+  }
+
   async function handleSignOut() {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     accessTokenRef.current = null
     setAuthUser(null)
+    setSavedAddresses([])
     await postLogout().catch(() => {
       // Already signed out client-side regardless - a failed request here
       // just means the server-side session lingers until its own expiry.
@@ -509,6 +591,20 @@ export default function App() {
   const activeLocation = locationMode === 'manual' ? manualLocation : liveLocation
   const chatDisabled = !activeLocation || isWaitingForReply
   const canChangeManualLocation = locationMode === 'manual' && manualLocation !== null && !showLocationForm
+  // Matches the server's own 4-decimal rounding, so "already saved" agrees
+  // with what the backend would treat as the same spot.
+  const roundCoord = (n: number) => Math.round(n * 1e4) / 1e4
+  const currentAddressIsSaved =
+    manualLocation !== null &&
+    savedAddresses.some((a) => a.lat === roundCoord(manualLocation.lat) && a.lon === roundCoord(manualLocation.lon))
+  const saveAddressState: 'save' | 'saved' | null =
+    authUser === null || !canChangeManualLocation || manualLocationLabel === null
+      ? null
+      : currentAddressIsSaved
+        ? 'saved'
+        : savedAddresses.length < maxSavedAddresses
+          ? 'save'
+          : null
   const locationStatusText =
     locationMode === 'manual' && manualLocationLabel
       ? `${t(lang, 'locationActiveManualPrefix')} ${manualLocationLabel}`
@@ -534,6 +630,11 @@ export default function App() {
         googleClientId={googleClientId}
         onGoogleCredential={handleGoogleCredential}
         onSignOut={handleSignOut}
+        saveAddressState={saveAddressState}
+        onSaveAddress={handleSaveAddress}
+        savedAddresses={savedAddresses}
+        onRemoveSavedAddress={handleRemoveSavedAddress}
+        onDeleteAccount={handleDeleteAccount}
       />
       <ChatLog
         greeting={t(lang, 'greeting')}
@@ -551,6 +652,7 @@ export default function App() {
         onShowMore={handleShowMore}
         loadingMoreId={loadingMoreId}
         onPickStarter={handleSend}
+        savedAddresses={savedAddresses}
         lang={lang}
       />
       {clearedEntries && (

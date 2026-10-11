@@ -58,6 +58,22 @@ class PlaceResult(Place):
     distance: float
 
 
+class SavedAddress(BaseModel):
+    """One saved manual address, embedded in the user's own document.
+
+    Deliberately has NO user-chosen name/nickname field - no "Home"/"Work".
+    A label like that is what would let anyone with database access infer
+    where a specific person lives or works, which this app has no business
+    collecting. `label` is only the address text the person typed to set
+    the location (see db.normalize_address_label), kept so the list is
+    recognisable at a glance."""
+
+    id: str
+    label: str
+    lat: float
+    lon: float
+
+
 class User(BaseModel):
     """A user document as stored in MongoDB (no _id). Created on first
     Google sign-in - there's no separate registration step."""
@@ -76,4 +92,9 @@ class User(BaseModel):
     # version number. This is what makes "sign out" actually revoke a
     # session server-side, rather than just discarding the token client-side.
     token_version: int = 0
+    # Embedded (not a separate collection like favorites): capped at a
+    # handful per user, always read together with the user, and never joined
+    # against another collection - so there's no unbounded growth or lookup
+    # to design around, and deleting the user document removes them with it.
+    saved_addresses: list[SavedAddress] = []
     created_at: datetime

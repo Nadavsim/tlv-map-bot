@@ -41,6 +41,11 @@ lightweight web app that runs for roughly $15/month.
   plus this app's own short-lived JWT access tokens (in-memory only) and
   longer-lived refresh tokens (httpOnly cookie, scoped to `/api/auth`). No
   self-managed passwords - see `CLAUDE.md` for the full design writeup.
+  Signed-in users can keep up to 5 saved manual addresses (address text +
+  coordinates rounded to ~11 m, no user-chosen names) and delete their account
+  from the menu, which removes everything stored for it. What's stored is
+  described in plain language in `frontend/public/privacy.html` - update it in
+  the same change as anything that alters what's stored.
 * **Hosting:** Azure App Service, split into a production and a staging
   environment (see `CLAUDE.md` for the full story and setup gotchas).
   Production runs on a dedicated Basic (B1) plan (~$14.45/month - the

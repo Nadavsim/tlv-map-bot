@@ -1,8 +1,8 @@
-import { LocateFixed } from 'lucide-react'
+import { LocateFixed, MapPin } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { resolveLocation } from '../api'
 import { t } from '../i18n'
-import type { Coordinates, Lang } from '../types'
+import type { Coordinates, Lang, SavedAddress } from '../types'
 
 interface LocationFormProps {
   onLocationSet: (coords: Coordinates, label: string) => void
@@ -15,6 +15,9 @@ interface LocationFormProps {
   // my current location" silently hijack an in-progress Custom session
   // back to Live.
   showLiveRetry: boolean
+  // The signed-in person's saved addresses - a tap sets the location straight
+  // from the stored coordinates, with no address lookup at all.
+  savedAddresses: SavedAddress[]
   lang: Lang
 }
 
@@ -24,6 +27,7 @@ export function LocationForm({
   onRetryLocation,
   isRequestingLocation,
   showLiveRetry,
+  savedAddresses,
   lang,
 }: LocationFormProps) {
   const [value, setValue] = useState('')
@@ -76,6 +80,21 @@ export function LocationForm({
 
   return (
     <div className="location-fallback">
+      {savedAddresses.length > 0 && (
+        <div className="saved-address-chips" role="group" aria-label={t(lang, 'savedAddressesHeading')}>
+          {savedAddresses.map((address) => (
+            <button
+              key={address.id}
+              type="button"
+              className="saved-address-chip"
+              onClick={() => onLocationSet({ lat: address.lat, lon: address.lon }, address.label)}
+            >
+              <MapPin size={14} aria-hidden="true" />
+              {address.label}
+            </button>
+          ))}
+        </div>
+      )}
       <form className="location-form-row" onSubmit={handleSubmit}>
         <input
           type="text"

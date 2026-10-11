@@ -1173,3 +1173,210 @@ def test_endpoints_reject_an_unknown_price_tier(monkeypatch, path, extra):
         resp = client.post(path, json=body)
 
     assert resp.status_code == 422
+
+
+# --- saved addresses + account deletion ----------------------------------
+
+_AUTH = {"Authorization": "Bearer some-access-token"}
+
+
+def _signed_in(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(auth, "decode_access_token", lambda token: "user-id-1")
+
+
+def _saved_address(**overrides):
+    from backend.models import SavedAddress
+
+    base = {"id": "a1", "label": "Rothschild 12", "lat": 32.0668, "lon": 34.7701}
+    return SavedAddress(**{**base, **overrides})
+
+
+def test_saved_addresses_require_a_signed_in_user(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        assert client.get("/api/saved-addresses").status_code == 401
+        assert client.post("/api/saved-addresses", json={"label": "x", "lat": 32.0, "lon": 34.0}).status_code == 401
+        assert client.delete("/api/saved-addresses/a1").status_code == 401
+
+
+def test_list_saved_addresses_returns_them_with_the_cap(monkeypatch):
+    _signed_in(monkeypatch)
+    monkeypatch.setattr(db, "list_saved_addresses", AsyncMock(return_value=[_saved_address()]))
+
+    with TestClient(app_module.app) as client:
+        resp = client.get("/api/saved-addresses", headers=_AUTH)
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "addresses": [{"id": "a1", "label": "Rothschild 12", "lat": 32.0668, "lon": 34.7701}],
+        "max": db.MAX_SAVED_ADDRESSES,
+    }
+
+
+def test_list_saved_addresses_for_a_deleted_user_is_401(monkeypatch):
+    _signed_in(monkeypatch)
+    monkeypatch.setattr(db, "list_saved_addresses", AsyncMock(return_value=None))
+
+    with TestClient(app_module.app) as client:
+        resp = client.get("/api/saved-addresses", headers=_AUTH)
+
+    assert resp.status_code == 401
+
+
+def test_add_saved_address_creates_and_returns_201(monkeypatch):
+    _signed_in(monkeypatch)
+    add_mock = AsyncMock(return_value=("added", _saved_address()))
+    monkeypatch.setattr(db, "add_saved_address", add_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/saved-addresses", json={"label": "Rothschild 12", "lat": 32.066812, "lon": 34.77012}, headers=_AUTH
+        )
+
+    assert resp.status_code == 201
+    assert resp.json()["address"]["id"] == "a1"
+    add_mock.assert_awaited_once_with("user-id-1", "Rothschild 12", 32.066812, 34.77012)
+
+
+def test_add_saved_address_for_an_already_saved_spot_is_200(monkeypatch):
+    _signed_in(monkeypatch)
+    monkeypatch.setattr(db, "add_saved_address", AsyncMock(return_value=("exists", _saved_address())))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/saved-addresses", json={"label": "x", "lat": 32.0668, "lon": 34.7701}, headers=_AUTH)
+
+    assert resp.status_code == 200
+    assert resp.json()["address"]["id"] == "a1"
+
+
+def test_add_saved_address_past_the_cap_is_409(monkeypatch):
+    _signed_in(monkeypatch)
+    monkeypatch.setattr(db, "add_saved_address", AsyncMock(return_value=("full", None)))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/saved-addresses", json={"label": "x", "lat": 32.0, "lon": 34.0}, headers=_AUTH)
+
+    assert resp.status_code == 409
+
+
+def test_add_saved_address_for_a_deleted_user_is_401(monkeypatch):
+    _signed_in(monkeypatch)
+    monkeypatch.setattr(db, "add_saved_address", AsyncMock(return_value=("no_user", None)))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/saved-addresses", json={"label": "x", "lat": 32.0, "lon": 34.0}, headers=_AUTH)
+
+    assert resp.status_code == 401
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"label": "x", "lat": 91, "lon": 34},
+        {"label": "x", "lat": 32, "lon": 181},
+        {"label": "x" * 201, "lat": 32, "lon": 34},
+        {"label": "x", "lat": "north", "lon": 34},
+        {"lat": 32, "lon": 34},
+    ],
+)
+def test_add_saved_address_rejects_invalid_bodies(monkeypatch, body):
+    _signed_in(monkeypatch)
+    add_mock = AsyncMock()
+    monkeypatch.setattr(db, "add_saved_address", add_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/saved-addresses", json=body, headers=_AUTH)
+
+    assert resp.status_code == 422
+    add_mock.assert_not_awaited()
+
+
+def test_add_saved_address_ignores_a_client_supplied_name_field(monkeypatch):
+    # There is deliberately no name/nickname field; an extra one in the body
+    # must not reach storage under any key.
+    _signed_in(monkeypatch)
+    add_mock = AsyncMock(return_value=("added", _saved_address()))
+    monkeypatch.setattr(db, "add_saved_address", add_mock)
+
+    with TestClient(app_module.app) as client:
+        client.post(
+            "/api/saved-addresses",
+            json={"label": "x", "lat": 32.0, "lon": 34.0, "name": "Home", "nickname": "Work"},
+            headers=_AUTH,
+        )
+
+    assert add_mock.await_args.args == ("user-id-1", "x", 32.0, 34.0)
+
+
+def test_delete_saved_address(monkeypatch):
+    _signed_in(monkeypatch)
+    remove_mock = AsyncMock(return_value=True)
+    monkeypatch.setattr(db, "remove_saved_address", remove_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.delete("/api/saved-addresses/a1", headers=_AUTH)
+
+    assert resp.status_code == 200
+    remove_mock.assert_awaited_once_with("user-id-1", "a1")
+
+
+def test_delete_saved_address_that_does_not_exist_is_404(monkeypatch):
+    _signed_in(monkeypatch)
+    monkeypatch.setattr(db, "remove_saved_address", AsyncMock(return_value=False))
+
+    with TestClient(app_module.app) as client:
+        resp = client.delete("/api/saved-addresses/nope", headers=_AUTH)
+
+    assert resp.status_code == 404
+
+
+def test_delete_account_removes_the_user_and_clears_the_cookie(monkeypatch):
+    _signed_in(monkeypatch)
+    delete_mock = AsyncMock(return_value=True)
+    monkeypatch.setattr(db, "delete_user", delete_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.delete("/api/auth/me", headers=_AUTH)
+
+    assert resp.status_code == 200
+    delete_mock.assert_awaited_once_with("user-id-1")
+    cookie = resp.headers["set-cookie"]
+    assert "refresh_token=" in cookie and "Max-Age=0" in cookie
+
+
+def test_delete_account_cannot_be_triggered_by_the_cookie_alone(monkeypatch):
+    # Authenticated by the bearer access token (not the cookie the browser
+    # attaches on its own), so a cross-site request can't delete anyone.
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    delete_mock = AsyncMock(return_value=True)
+    monkeypatch.setattr(db, "delete_user", delete_mock)
+
+    with TestClient(app_module.app) as client:
+        client.cookies.set("refresh_token", "whatever")
+        resp = client.delete("/api/auth/me")
+
+    assert resp.status_code == 401
+    delete_mock.assert_not_awaited()
+
+
+def test_delete_account_for_an_already_deleted_user_is_401(monkeypatch):
+    _signed_in(monkeypatch)
+    monkeypatch.setattr(db, "delete_user", AsyncMock(return_value=False))
+
+    with TestClient(app_module.app) as client:
+        resp = client.delete("/api/auth/me", headers=_AUTH)
+
+    assert resp.status_code == 401
+
+
+def test_auth_me_never_includes_saved_addresses(monkeypatch):
+    _signed_in(monkeypatch)
+    user = SAMPLE_USER.model_copy(update={"saved_addresses": [_saved_address()]})
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=user))
+
+    with TestClient(app_module.app) as client:
+        resp = client.get("/api/auth/me", headers=_AUTH)
+
+    assert set(resp.json()) == {"name", "email", "picture_url"}

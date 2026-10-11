@@ -28,7 +28,9 @@
         <p>
           Whether you share your live location or type an address, it's used only
           to find the nearest places and calculate real walking/driving times.
-          It's not stored by TLV Bot. To do that calculation, your coordinates are
+          It's not stored by TLV Bot - the one exception is an address you
+          choose to save while signed in (see "Accounts and saved addresses"
+          below). To do that calculation, your coordinates are
           sent to a free public routing service
           (<a href="https://routing.openstreetmap.de" target="_blank" rel="noopener noreferrer">routing.openstreetmap.de</a>,
           OSRM). If you type an address instead of sharing live location, the text
@@ -58,6 +60,38 @@
           automatically deleted after 90 days.
         </p>
 
+        <h2>Accounts and saved addresses</h2>
+        <p>
+          Signing in is optional - everything works without an account. If you
+          sign in with Google, Google tells TLV Bot your name, email address,
+          profile picture link and a stable Google account ID. TLV Bot stores
+          those in its database only to recognise you when you come back; they
+          aren't shared with anyone or used for anything else.
+        </p>
+        <p>
+          While you're signed in, one sign-in cookie keeps you signed in for up
+          to 30 days. It's only ever sent to TLV Bot's own sign-in address, it
+          isn't used for tracking, and signing out removes it and signs you out
+          on all of your devices. Opening the sign-in panel loads Google's
+          sign-in script from accounts.google.com, so - as with any "Sign in
+          with Google" button - Google sees your IP address and that you're on
+          TLV Bot.
+        </p>
+        <p>
+          When you're signed in you can save up to 5 of the addresses you've set
+          as a custom location, to reuse them with one tap. For each one, TLV Bot
+          stores the address text you typed (or just its coordinates, if you
+          pasted a link or coordinates) and its coordinates rounded to about 10
+          metres. There are deliberately no names or labels such as "Home" or
+          "Work". Saved addresses are never used for anything other than
+          offering them back to you, and you can remove any of them from the
+          menu at any time.
+        </p>
+        <p>
+          "Delete account" in the menu permanently deletes your account record
+          and everything saved with it, immediately.
+        </p>
+
         <h2>What's stored only in your own browser</h2>
         <p>
           Your language and light/dark theme choice, and a flag noting that
@@ -67,22 +101,38 @@
         </p>
 
         <h2>What TLV Bot doesn't do</h2>
-        <p>No accounts, no tracking cookies, no analytics or ad tracking - as of today.</p>
+        <p>
+          No tracking cookies, no analytics or ad tracking, and no selling or
+          sharing of your data. The only cookie is the sign-in cookie described
+          above, and only if you sign in.
+        </p>
 
         <h2>Where data is hosted</h2>
         <p>
-          The anonymous usage stats above are stored in MongoDB Atlas. Third
-          parties involved in answering a request: Anthropic (Claude API), OSRM
-          (routing.openstreetmap.de), and OpenStreetMap's Nominatim
-          (nominatim.openstreetmap.org); and, only if you open the map view,
-          OpenStreetMap's tile server (tile.openstreetmap.org).
+          The anonymous usage stats above and, if you sign in, your account
+          details and saved addresses are stored in MongoDB Atlas. The app
+          itself runs on Microsoft Azure, which - like any web host - handles
+          each request and may keep standard server logs. To limit abuse, the
+          network address a request comes from is also held briefly in the
+          server's memory to count how often it asks; it isn't written to the
+          database.
+        </p>
+        <p>
+          Third parties involved in answering a request: Anthropic (Claude API),
+          OSRM (routing.openstreetmap.de), and OpenStreetMap's Nominatim
+          (nominatim.openstreetmap.org); Google Fonts (the page's typeface is
+          loaded from fonts.googleapis.com and fonts.gstatic.com, so Google
+          receives your IP address when a page loads); Google sign-in
+          (accounts.google.com), only if you open the sign-in panel; and, only
+          if you open the map view, OpenStreetMap's tile server
+          (tile.openstreetmap.org).
         </p>
 
         <h2>Changes</h2>
         <p>
           This is a small, evolving personal project - this page will be updated
-          if what's collected changes, for example if real user accounts are
-          added later.
+          if what's collected changes, for example if new account features are
+          added.
         </p>
       </section>
 
@@ -96,7 +146,8 @@
         <p>
           בין אם אתה משתף את המיקום הנוכחי שלך ובין אם אתה מקליד כתובת, המיקום
           משמש רק כדי למצוא את המקומות הקרובים ביותר ולחשב זמני הליכה/נסיעה
-          אמיתיים. TLV Bot לא שומר אותו. כדי לבצע את החישוב, הקואורדינטות שלך
+          אמיתיים. TLV Bot לא שומר אותו - החריג היחיד הוא כתובת שבחרת לשמור
+          כשאתה מחובר (ראה "חשבונות וכתובות שמורות" למטה). כדי לבצע את החישוב, הקואורדינטות שלך
           נשלחות לשירות ניווט ציבורי וחינמי
           (<a href="https://routing.openstreetmap.de" target="_blank" rel="noopener noreferrer">routing.openstreetmap.de</a>,
           OSRM). אם הקלדת כתובת במקום לשתף מיקום נוכחי, הטקסט שהקלדת נשלח
@@ -125,23 +176,65 @@
           למי ששלח אותו. טקסט של בקשות לא-מותאמות נמחק אוטומטית אחרי 90 יום.
         </p>
 
+        <h2>חשבונות וכתובות שמורות</h2>
+        <p>
+          ההתחברות היא אופציונלית - הכול עובד גם בלי חשבון. אם אתה מתחבר עם
+          Google, Google מוסרת ל-TLV Bot את שמך, כתובת האימייל שלך, קישור לתמונת
+          הפרופיל ומזהה חשבון Google יציב. TLV Bot שומר אותם במסד הנתונים שלו
+          רק כדי לזהות אותך כשתחזור; הם לא משותפים עם אף אחד ולא משמשים לשום דבר
+          אחר.
+        </p>
+        <p>
+          כל עוד אתה מחובר, עוגיית התחברות אחת משאירה אותך מחובר עד 30 יום. היא
+          נשלחת רק לכתובת ההתחברות של TLV Bot עצמו, לא משמשת למעקב, והתנתקות
+          מסירה אותה ומנתקת אותך בכל המכשירים שלך. פתיחת חלונית ההתחברות טוענת את
+          סקריפט ההתחברות של Google מ-accounts.google.com, ולכן - כמו בכל כפתור
+          "התחבר עם Google" - Google רואה את כתובת ה-IP שלך ושאתה ב-TLV Bot.
+        </p>
+        <p>
+          כשאתה מחובר אפשר לשמור עד 5 מהכתובות שקבעת כמיקום מותאם, כדי להשתמש
+          בהן שוב בלחיצה אחת. עבור כל אחת, TLV Bot שומר את טקסט הכתובת שהקלדת
+          (או רק את הקואורדינטות שלה, אם הדבקת קישור או קואורדינטות) ואת
+          הקואורדינטות שלה מעוגלות לכ-10 מטר. בכוונה אין שמות או תוויות כמו
+          "בית" או "עבודה". כתובות שמורות לא משמשות לשום דבר מלבד להציע לך אותן
+          שוב, ואפשר להסיר כל אחת מהן מהתפריט בכל עת.
+        </p>
+        <p>
+          "מחק חשבון" בתפריט מוחק לצמיתות ומיידית את רשומת החשבון שלך ואת כל מה
+          ששמור איתה.
+        </p>
+
         <h2>מה שנשמר רק בדפדפן שלך</h2>
         <p>בחירת השפה והמצב הבהיר/כהה שלך, וסימון שכבר השתמשת באפליקציה (כדי שטיפים לביקור ראשון לא יוצגו שוב), נשמרים באחסון המקומי של הדפדפן שלך ולעולם לא נשלחים לשום שרת.</p>
 
         <h2>מה TLV Bot לא עושה</h2>
-        <p>אין חשבונות, אין עוגיות מעקב, אין אנליטיקס או מעקב פרסומי - נכון להיום.</p>
+        <p>
+          אין עוגיות מעקב, אין אנליטיקס או מעקב פרסומי, ואין מכירה או שיתוף של
+          המידע שלך. העוגייה היחידה היא עוגיית ההתחברות שתוארה למעלה, ורק אם
+          אתה מתחבר.
+        </p>
 
         <h2>היכן המידע מאוחסן</h2>
         <p>
-          נתוני השימוש האנונימיים שלמעלה מאוחסנים ב-MongoDB Atlas. צדדים
-          שלישיים המעורבים במענה לבקשה: Anthropic (API של Claude), OSRM
+          נתוני השימוש האנונימיים שלמעלה, ואם אתה מתחבר - פרטי החשבון שלך
+          והכתובות השמורות - מאוחסנים ב-MongoDB Atlas. האפליקציה עצמה רצה על
+          Microsoft Azure, שכמו כל אחסון אתרים מטפל בכל בקשה ועשוי לשמור יומני
+          שרת סטנדרטיים. כדי להגביל ניצול לרעה, הכתובת ברשת ממנה מגיעה בקשה
+          נשמרת גם לזמן קצר בזיכרון השרת כדי לספור כמה פעמים היא פונה; היא לא
+          נכתבת למסד הנתונים.
+        </p>
+        <p>
+          צדדים שלישיים המעורבים במענה לבקשה: Anthropic (API של Claude), OSRM
           (routing.openstreetmap.de), ו-Nominatim של OpenStreetMap
-          (nominatim.openstreetmap.org); ורק אם אתה פותח את תצוגת המפה, שרת
-          האריחים של OpenStreetMap (tile.openstreetmap.org).
+          (nominatim.openstreetmap.org); Google Fonts (הגופן של הדף נטען מ-
+          fonts.googleapis.com ומ-fonts.gstatic.com, ולכן Google מקבלת את כתובת
+          ה-IP שלך כשדף נטען); התחברות עם Google (accounts.google.com), רק אם אתה
+          פותח את חלונית ההתחברות; ורק אם אתה פותח את תצוגת המפה, שרת האריחים של
+          OpenStreetMap (tile.openstreetmap.org).
         </p>
 
         <h2>שינויים</h2>
-        <p>זהו פרויקט אישי קטן ומתפתח - דף זה יעודכן אם מה שנאסף ישתנה, לדוגמה אם יתווספו חשבונות משתמש אמיתיים בעתיד.</p>
+        <p>זהו פרויקט אישי קטן ומתפתח - דף זה יעודכן אם מה שנאסף ישתנה, לדוגמה אם יתווספו יכולות חשבון חדשות.</p>
       </section>
     </div>
   </body>

@@ -426,3 +426,178 @@ def test_geo_pipeline_combines_price_and_dietary_tag_with_any_category():
 def test_geo_pipeline_has_no_price_filter_when_price_is_none():
     pipeline = build_geo_pipeline("coffee", lat=32.08, lon=34.78, limit=3)
     assert "price_tier" not in pipeline[0]["$geoNear"]["query"]
+
+
+# --- saved addresses -----------------------------------------------------
+
+_SAVED_USER_ID = "64b000000000000000000001"
+
+
+def _user_with(addresses):
+    from backend.models import User
+
+    return User(
+        google_sub="g-1",
+        email="a@example.com",
+        name="A",
+        saved_addresses=addresses,
+        created_at=datetime.now(timezone.utc),
+    )
+
+
+def _saved(n, lat=32.0, lon=34.0):
+    from backend.models import SavedAddress
+
+    return SavedAddress(id=f"id{n}", label=f"Street {n}", lat=lat + n / 1000, lon=lon)
+
+
+def test_normalize_label_keeps_a_typed_address():
+    assert db.normalize_address_label("Rothschild 12, Tel Aviv", 32.0, 34.0) == "Rothschild 12, Tel Aviv"
+
+
+def test_normalize_label_collapses_whitespace_and_truncates():
+    assert db.normalize_address_label("  Dizengoff \n  50  ", 32.0, 34.0) == "Dizengoff 50"
+    assert len(db.normalize_address_label("x" * 300, 32.0, 34.0)) == db.SAVED_ADDRESS_LABEL_MAX_LENGTH
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "https://www.google.com/maps/place/Foo/@32.07,34.77,17z?utm_source=x",
+        "http://maps.app.goo.gl/abc",
+        "www.example.com/somewhere",
+        "maps.google.com/?q=1",
+        "goo.gl/maps/abc",
+        "   ",
+        "",
+    ],
+)
+def test_normalize_label_never_stores_a_link_or_empty_text(text):
+    # A pasted link can carry tracking parameters or a place name; it's
+    # replaced by the (rounded) coordinates instead of being kept.
+    assert db.normalize_address_label(text, 32.0668, 34.77) == "32.0668, 34.7700"
+
+
+@pytest.mark.asyncio
+async def test_list_saved_addresses_distinguishes_missing_user_from_empty(monkeypatch):
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=None))
+    assert await db.list_saved_addresses(_SAVED_USER_ID) is None
+
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=_user_with([])))
+    assert await db.list_saved_addresses(_SAVED_USER_ID) == []
+
+
+@pytest.mark.asyncio
+async def test_add_saved_address_rounds_coordinates_and_pushes_with_a_cap_guard(monkeypatch):
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=_user_with([])))
+    users = MagicMock()
+    users.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
+    monkeypatch.setattr(db, "get_users_collection", lambda: users)
+
+    status, address = await db.add_saved_address(_SAVED_USER_ID, "Rothschild 12", 32.066812345, 34.770099999)
+
+    assert status == "added"
+    assert (address.lat, address.lon) == (32.0668, 34.7701)
+    assert address.label == "Rothschild 12"
+    assert len(address.id) == 32
+    query, update = users.update_one.call_args.args
+    # The cap is enforced in the filter itself, not only by the earlier read.
+    assert query["saved_addresses.4"] == {"$exists": False}
+    assert update == {"$push": {"saved_addresses": address.model_dump()}}
+
+
+@pytest.mark.asyncio
+async def test_add_saved_address_returns_the_existing_one_for_the_same_spot(monkeypatch):
+    from backend.models import SavedAddress
+
+    existing = SavedAddress(id="id1", label="Rothschild 12", lat=32.0668, lon=34.7701)
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=_user_with([existing])))
+    users = MagicMock()
+    users.update_one = AsyncMock()
+    monkeypatch.setattr(db, "get_users_collection", lambda: users)
+
+    # Differs only below the stored precision - same spot, so no duplicate.
+    status, address = await db.add_saved_address(_SAVED_USER_ID, "anything", 32.06681, 34.77009)
+
+    assert status == "exists"
+    assert address == existing
+    users.update_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_add_saved_address_refuses_past_the_cap(monkeypatch):
+    full = [_saved(n) for n in range(db.MAX_SAVED_ADDRESSES)]
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=_user_with(full)))
+    users = MagicMock()
+    users.update_one = AsyncMock()
+    monkeypatch.setattr(db, "get_users_collection", lambda: users)
+
+    status, address = await db.add_saved_address(_SAVED_USER_ID, "New", 31.0, 33.0)
+
+    assert (status, address) == ("full", None)
+    users.update_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_add_saved_address_reports_full_when_a_concurrent_add_wins(monkeypatch):
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=_user_with([])))
+    users = MagicMock()
+    users.update_one = AsyncMock(return_value=MagicMock(matched_count=0))
+    monkeypatch.setattr(db, "get_users_collection", lambda: users)
+
+    assert await db.add_saved_address(_SAVED_USER_ID, "x", 32.0, 34.0) == ("full", None)
+
+
+@pytest.mark.asyncio
+async def test_add_saved_address_for_a_deleted_user(monkeypatch):
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=None))
+    assert await db.add_saved_address(_SAVED_USER_ID, "x", 32.0, 34.0) == ("no_user", None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("modified,expected", [(1, True), (0, False)])
+async def test_remove_saved_address_pulls_by_id(monkeypatch, modified, expected):
+    users = MagicMock()
+    users.update_one = AsyncMock(return_value=MagicMock(modified_count=modified))
+    monkeypatch.setattr(db, "get_users_collection", lambda: users)
+
+    assert await db.remove_saved_address(_SAVED_USER_ID, "abc") is expected
+    _, update = users.update_one.call_args.args
+    assert update == {"$pull": {"saved_addresses": {"id": "abc"}}}
+
+
+@pytest.mark.asyncio
+async def test_remove_saved_address_with_a_malformed_user_id(monkeypatch):
+    assert await db.remove_saved_address("not-an-object-id", "abc") is False
+
+
+@pytest.mark.asyncio
+async def test_delete_user_removes_favorites_before_the_account(monkeypatch):
+    order = []
+    favorites = MagicMock()
+    favorites.delete_many = AsyncMock(side_effect=lambda *_: order.append("favorites"))
+    users = MagicMock()
+    users.delete_one = AsyncMock(
+        side_effect=lambda *_: order.append("user") or MagicMock(deleted_count=1)
+    )
+    monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
+    monkeypatch.setattr(db, "get_users_collection", lambda: users)
+
+    assert await db.delete_user(_SAVED_USER_ID) is True
+    assert order == ["favorites", "user"]
+    favorites.delete_many.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_user_with_a_malformed_id_touches_nothing(monkeypatch):
+    favorites = MagicMock()
+    favorites.delete_many = AsyncMock()
+    monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
+
+    assert await db.delete_user("not-an-object-id") is False
+    favorites.delete_many.assert_not_awaited()
+
+
+def test_users_schema_describes_saved_addresses_without_any_name_field():
+    item = db.USERS_JSON_SCHEMA["properties"]["saved_addresses"]["items"]
+    assert set(item["properties"]) == {"id", "label", "lat", "lon"}

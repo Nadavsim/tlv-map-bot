@@ -1,5 +1,6 @@
 import os
 import time
+import uuid
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -9,7 +10,7 @@ from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import OperationFailure
 
-from .models import PlaceResult, User
+from .models import PlaceResult, SavedAddress, User
 from .services import weather
 
 # This app is about Tel Aviv specifically, regardless of where the server
@@ -77,9 +78,32 @@ USERS_JSON_SCHEMA = {
         "name": {"bsonType": "string"},
         "picture_url": {"bsonType": ["string", "null"]},
         "token_version": {"bsonType": "int"},
+        "saved_addresses": {
+            "bsonType": "array",
+            "items": {
+                "bsonType": "object",
+                "required": ["id", "label", "lat", "lon"],
+                "properties": {
+                    "id": {"bsonType": "string"},
+                    "label": {"bsonType": "string"},
+                    "lat": {"bsonType": "double"},
+                    "lon": {"bsonType": "double"},
+                },
+            },
+        },
         "created_at": {"bsonType": "date"},
     },
 }
+
+# A person's frequently-used manual addresses. A handful is the point (a
+# place you actually go from), and the cap keeps what's stored about anyone
+# small and bounded.
+MAX_SAVED_ADDRESSES = 5
+# 4 decimal places is ~11 m. "Which nearby place is closest" has no use for
+# more, and not storing more precision than the feature needs is the cheapest
+# privacy measure available - so it's applied at the storage layer itself.
+SAVED_ADDRESS_COORD_DECIMALS = 4
+SAVED_ADDRESS_LABEL_MAX_LENGTH = 80
 
 # One document per (user, place) pair - a dedicated collection rather than an
 # array on the user document, so "who favorited place X" stays a plain indexed
@@ -438,6 +462,88 @@ async def create_user(google_sub: str, email: str, name: str, picture_url: str |
     users = get_users_collection()
     result = await users.insert_one(user.model_dump())
     return str(result.inserted_id), user
+
+
+def round_saved_coord(value: float) -> float:
+    return round(value, SAVED_ADDRESS_COORD_DECIMALS)
+
+
+def normalize_address_label(label: str, lat: float, lon: float) -> str:
+    """What gets stored as the display text of a saved address. The typed
+    text is kept when it reads as an address; a pasted link or anything
+    empty is replaced with the (rounded) coordinates instead, so the
+    collection never ends up holding arbitrary URLs - which can carry
+    tracking parameters or a place name - just because someone pasted one
+    into the location box."""
+    text = " ".join(label.split())
+    lowered = text.lower()
+    if not text or "://" in text or lowered.startswith(("www.", "maps.", "goo.gl", "g.co")):
+        return f"{lat:.{SAVED_ADDRESS_COORD_DECIMALS}f}, {lon:.{SAVED_ADDRESS_COORD_DECIMALS}f}"
+    return text[:SAVED_ADDRESS_LABEL_MAX_LENGTH]
+
+
+async def list_saved_addresses(user_id: str) -> list[SavedAddress] | None:
+    """None means the user doesn't exist (e.g. deleted since the token was
+    issued) - distinct from a real user with nothing saved yet."""
+    user = await get_user_by_id(user_id)
+    return None if user is None else user.saved_addresses
+
+
+async def add_saved_address(
+    user_id: str, label: str, lat: float, lon: float
+) -> tuple[str, SavedAddress | None]:
+    """Returns (status, address): "added", "exists" (the same spot is
+    already saved - returned as-is rather than duplicated), "full" (at
+    MAX_SAVED_ADDRESSES), or "no_user"."""
+    lat, lon = round_saved_coord(lat), round_saved_coord(lon)
+    user = await get_user_by_id(user_id)
+    if user is None:
+        return "no_user", None
+    for existing in user.saved_addresses:
+        if existing.lat == lat and existing.lon == lon:
+            return "exists", existing
+    if len(user.saved_addresses) >= MAX_SAVED_ADDRESSES:
+        return "full", None
+
+    address = SavedAddress(id=uuid.uuid4().hex, label=normalize_address_label(label, lat, lon), lat=lat, lon=lon)
+    users = get_users_collection()
+    # The read above is only for choosing a status; the cap is enforced again
+    # in the update's own filter so two concurrent adds can't both slip in
+    # past the limit (the Nth element existing means the array is full).
+    result = await users.update_one(
+        {"_id": ObjectId(user_id), f"saved_addresses.{MAX_SAVED_ADDRESSES - 1}": {"$exists": False}},
+        {"$push": {"saved_addresses": address.model_dump()}},
+    )
+    if result.matched_count == 0:
+        return "full", None
+    return "added", address
+
+
+async def remove_saved_address(user_id: str, address_id: str) -> bool:
+    try:
+        object_id = ObjectId(user_id)
+    except InvalidId:
+        return False
+    users = get_users_collection()
+    result = await users.update_one({"_id": object_id}, {"$pull": {"saved_addresses": {"id": address_id}}})
+    return result.modified_count > 0
+
+
+async def delete_user(user_id: str) -> bool:
+    """Removes the account and everything tied to it: saved addresses are
+    embedded in the user document and go with it; favorites live in their own
+    collection, so they're cascaded explicitly. Any future collection keyed by
+    user has to be added here too."""
+    try:
+        object_id = ObjectId(user_id)
+    except InvalidId:
+        return False
+    # Favorites first: if the user delete then failed, the account is still
+    # intact and the call can simply be retried, rather than leaving orphaned
+    # favorites for an account that no longer exists.
+    await get_favorites_collection().delete_many({"user_id": object_id})
+    result = await get_users_collection().delete_one({"_id": object_id})
+    return result.deleted_count > 0
 
 
 async def revoke_user_sessions(user_id: str) -> None:

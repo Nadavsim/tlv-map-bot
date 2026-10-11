@@ -581,3 +581,67 @@ async def auth_me(authorization: str | None = Header(None)):
     if not user:
         raise HTTPException(status_code=401, detail="User no longer exists")
     return _user_public_dict(user)
+
+
+@app.delete("/api/auth/me")
+async def auth_delete_account(response: Response, authorization: str | None = Header(None)):
+    """Self-serve account deletion: removes the user record and everything
+    tied to it (saved addresses, favorites). Authenticated by the bearer
+    access token like every other account action, so it isn't reachable by
+    a cross-site request (the cookie alone can't trigger it)."""
+    user_id = await get_current_user_id(authorization)
+    if not await db.delete_user(user_id):
+        raise HTTPException(status_code=401, detail="User no longer exists")
+    # Any refresh token still in circulation now points at no user and is
+    # rejected by /api/auth/refresh; this just clears this browser's copy.
+    response.delete_cookie(REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
+    return {"ok": True}
+
+
+# --- Saved addresses ----------------------------------------------------
+# A signed-in person's frequently-used manual addresses (see
+# models.SavedAddress for the privacy reasoning: no user-chosen names, capped,
+# coordinates rounded). Account-only on purpose - the anonymous experience is
+# unchanged - and nothing here is ever read by /api/chat: the frontend sends
+# a saved address's coordinates like any other manual location.
+
+
+class SavedAddressRequest(BaseModel):
+    # What the person typed to set the location - bounded well under the
+    # location box's own 500 cap, since only a short display text is kept.
+    label: str = Field(max_length=200)
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+
+
+def _saved_address_dict(address) -> dict:
+    return {"id": address.id, "label": address.label, "lat": address.lat, "lon": address.lon}
+
+
+@app.get("/api/saved-addresses")
+async def list_saved_addresses(authorization: str | None = Header(None)):
+    user_id = await get_current_user_id(authorization)
+    addresses = await db.list_saved_addresses(user_id)
+    if addresses is None:
+        raise HTTPException(status_code=401, detail="User no longer exists")
+    return {"addresses": [_saved_address_dict(a) for a in addresses], "max": db.MAX_SAVED_ADDRESSES}
+
+
+@app.post("/api/saved-addresses")
+async def add_saved_address(req: SavedAddressRequest, response: Response, authorization: str | None = Header(None)):
+    user_id = await get_current_user_id(authorization)
+    status, address = await db.add_saved_address(user_id, req.label, req.lat, req.lon)
+    if status == "no_user":
+        raise HTTPException(status_code=401, detail="User no longer exists")
+    if status == "full":
+        raise HTTPException(status_code=409, detail="Saved address limit reached")
+    response.status_code = 201 if status == "added" else 200
+    return {"address": _saved_address_dict(address)}
+
+
+@app.delete("/api/saved-addresses/{address_id}")
+async def delete_saved_address(address_id: str, authorization: str | None = Header(None)):
+    user_id = await get_current_user_id(authorization)
+    if not await db.remove_saved_address(user_id, address_id):
+        raise HTTPException(status_code=404, detail="Saved address not found")
+    return {"ok": True}

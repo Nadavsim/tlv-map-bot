@@ -88,6 +88,20 @@ export interface AuthUser {
   picture_url: string | null
 }
 
+export interface SavedAddress {
+  id: string
+  // The address text the person typed (or coordinates, if they typed a link) -
+  // never a name like "Home"; the backend has no such field.
+  label: string
+  lat: number
+  lon: number
+}
+
+export interface SavedAddressesResponse {
+  addresses: SavedAddress[]
+  max: number
+}
+
 export interface AuthResponse {
   access_token: string
   user: AuthUser

@@ -7,6 +7,8 @@ import type {
   MorePlacesRequest,
   MorePlacesResponse,
   ResolveLocationResponse,
+  SavedAddress,
+  SavedAddressesResponse,
 } from './types'
 
 export class ApiError extends Error {
@@ -78,4 +80,47 @@ export async function postRefresh(): Promise<AuthResponse | null> {
 
 export async function postLogout(): Promise<void> {
   await fetch('/api/auth/logout', { method: 'POST' })
+}
+
+// Account-scoped calls carry the in-memory access token as a bearer header -
+// deliberately not the refresh cookie, so a cross-site request can't trigger
+// them on its own.
+async function authedJSON<TResponse>(
+  method: 'GET' | 'POST' | 'DELETE',
+  url: string,
+  token: string,
+  body?: unknown,
+): Promise<TResponse> {
+  const res = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!res.ok) {
+    throw new ApiError(res.status, `Request to ${url} failed with status ${res.status}`)
+  }
+  return res.json() as Promise<TResponse>
+}
+
+export function getSavedAddresses(token: string): Promise<SavedAddressesResponse> {
+  return authedJSON<SavedAddressesResponse>('GET', '/api/saved-addresses', token)
+}
+
+export async function postSavedAddress(
+  token: string,
+  body: { label: string; lat: number; lon: number },
+): Promise<SavedAddress> {
+  const data = await authedJSON<{ address: SavedAddress }>('POST', '/api/saved-addresses', token, body)
+  return data.address
+}
+
+export async function deleteSavedAddress(token: string, id: string): Promise<void> {
+  await authedJSON<{ ok: boolean }>('DELETE', `/api/saved-addresses/${encodeURIComponent(id)}`, token)
+}
+
+export async function deleteAccount(token: string): Promise<void> {
+  await authedJSON<{ ok: boolean }>('DELETE', '/api/auth/me', token)
 }

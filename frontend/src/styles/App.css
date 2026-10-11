@@ -162,6 +162,9 @@ header h1 svg {
   padding-bottom: calc(1rem + env(safe-area-inset-bottom));
   background: var(--bg);
   box-shadow: var(--shadow-md);
+  /* The saved-address list can make the account section tall; on a short
+     phone it has to scroll rather than push its own controls off-screen. */
+  overflow-y: auto;
   /* Slides fully off its own edge when closed - the sign flips under RTL
      below since transform doesn't respect logical directions the way
      inset-inline-end (the positioning above) already does. */
@@ -991,6 +994,176 @@ header h1 svg {
 }
 
 .starter-chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Saved addresses: tap-to-use chips in the location form, a Save/Saved note
+   beside "Change", and the list + delete-account block in the side menu. */
+.saved-address-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.saved-address-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: start;
+  transition: transform 0.1s ease;
+}
+
+.saved-address-chip:hover {
+  background: var(--chip-bg);
+}
+
+.saved-address-chip:active {
+  transform: scale(0.97);
+}
+
+.save-address-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.address-saved-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.saved-addresses {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
+.saved-addresses-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.saved-addresses-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.saved-addresses-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--fg);
+  font-size: 0.9rem;
+}
+
+.saved-addresses-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.saved-addresses-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.saved-addresses-remove:hover {
+  color: var(--fg);
+  background: var(--chip-bg);
+}
+
+.delete-account {
+  margin-top: 1rem;
+}
+
+.delete-account-link {
+  border: none;
+  background: transparent;
+  padding: 0.5rem 0;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.delete-account-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  font-size: 0.85rem;
+}
+
+.delete-account-confirm p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.delete-account-error {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.delete-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.delete-account-actions button {
+  min-height: 44px;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.delete-account-actions .delete-account-danger {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.delete-account-actions button:disabled {
   opacity: 0.6;
   cursor: default;
 }

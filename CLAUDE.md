@@ -153,9 +153,12 @@ call):
   session, reusing the Help flow's own chat-bubble pattern~~ - **built
   2026-10-02, in staging and production as of 2026-10-03** (checked in a
   real browser on both), see "Next-horizon items shipped" below.
-- **Usability** - saved/frequent manual address, tied to the account that
+- ~~**Usability** - saved/frequent manual address, tied to the account that
   just shipped. Privacy constraint carries forward unchanged: no semantic
-  labels like "Home"/"Work" (see the original note below).
+  labels like "Home"/"Work" (see the original note below)~~ - **built
+  2026-10-11** (staging only until promoted), see "Next-horizon items
+  shipped" below. Came with account self-deletion and a rewrite of the
+  privacy page, which had been wrong since sign-in shipped.
 - ~~**Reliability** - cache + graceful degradation around OSRM/Nominatim,
   before real concurrent friend-group traffic trips their usage limits~~ -
   done 2026-09-28, see "Next-horizon items shipped" below (scope turned
@@ -1238,6 +1241,72 @@ serving. (The map view itself was added to the Later horizon above,
       frontend has no automated test suite, so none of this is under test;
       and the Live-geolocation path to `maybeShowStarter()` was reasoned
       about, not exercised (no real geolocation in the sandbox).
+  - **Saved addresses + account deletion + privacy page rewrite**
+    (2026-10-11, built and verified on staging; not yet in production).
+    - **The privacy page had been wrong since 2026-09-13.** It still said
+      "No accounts, no tracking cookies" and "if real user accounts are added
+      later" after Google Sign-In shipped - while the app stores a Google ID,
+      email, name and picture URL and sets a 30-day session cookie. It also
+      never mentioned Google Fonts (the page and the app both load Nunito
+      from fonts.googleapis.com, so Google gets the visitor's IP). Both
+      languages now have an "Accounts and saved addresses" section and
+      corrected "doesn't do" / "where hosted" sections: what's stored and
+      why, the cookie (path-scoped, not tracking, sign-out revokes every
+      device), Google seeing the IP when the sign-in panel opens, Azure as
+      host, the in-memory rate-limit IP, Google Fonts. Hebrew written by me,
+      **not reviewed by the curator**. **Lesson: any feature that changes
+      what is stored must touch privacy.html in the same change** - auth
+      shipped without it.
+    - **Design - what is stored.** Up to 5 per signed-in user, embedded in
+      the user document as `saved_addresses: [{id, label, lat, lon}]`. No
+      name/nickname field exists (the standing "no Home/Work" rule - a test
+      asserts a client-supplied `name` is dropped). `label` is the address
+      text the person typed; a pasted link (or empty text) is replaced by the
+      rounded coordinates so no URL with tracking parameters is ever kept;
+      80 chars max. Coordinates are rounded to **4 decimals (~11 m)** at the
+      storage layer - "which place is closest" has no use for more.
+      Account-only; anonymous behaviour is untouched. Embedded array rather
+      than a collection like Favorites: bounded, always read with the user,
+      never joined, and deleting the user removes them.
+    - **API** - `GET/POST /api/saved-addresses`, `DELETE
+      /api/saved-addresses/{id}`, `DELETE /api/auth/me`, all authenticated by
+      the bearer access token (not the cookie, so a cross-site request can't
+      trigger them - a test covers the cookie-alone case). The cap is
+      enforced in the update's own filter (`saved_addresses.4` not exists),
+      not only by a read, so concurrent adds can't pass it. Same rounded spot
+      saved twice returns the existing entry (200) rather than duplicating.
+      `/api/auth/me` deliberately does not include them.
+    - **Account deletion** - new, not requested: a person's account record
+      is now self-serve deletable (menu -> "Delete account" -> explicit
+      confirm). `db.delete_user` removes favorites first (so a failure
+      mid-way leaves a retryable account, not orphans), then the user;
+      **any future user-keyed collection must be added there**. Added
+      because storing location data against an identity without a way to
+      erase it didn't sit right, and the privacy page now promises it.
+    - **Frontend** - "Save this address" beside "Change" (Custom mode,
+      signed in, typed address, room left) becoming a quiet "Saved"; saved
+      addresses as tap-to-use chips in the address form (sets the location
+      from stored coordinates - verified no geocoder call); a list with
+      per-row remove and the delete-account block in the side menu. State is
+      loaded after the silent refresh and after sign-in, cleared on
+      sign-out. Failures degrade to "no list" silently.
+    - **Drawer now scrolls** (`overflow-y: auto` on `.side-menu`): five
+      saved addresses can make the account section taller than a short
+      phone, which would have pushed the delete/sign-out controls out of
+      reach. Checked at 520 px tall.
+    - Verified on staging data with a throwaway user signed in via a real
+      minted refresh token (real backend, no Google): save, dedupe, cap
+      (409), link->coordinates label, truncation, validation (422), reuse
+      chip without geocoding, remove, two-step delete (record gone, refresh
+      then 401), the raw stored document, Hebrew/RTL at 375 px (status row
+      wraps cleanly, no overflow). Test users removed afterward. **Not
+      verified:** the real Google sign-in path into
+      `loadSavedAddresses` (same function as the refresh path, but Google
+      OAuth can't be completed in the sandbox), and a real phone. 40 new
+      backend tests (297 total). No frontend test suite exists.
+    - **Open decisions** for the curator: the cap of 5; whether to also
+      keep saved addresses for signed-out visitors on-device (not built -
+      needs no server, but doesn't follow you between devices).
 
 ### Later-horizon items shipped
 
