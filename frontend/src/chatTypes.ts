@@ -1,4 +1,4 @@
-import type { Coordinates, Place, PriceTier } from './types'
+import type { Coordinates, Place, PriceTier, TransportMode } from './types'
 
 export type ChatEntry =
   | { id: string; kind: 'bot-text'; text: string }
@@ -16,6 +16,10 @@ export type ChatEntry =
       // shows the location it was actually searched from after the user
       // switches Live/Custom or changes address.
       origin: Coordinates
+      // The transport mode this block's ETAs were (or are being) fetched in -
+      // kept so every card in the block agrees, including ones added later by
+      // "Show more", and so a restore after "Undo" can ask again.
+      mode: TransportMode
       // The category/dietary tag this batch was matched against (category
       // null = "surprise me" / any category) - kept so "Show more" (and a
       // natural-language followup like "something else") can fetch the

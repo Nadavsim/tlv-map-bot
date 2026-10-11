@@ -1270,3 +1270,33 @@ header h1 svg {
 .location-suggestion-actions button:hover {
   background: var(--chip-bg);
 }
+
+/* A card's travel time while it is still being fetched: the distance is
+   already there, this holds the slot (fixed size, so nothing shifts when the
+   real value arrives). */
+.eta-placeholder {
+  display: inline-block;
+  width: 2.4em;
+  height: 0.8em;
+  vertical-align: middle;
+  border-radius: 4px;
+  background: var(--border);
+  animation: eta-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes eta-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eta-placeholder {
+    animation: none;
+    opacity: 0.7;
+  }
+}

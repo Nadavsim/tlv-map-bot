@@ -9,6 +9,7 @@ import {
   postChat,
   postGoogleAuth,
   postLogout,
+  postEtas,
   postMorePlaces,
   postRefresh,
   postSavedAddress,
@@ -19,7 +20,7 @@ import { ChatLog } from './components/ChatLog'
 import { Header } from './components/Header'
 import { t, type StringKey } from './i18n'
 import { loadIntroSeen, loadLang, loadTheme, saveIntroSeen, saveLang, saveTheme } from './preferences'
-import type { AuthUser, Coordinates, Lang, LocationMode, PriceTier, SavedAddress, Theme, TransportMode } from './types'
+import type { AuthUser, Coordinates, Lang, LocationMode, Place, PriceTier, SavedAddress, Theme, TransportMode } from './types'
 import { PAGE_SIZE } from './types'
 import './styles/theme.css'
 import './styles/App.css'
@@ -462,6 +463,45 @@ export default function App() {
     return null
   }
 
+  // Fills in travel times for places that are already on screen. Results are
+  // shown first with distance only; this runs after, so a routing stall costs
+  // a card its ETA, never the reply. A response is applied by entry id AND the
+  // place's coordinates, to cards still waiting - so a late answer can't land
+  // on a different block, a different card, or one that was restored after
+  // "New conversation" (those just no-op when their entry is gone).
+  async function requestEtas(entryId: string, origin: Coordinates, etaMode: TransportMode, places: Place[]) {
+    if (places.length === 0) return
+    let etas: (string | null)[] = []
+    try {
+      const data = await postEtas({
+        mode: etaMode,
+        lat: origin.lat,
+        lon: origin.lon,
+        destinations: places.map((p) => ({ lat: p.lat, lon: p.lon })),
+      })
+      etas = data.etas
+    } catch {
+      // No ETAs: the cards simply stay distance-only, as they always have
+      // when routing was unavailable.
+    }
+    const key = (p: Place) => `${p.lat},${p.lon}`
+    const answers = new Map(places.map((p, i) => [key(p), etas[i] ?? null]))
+    setEntries((prev) =>
+      prev.map((entry) =>
+        entry.id === entryId && entry.kind === 'places'
+          ? {
+              ...entry,
+              places: entry.places.map((place) =>
+                place.etaPending && answers.has(key(place))
+                  ? { ...place, eta: answers.get(key(place)) ?? null, etaPending: false }
+                  : place,
+              ),
+            }
+          : entry,
+      ),
+    )
+  }
+
   async function handleSend(message: string) {
     if (!activeLocation) return
 
@@ -482,11 +522,11 @@ export default function App() {
 
     try {
       const previous = getPreviousContext()
+      const placesEntryId = makeEntryId()
       const data = await postChat({
         message,
         lat: activeLocation.lat,
         lon: activeLocation.lon,
-        mode,
         lang,
         previous_category: previous?.category ?? null,
         previous_dietary_tag: previous?.dietaryTag ?? null,
@@ -498,10 +538,11 @@ export default function App() {
         const next: ChatEntry[] = [...prev, { id: makeEntryId(), kind: 'bot-text', text: data.reply }]
         if (data.places.length) {
           next.push({
-            id: makeEntryId(),
+            id: placesEntryId,
             kind: 'places',
-            places: data.places,
+            places: data.places.map((place) => ({ ...place, etaPending: true })),
             origin: activeLocation,
+            mode,
             category: data.category,
             dietaryTag: data.dietary_tag,
             priceTier: data.price_tier,
@@ -511,6 +552,7 @@ export default function App() {
         }
         return next
       })
+      if (data.places.length) void requestEtas(placesEntryId, activeLocation, mode, data.places)
     } catch (err) {
       const text =
         err instanceof ApiError && err.status === 429 ? t(lang, 'chatRateLimited') : t(lang, 'chatNetworkError')
@@ -536,7 +578,6 @@ export default function App() {
         price: entry.priceTier,
         lat: entry.origin.lat,
         lon: entry.origin.lon,
-        mode,
         offset: entry.offset,
       })
       setEntries((prev) =>
@@ -544,13 +585,14 @@ export default function App() {
           e.id === entryId && e.kind === 'places'
             ? {
                 ...e,
-                places: [...e.places, ...data.places],
+                places: [...e.places, ...data.places.map((place) => ({ ...place, etaPending: true }))],
                 offset: e.offset + data.places.length,
                 hasMore: data.places.length >= PAGE_SIZE,
               }
             : e,
         ),
       )
+      void requestEtas(entryId, entry.origin, entry.mode, data.places)
     } catch {
       // Leave hasMore as-is so the button stays put and the user can retry.
     } finally {
@@ -583,6 +625,14 @@ export default function App() {
     if (!clearedEntries) return
     setEntries(clearedEntries)
     dismissUndo()
+    // An ETA that answered while the log was cleared had no entry to land on,
+    // so the restored cards would wait forever. Ask again (the server has it
+    // cached, so this is instant).
+    for (const entry of clearedEntries) {
+      if (entry.kind !== 'places') continue
+      const waiting = entry.places.filter((place) => place.etaPending)
+      if (waiting.length) void requestEtas(entry.id, entry.origin, entry.mode, waiting)
+    }
   }
 
   // Manual mode echoes back exactly what the user typed (a location label,

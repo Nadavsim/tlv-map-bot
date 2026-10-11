@@ -163,7 +163,9 @@ def test_chat_endpoint_returns_nearest_places_on_match(monkeypatch):
     body = resp.json()
     assert "coffee" in body["reply"]
     assert body["places"][0]["name"] == "Cafelix"
-    assert body["places"][0]["eta"] == "5 min"
+    # Distance only: the ETA is fetched separately (/api/etas).
+    assert body["places"][0]["eta"] is None
+    assert body["places"][0]["distance"]
     assert body["category"] == "coffee"
     record_stat_mock.assert_awaited_once_with("coffee")
 
@@ -313,34 +315,6 @@ def test_resolve_location_endpoint_returns_503_when_geocoding_is_unavailable(mon
     assert resp.status_code == 503
 
 
-def test_chat_endpoint_defaults_to_walking_mode(monkeypatch):
-    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
-    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
-    monkeypatch.setattr(
-        llm,
-        "parse_food_request",
-        AsyncMock(
-            return_value={
-                "category": "coffee",
-                "dietary_tag": None,
-                "price_tier": None,
-                "clarifying_question": None,
-                "any_category": False,
-            }
-        ),
-    )
-    monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE]))
-    eta_mock = AsyncMock(return_value=[None])
-    monkeypatch.setattr(routing, "get_eta_seconds_batch", eta_mock)
-    monkeypatch.setattr(db, "record_category_request", AsyncMock())
-
-    with TestClient(app_module.app) as client:
-        client.post("/api/chat", json={"message": "flat white", "lat": 32.08, "lon": 34.78})
-
-    args, _ = eta_mock.call_args
-    assert args[0] == "walking"
-
-
 def test_chat_endpoint_rate_limits_after_too_many_requests(monkeypatch):
     from backend.app import limiter
 
@@ -378,7 +352,9 @@ def test_chat_endpoint_rate_limits_after_too_many_requests(monkeypatch):
     assert responses[20].status_code == 429
 
 
-def test_chat_endpoint_requests_one_batched_eta_call_for_multiple_places(monkeypatch):
+def test_chat_endpoint_does_not_wait_on_routing_for_the_results(monkeypatch):
+    # Results first: a slow or failing routing service must not be able to
+    # delay (or break) the reply. Chat never calls it; /api/etas does.
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
     monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
     monkeypatch.setattr(
@@ -396,17 +372,64 @@ def test_chat_endpoint_requests_one_batched_eta_call_for_multiple_places(monkeyp
     )
     place_2 = SAMPLE_PLACE.model_copy(update={"name": "Other Cafe", "distance": 900})
     monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE, place_2]))
-    eta_mock = AsyncMock(return_value=[120, 240])
+    eta_mock = AsyncMock(side_effect=AssertionError("chat must not call routing"))
     monkeypatch.setattr(routing, "get_eta_seconds_batch", eta_mock)
     monkeypatch.setattr(db, "record_category_request", AsyncMock())
 
     with TestClient(app_module.app) as client:
         resp = client.post("/api/chat", json={"message": "coffee", "lat": 32.08, "lon": 34.78})
 
-    eta_mock.assert_awaited_once()
+    assert resp.status_code == 200
+    eta_mock.assert_not_awaited()
     body = resp.json()
-    assert body["places"][0]["eta"] == "2 min"
-    assert body["places"][1]["eta"] == "4 min"
+    assert [p["name"] for p in body["places"]] == ["Cafelix", "Other Cafe"]
+    assert [p["eta"] for p in body["places"]] == [None, None]
+    # The coordinates the client needs to ask for them are on every place.
+    assert all(isinstance(p["lat"], float) and isinstance(p["lon"], float) for p in body["places"])
+
+
+def test_chat_followup_and_more_places_do_not_call_routing_either(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
+    monkeypatch.setattr(
+        llm,
+        "parse_food_request",
+        AsyncMock(
+            return_value={
+                "category": None,
+                "dietary_tag": None,
+                "price_tier": None,
+                "clarifying_question": None,
+                "any_category": False,
+                "is_followup": True,
+            }
+        ),
+    )
+    monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE]))
+    eta_mock = AsyncMock(side_effect=AssertionError("must not call routing"))
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", eta_mock)
+    monkeypatch.setattr(db, "record_category_request", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        follow = client.post(
+            "/api/chat",
+            json={
+                "message": "something else",
+                "lat": 32.08,
+                "lon": 34.78,
+                "previous_category": "coffee",
+                "previous_offset": 3,
+                "has_previous_context": True,
+            },
+        )
+        more = client.post(
+            "/api/more-places", json={"category": "coffee", "lat": 32.08, "lon": 34.78, "offset": 3}
+        )
+
+    assert follow.status_code == 200 and more.status_code == 200
+    assert follow.json()["places"][0]["eta"] is None
+    assert more.json()["places"][0]["eta"] is None
+    eta_mock.assert_not_awaited()
 
 
 def test_more_places_endpoint_passes_offset_through_to_find_nearest(monkeypatch):
@@ -1587,3 +1610,91 @@ def test_location_counters_never_carry_the_typed_text(monkeypatch):
     (key,), _ = counter.await_args
     assert key == db.LOCATION_UNRESOLVED_KEY
     assert "secret" not in key
+
+
+# --- /api/etas ----------------------------------------------------------------
+
+
+def _etas_request(**overrides):
+    body = {
+        "mode": "walking",
+        "lat": 32.08,
+        "lon": 34.78,
+        "destinations": [{"lat": 32.07, "lon": 34.77}, {"lat": 32.09, "lon": 34.79}],
+    }
+    return {**body, **overrides}
+
+
+def test_etas_endpoint_returns_formatted_durations_aligned_with_the_destinations(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    eta_mock = AsyncMock(return_value=[120, 4000])
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", eta_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/etas", json=_etas_request(mode="driving"))
+
+    assert resp.status_code == 200
+    assert resp.json() == {"etas": ["2 min", "1h 7min"]}
+    eta_mock.assert_awaited_once_with("driving", (32.08, 34.78), [(32.07, 34.77), (32.09, 34.79)])
+
+
+def test_etas_endpoint_defaults_to_walking(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    eta_mock = AsyncMock(return_value=[60])
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", eta_mock)
+    body = _etas_request(destinations=[{"lat": 32.07, "lon": 34.77}])
+    del body["mode"]
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/etas", json=body)
+
+    assert resp.status_code == 200
+    assert eta_mock.await_args.args[0] == "walking"
+
+
+def test_etas_endpoint_reports_unavailable_destinations_as_null(monkeypatch):
+    # Unreachable, or routing is down/backing off: the card keeps showing
+    # distance only, exactly as before this endpoint existed.
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[None, 300]))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/etas", json=_etas_request())
+
+    assert resp.status_code == 200
+    assert resp.json() == {"etas": [None, "5 min"]}
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"destinations": []},
+        {"destinations": [{"lat": 32.0, "lon": 34.0}] * 11},
+        {"destinations": [{"lat": 95, "lon": 34}]},
+        {"destinations": [{"lat": 32, "lon": 190}]},
+        {"destinations": [{"lat": "north", "lon": 34}]},
+        {"lat": 91},
+        {"mode": "flying"},
+    ],
+    ids=["none", "too-many", "bad-dest-lat", "bad-dest-lon", "non-numeric", "bad-origin", "bad-mode"],
+)
+def test_etas_endpoint_rejects_invalid_requests(monkeypatch, overrides):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    eta_mock = AsyncMock()
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", eta_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/etas", json=_etas_request(**overrides))
+
+    assert resp.status_code == 422
+    eta_mock.assert_not_awaited()
+
+
+def test_etas_endpoint_never_echoes_coordinates_back(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(routing, "get_eta_seconds_batch", AsyncMock(return_value=[60, 60]))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/etas", json=_etas_request())
+
+    assert set(resp.json()) == {"etas"}

@@ -173,13 +173,14 @@ call):
   shorter timeout, and log each call's duration/outcome so the real stall
   rate can be counted~~ - done 2026-09-28, see "Next-horizon items
   shipped" below.
-- **Usability** - results first, ETAs after: `/api/chat` returns the
+- ~~**Usability** - results first, ETAs after: `/api/chat` returns the
   places immediately with distance only, and each card then fetches its
   ETA from a new endpoint and fills it in, so an OSRM stall becomes
   invisible instead of holding the whole reply (and every search gets
   ~0.5s faster even without one). Added 2026-09-28 after production
   showed a real 8s stall; needs a per-card loading state, and care that a
-  late ETA for an old conversation entry can't land on the wrong card.
+  late ETA for an old conversation entry can't land on the wrong card~~ -
+  **built 2026-10-11**, see "Next-horizon items shipped" below.
 - **Growth** - make "I added the place you asked about" a standing habit
   when curating - the one growth move no competitor at any size can copy.
 - **Intelligence** - a weekly, manual-trigger LLM pass over
@@ -1462,6 +1463,52 @@ serving. (The map view itself was added to the Later horizon above,
     - **Not covered**: landmark typos ("Azriely") - the list is streets only.
       The suggestion flow is typed text only; a Maps link that can't be
       resolved gets its own message instead.
+
+  - **Results first, ETAs after** (2026-10-11, built and verified locally
+    against the real services; not yet deployed). `/api/chat` and
+    `/api/more-places` no longer call OSRM at all - places come back with
+    distance only (`eta: null`) - and a new `POST /api/etas` takes the
+    origin, mode and up to 10 destination coordinates and returns formatted
+    durations aligned with them (`null` = none available). Stateless: the
+    places already carry `lat`/`lon`, so no ids or server-side session.
+    - **Why it matters, measured**: the public OSRM instance stalled twice
+      in a 5-location sample on the first try (timeouts at ~3.6 s, then an
+      error and a back-off skip). Under the old behavior those replies would
+      have arrived at 5.6-5.8 s; with the new one the results showed at
+      1.8-1.9 s every time and the ETAs trailed in separately (0.2-3.9 s).
+      A healthy ETA call is 0.7-1.7 s, so even the good case saves about a
+      second whenever the destinations aren't cached.
+    - **Frontend**: places are marked `etaPending` when they arrive; the
+      card shows its distance plus a fixed-size pulsing placeholder in the
+      ETA slot (no layout jump; `prefers-reduced-motion` stills it) and a
+      "Calculating travel time" accessible name; one `requestEtas` call per
+      block fills them in. A failed request clears the placeholder and the
+      card stays distance-only, exactly as a routing outage always did.
+    - **The race the roadmap flagged**: a response is applied by entry id
+      **and** the place's coordinates, only to cards still pending, via a
+      functional state update - so a late answer can't land on another block
+      or card, and a cleared conversation just no-ops. "Undo" after "New
+      conversation" re-requests any ETA that was pending when the log was
+      cleared (answers that arrived mid-clear had nothing to land on); the
+      server has them cached, so it's instant. Each block remembers its
+      transport `mode`, so "Show more" cards use the same mode as the cards
+      above them (previously they used whatever mode was current).
+    - **Contract change**: `mode` was removed from `/api/chat` and
+      `/api/more-places` (unknown JSON fields are ignored, so an old cached
+      page still works - it just gets no ETAs until it reloads). The ETA
+      endpoint has its own limit (40/minute, 400/day) - roughly one call per
+      chat or "Show more".
+    - **Privacy**: reviewed, no `privacy.html` change - the same coordinates
+      go to the same routing service as before, just in a second request;
+      the endpoint never echoes coordinates back and the OSRM log lines still
+      carry none.
+    - Verified: 11 new backend tests (413 total) incl. chat/follow-up/
+      more-places never touching routing and `/api/etas` validation; in the
+      real UI with the ETA call slowed to 2.5 s: cards at 1.8 s showing
+      distance + placeholder, ETAs filling at 4.3 s; "Show more" cards pending
+      while earlier ones keep theirs; a failing ETA call leaves distance-only
+      cards with no stuck placeholder; clear-while-pending then Undo ends with
+      real ETAs. Not covered: no frontend test suite exists.
 
 ### Later-horizon items shipped
 

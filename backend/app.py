@@ -130,7 +130,6 @@ class ChatRequest(BaseModel):
     message: str = Field(max_length=500)
     lat: float
     lon: float
-    mode: Literal["walking", "driving"] = "walking"
     lang: Literal["en", "he"] = "en"
     # Just enough of the previous turn for the LLM to recognize a refinement
     # ("something else", "another one") without real conversation history -
@@ -158,7 +157,6 @@ class MorePlacesRequest(BaseModel):
     price: PriceTier | None = None
     lat: float
     lon: float
-    mode: Literal["walking", "driving"] = "walking"
     offset: int
 
 
@@ -234,7 +232,6 @@ def _places_reply(
     price_tier: str | None,
     any_category: bool,
     matches: list,
-    etas: list,
     offset: int,
     replies: dict,
 ) -> dict:
@@ -247,7 +244,10 @@ def _places_reply(
         reply = replies["matched"].format(category=category)
     return {
         "reply": reply,
-        "places": [format_place(p, eta) for p, eta in zip(matches, etas)],
+        # Distance only: the ETA needs a call to a public routing service that
+        # stalls now and then, so it is fetched separately (/api/etas) after
+        # the places are already on screen.
+        "places": [format_place(p) for p in matches],
         # Echoed back so the frontend can ask for more of the same query
         # (via /api/more-places, or a natural-language follow-up like
         # "something else") without re-running the LLM categorization.
@@ -258,7 +258,7 @@ def _places_reply(
     }
 
 
-def format_place(place: PlaceResult, eta_seconds: float | None) -> dict:
+def format_place(place: PlaceResult, eta_seconds: float | None = None) -> dict:
     distance_km = place.distance / 1000
     distance_str = f"{distance_km:.2f} km" if distance_km < 1 else f"{distance_km:.1f} km"
 
@@ -432,13 +432,8 @@ async def chat(request: Request, req: ChatRequest):
                 "price_tier": price_tier,
                 "offset": offset,
             }
-        etas = await routing.get_eta_seconds_batch(
-            req.mode,
-            (req.lat, req.lon),
-            [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
-        )
         return _places_reply(
-            category, dietary_tag, price_tier, category is None, matches, etas, offset + len(matches), replies
+            category, dietary_tag, price_tier, category is None, matches, offset + len(matches), replies
         )
 
     if not extraction["any_category"] and not extraction["category"]:
@@ -463,13 +458,8 @@ async def chat(request: Request, req: ChatRequest):
             "price_tier": price_tier,
         }
 
-    etas = await routing.get_eta_seconds_batch(
-        req.mode,
-        (req.lat, req.lon),
-        [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
-    )
     return _places_reply(
-        category, dietary_tag, price_tier, extraction["any_category"], matches, etas, len(matches), replies
+        category, dietary_tag, price_tier, extraction["any_category"], matches, len(matches), replies
     )
 
 
@@ -482,12 +472,38 @@ async def more_places(request: Request, req: MorePlacesRequest):
     if not matches:
         return {"places": []}
 
-    etas = await routing.get_eta_seconds_batch(
+    return {"places": [format_place(p) for p in matches]}
+
+
+class EtaDestination(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+
+
+class EtaRequest(BaseModel):
+    mode: Literal["walking", "driving"] = "walking"
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    # A results block is PAGE_SIZE places; the cap is just a guard against a
+    # caller turning a free public routing service into a bulk matrix tool.
+    destinations: list[EtaDestination] = Field(min_length=1, max_length=10)
+
+
+@app.post("/api/etas")
+@limiter.limit("40/minute;400/day")
+async def etas(request: Request, req: EtaRequest):
+    """Travel times for places the client already has on screen. Kept apart
+    from /api/chat and /api/more-places so a slow or failing routing service
+    can never hold up the results themselves: the places arrive at once with
+    distance only and each card fills its ETA in when this answers. A null
+    entry means "no ETA available" (unreachable, or routing is down) and the
+    card simply keeps showing distance, as it always has."""
+    seconds = await routing.get_eta_seconds_batch(
         req.mode,
         (req.lat, req.lon),
-        [(p.location.coordinates[1], p.location.coordinates[0]) for p in matches],
+        [(d.lat, d.lon) for d in req.destinations],
     )
-    return {"places": [format_place(p, eta) for p, eta in zip(matches, etas)]}
+    return {"etas": [routing.format_duration(s) if s is not None else None for s in seconds]}
 
 
 # --- Auth ---------------------------------------------------------------

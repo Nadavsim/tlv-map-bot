@@ -10,7 +10,6 @@ export interface ChatRequest {
   message: string
   lat: number
   lon: number
-  mode: TransportMode
   lang: Lang
   // Just enough of the previous turn for the backend/LLM to recognize a
   // refinement ("something else", "another one") - see App.tsx's
@@ -30,7 +29,13 @@ export interface Place {
   name: string
   category: string
   distance: string
+  // Always null as it arrives from /api/chat and /api/more-places: travel
+  // times come from a separate request (see App.tsx requestEtas) so a slow
+  // routing service can't hold up the results.
   eta: string | null
+  // Client-side only: true from the moment the place is shown until its ETA
+  // request has answered (successfully or not).
+  etaPending?: boolean
   instagram_url: string | null
   dietary_tags: string[]
   price_tier: PriceTier | null
@@ -56,8 +61,19 @@ export interface MorePlacesRequest {
   price: PriceTier | null
   lat: number
   lon: number
-  mode: TransportMode
   offset: number
+}
+
+export interface EtasRequest {
+  mode: TransportMode
+  lat: number
+  lon: number
+  destinations: { lat: number; lon: number }[]
+}
+
+export interface EtasResponse {
+  // Aligned with the request's destinations; null = no ETA available.
+  etas: (string | null)[]
 }
 
 export interface MorePlacesResponse {

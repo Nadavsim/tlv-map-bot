@@ -82,7 +82,19 @@ export function PlaceCard({ place, lang, mapNumber, isActive = false, onSelect }
           </span>
         )}
         <span className="distance-eta" dir="ltr">
-          {place.eta ? `${place.distance} · ${place.eta}` : place.distance}
+          {place.etaPending ? (
+            // Distance is already known; only the travel time is on its way.
+            // A fixed-size placeholder (not "..." text) so the line doesn't
+            // jump when the time arrives.
+            <>
+              {place.distance} <span aria-hidden="true">·</span>{' '}
+              <span className="eta-placeholder" role="status" aria-label={t(lang, 'etaLoading')} />
+            </>
+          ) : place.eta ? (
+            `${place.distance} · ${place.eta}`
+          ) : (
+            place.distance
+          )}
         </span>
       </div>
       <div className="links">

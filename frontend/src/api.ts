@@ -4,6 +4,8 @@ import type {
   CategoriesResponse,
   ChatRequest,
   ChatResponse,
+  EtasRequest,
+  EtasResponse,
   MorePlacesRequest,
   MorePlacesResponse,
   ResolveLocationResponse,
@@ -39,6 +41,10 @@ export function postChat(body: ChatRequest): Promise<ChatResponse> {
 
 export function postMorePlaces(body: MorePlacesRequest): Promise<MorePlacesResponse> {
   return postJSON<MorePlacesResponse>('/api/more-places', body)
+}
+
+export function postEtas(body: EtasRequest): Promise<EtasResponse> {
+  return postJSON<EtasResponse>('/api/etas', body)
 }
 
 export async function getCategories(): Promise<CategoriesResponse> {
