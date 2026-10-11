@@ -1074,10 +1074,55 @@ header h1 svg {
 
 .saved-addresses-list li {
   display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.saved-addresses-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.25rem 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: start;
+  cursor: pointer;
+}
+
+.saved-addresses-toggle:hover {
+  color: var(--fg);
+}
+
+.saved-addresses-row {
+  display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.4rem 0.6rem;
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  background: transparent;
   color: var(--fg);
+  font-family: inherit;
   font-size: 0.9rem;
+  text-align: start;
+  cursor: pointer;
+}
+
+.saved-addresses-row:hover,
+.saved-addresses-row.active {
+  background: var(--chip-bg);
+  border-color: var(--border);
 }
 
 .saved-addresses-label {
@@ -1086,21 +1131,32 @@ header h1 svg {
   overflow-wrap: anywhere;
 }
 
-.saved-addresses-remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  border-radius: 999px;
+.saved-addresses-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.25rem 0.6rem 0.5rem;
 }
 
-.saved-addresses-remove:hover {
+.saved-addresses-actions button {
+  min-height: 44px;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: transparent;
   color: var(--fg);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.saved-addresses-actions .saved-addresses-use {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.saved-addresses-actions button:hover {
   background: var(--chip-bg);
 }
 

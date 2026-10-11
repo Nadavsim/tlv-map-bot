@@ -633,6 +633,7 @@ export default function App() {
         saveAddressState={saveAddressState}
         onSaveAddress={handleSaveAddress}
         savedAddresses={savedAddresses}
+        onUseSavedAddress={(address) => handleLocationSet({ lat: address.lat, lon: address.lon }, address.label)}
         onRemoveSavedAddress={handleRemoveSavedAddress}
         onDeleteAccount={handleDeleteAccount}
       />

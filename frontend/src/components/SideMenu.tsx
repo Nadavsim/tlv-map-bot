@@ -18,6 +18,7 @@ interface SideMenuProps {
   onGoogleCredential: (credential: string) => void
   onSignOut: () => void
   savedAddresses: SavedAddress[]
+  onUseSavedAddress: (address: SavedAddress) => void
   onRemoveSavedAddress: (id: string) => void
   onDeleteAccount: () => Promise<boolean>
 }
@@ -43,6 +44,7 @@ export function SideMenu({
   onGoogleCredential,
   onSignOut,
   savedAddresses,
+  onUseSavedAddress,
   onRemoveSavedAddress,
   onDeleteAccount,
 }: SideMenuProps) {
@@ -104,6 +106,7 @@ export function SideMenu({
           onCredential={onGoogleCredential}
           onSignOut={() => selectAndClose(onSignOut)}
           savedAddresses={savedAddresses}
+          onUseSavedAddress={(address) => selectAndClose(() => onUseSavedAddress(address))}
           onRemoveSavedAddress={onRemoveSavedAddress}
           onDeleteAccount={async () => {
             const ok = await onDeleteAccount()

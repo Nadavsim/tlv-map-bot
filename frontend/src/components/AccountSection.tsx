@@ -1,4 +1,4 @@
-import { MapPin, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, MapPin } from 'lucide-react'
 import { useState } from 'react'
 import { GoogleSignInButton } from './GoogleSignInButton'
 import { t } from '../i18n'
@@ -13,6 +13,7 @@ interface AccountSectionProps {
   onCredential: (credential: string) => void
   onSignOut: () => void
   savedAddresses: SavedAddress[]
+  onUseSavedAddress: (address: SavedAddress) => void
   onRemoveSavedAddress: (id: string) => void
   // Resolves true once the account is gone (the caller closes the menu),
   // false if it couldn't be deleted - the account is then left untouched.
@@ -35,12 +36,19 @@ export function AccountSection({
   onCredential,
   onSignOut,
   savedAddresses,
+  onUseSavedAddress,
   onRemoveSavedAddress,
   onDeleteAccount,
 }: AccountSectionProps) {
   // Deleting is two deliberate steps (button -> explicit confirmation), and
   // never one tap away from the sign-out button sitting right above it.
   const [deleteStep, setDeleteStep] = useState<'idle' | 'confirm' | 'deleting' | 'failed'>('idle')
+  // The saved list is collapsed until asked for - it is a management corner of
+  // the menu, not something to read every time it opens. One row at a time
+  // shows its actions (an accordion), so the list never turns into a wall of
+  // buttons.
+  const [listOpen, setListOpen] = useState(false)
+  const [activeId, setActiveId] = useState<string | null>(null)
 
   async function handleConfirmDelete() {
     setDeleteStep('deleting')
@@ -48,6 +56,11 @@ export function AccountSection({
     // On success the account (and this whole section's signed-in view) is
     // gone; only a failure needs to leave the confirmation visible.
     setDeleteStep(ok ? 'idle' : 'failed')
+  }
+
+  function toggleList() {
+    setListOpen((open) => !open)
+    setActiveId(null)
   }
 
   return (
@@ -70,30 +83,70 @@ export function AccountSection({
           </div>
 
           <div className="saved-addresses">
-            <p className="account-section-heading">{t(lang, 'savedAddressesHeading')}</p>
             {savedAddresses.length === 0 ? (
-              <p className="saved-addresses-note">{t(lang, 'savedAddressesEmpty')}</p>
+              <>
+                <p className="account-section-heading">{t(lang, 'savedAddressesHeading')}</p>
+                <p className="saved-addresses-note">{t(lang, 'savedAddressesEmpty')}</p>
+              </>
             ) : (
-              <ul className="saved-addresses-list">
-                {savedAddresses.map((address) => (
-                  <li key={address.id}>
-                    <MapPin size={14} aria-hidden="true" />
-                    <span className="saved-addresses-label" dir="auto">
-                      {address.label}
-                    </span>
-                    <button
-                      type="button"
-                      className="saved-addresses-remove"
-                      onClick={() => onRemoveSavedAddress(address.id)}
-                      aria-label={`${t(lang, 'removeSavedAddress')}: ${address.label}`}
-                    >
-                      <X size={16} aria-hidden="true" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <button
+                  type="button"
+                  className="saved-addresses-toggle"
+                  aria-expanded={listOpen}
+                  aria-controls="saved-addresses-list"
+                  onClick={toggleList}
+                >
+                  <span>
+                    {t(lang, 'savedAddressesHeading')} ({savedAddresses.length})
+                  </span>
+                  {listOpen ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}
+                </button>
+                {listOpen && (
+                  <>
+                    <ul className="saved-addresses-list" id="saved-addresses-list">
+                      {savedAddresses.map((address) => {
+                        const isActive = activeId === address.id
+                        return (
+                          <li key={address.id}>
+                            <button
+                              type="button"
+                              className={`saved-addresses-row${isActive ? ' active' : ''}`}
+                              aria-expanded={isActive}
+                              onClick={() => setActiveId(isActive ? null : address.id)}
+                            >
+                              <MapPin size={14} aria-hidden="true" />
+                              <span className="saved-addresses-label">{address.label}</span>
+                            </button>
+                            {isActive && (
+                              <div className="saved-addresses-actions">
+                                <button
+                                  type="button"
+                                  className="saved-addresses-use"
+                                  onClick={() => onUseSavedAddress(address)}
+                                >
+                                  {t(lang, 'useSavedAddress')}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveId(null)
+                                    onRemoveSavedAddress(address.id)
+                                  }}
+                                >
+                                  {t(lang, 'removeSavedAddress')}
+                                </button>
+                              </div>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                    <p className="saved-addresses-note">{t(lang, 'savedAddressesHint')}</p>
+                  </>
+                )}
+              </>
             )}
-            <p className="saved-addresses-note">{t(lang, 'savedAddressesHint')}</p>
           </div>
 
           <div className="delete-account">

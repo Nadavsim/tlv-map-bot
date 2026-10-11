@@ -215,6 +215,18 @@ call):
   violations, dark-mode attribution 6.35/14.75:1, pins within 5m of their
   cards' distances on the production DB). Still unchecked: a real finger on
   a real phone.
+- **Usability** - **end game: the map as the home page.** The curator's
+  stated destination (2026-10-11): a full-page map as the app's main
+  screen, showing recommendations around your location, with the chat as a
+  layer on top rather than the whole product. The per-results map toggle
+  above is the first step toward it, not the destination. Not scheduled -
+  it reframes the whole layout (a map-first mobile screen, the chat as a
+  sheet, the saved addresses and "show on map" actions living on it), so it
+  needs its own design pass, and the OSM public tile server's usage policy
+  (light use only) would have to be revisited before it carried a page of
+  its own - a keyed tile provider is the likely move. Deliberately *not*
+  pre-built: the saved-address "Show on map" action waits for this rather
+  than shipping a throwaway external link.
 - **Intelligence** - semantic search over place descriptions:
   precomputed embeddings, in-process cosine similarity. Deliberately
   **not** MongoDB Atlas Vector Search, which alone needs an M10+ cluster
@@ -1309,6 +1321,18 @@ serving. (The map view itself was added to the Later horizon above,
     - **Open decisions** for the curator: the cap of 5; whether to also
       keep saved addresses for signed-out visitors on-device (not built -
       needs no server, but doesn't follow you between devices).
+    - **Menu polish (2026-10-11, on staging)** after the curator tried it:
+      the list was display-only, which read as broken. It is now a
+      **collapsed-by-default** "Saved addresses (N)" toggle; tapping a row
+      expands its **action row** in place (one row at a time): "Use as my
+      location" (applies it - which also flips Live to Custom - and closes
+      the menu) and "Remove" (moved off an always-visible x, so a stray tap
+      can't delete). **No confirmation dialog on purpose**: unlike the
+      "Did you mean?" question, choosing your own saved address is
+      unambiguous and one tap ("Change") undoes it. A "Show on map" action is
+      deliberately not here yet - see the map end-game on the roadmap.
+      Verified with a throwaway signed-in user (collapsed default, accordion,
+      use, remove with server round-trip, Hebrew/RTL at 375 px).
 
   - **Maps links without coordinates** (2026-10-11, in production the same
     day; found by the curator

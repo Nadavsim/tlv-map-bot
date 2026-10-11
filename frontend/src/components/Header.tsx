@@ -27,6 +27,7 @@ interface HeaderProps {
   saveAddressState: 'save' | 'saved' | null
   onSaveAddress: () => void
   savedAddresses: SavedAddress[]
+  onUseSavedAddress: (address: SavedAddress) => void
   onRemoveSavedAddress: (id: string) => void
   onDeleteAccount: () => Promise<boolean>
 }
@@ -52,6 +53,7 @@ export function Header({
   saveAddressState,
   onSaveAddress,
   savedAddresses,
+  onUseSavedAddress,
   onRemoveSavedAddress,
   onDeleteAccount,
 }: HeaderProps) {
@@ -89,6 +91,7 @@ export function Header({
         onGoogleCredential={onGoogleCredential}
         onSignOut={onSignOut}
         savedAddresses={savedAddresses}
+        onUseSavedAddress={onUseSavedAddress}
         onRemoveSavedAddress={onRemoveSavedAddress}
         onDeleteAccount={onDeleteAccount}
       />
