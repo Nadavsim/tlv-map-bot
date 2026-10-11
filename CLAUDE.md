@@ -1321,7 +1321,7 @@ serving. (The map view itself was added to the Later horizon above,
     - **Open decisions** for the curator: the cap of 5; whether to also
       keep saved addresses for signed-out visitors on-device (not built -
       needs no server, but doesn't follow you between devices).
-    - **Menu polish (2026-10-11, on staging)** after the curator tried it:
+    - **Menu polish (2026-10-11, in production the same day)** after the curator tried it:
       the list was display-only, which read as broken. It is now a
       **collapsed-by-default** "Saved addresses (N)" toggle; tapping a row
       expands its **action row** in place (one row at a time): "Use as my
