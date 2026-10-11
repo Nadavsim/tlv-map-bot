@@ -156,9 +156,10 @@ call):
 - ~~**Usability** - saved/frequent manual address, tied to the account that
   just shipped. Privacy constraint carries forward unchanged: no semantic
   labels like "Home"/"Work" (see the original note below)~~ - **built
-  2026-10-11** (staging only until promoted), see "Next-horizon items
-  shipped" below. Came with account self-deletion and a rewrite of the
-  privacy page, which had been wrong since sign-in shipped.
+  2026-10-11, in staging and production the same day** (verified on both),
+  see "Next-horizon items shipped" below. Came with account self-deletion
+  and a rewrite of the privacy page, which had been wrong since sign-in
+  shipped, plus link/area/typo fixes to the location box.
 - ~~**Reliability** - cache + graceful degradation around OSRM/Nominatim,
   before real concurrent friend-group traffic trips their usage limits~~ -
   done 2026-09-28, see "Next-horizon items shipped" below (scope turned
@@ -1242,7 +1243,8 @@ serving. (The map view itself was added to the Later horizon above,
       and the Live-geolocation path to `maybeShowStarter()` was reasoned
       about, not exercised (no real geolocation in the sandbox).
   - **Saved addresses + account deletion + privacy page rewrite**
-    (2026-10-11, built and verified on staging; not yet in production).
+    (2026-10-11, built and verified on staging; **in production
+    2026-10-11**, checked there without writing usage stats).
     - **The privacy page had been wrong since 2026-09-13.** It still said
       "No accounts, no tracking cookies" and "if real user accounts are added
       later" after Google Sign-In shipped - while the app stores a Google ID,
@@ -1308,7 +1310,8 @@ serving. (The map view itself was added to the Later horizon above,
       keep saved addresses for signed-out visitors on-device (not built -
       needs no server, but doesn't follow you between devices).
 
-  - **Maps links without coordinates** (2026-10-11, found by the curator
+  - **Maps links without coordinates** (2026-10-11, in production the same
+    day; found by the curator
     testing saved addresses on staging: "Dizengoeff square" as text and as a
     Maps link both failed). Two separate causes:
     - *The typo* is simply no match - Nominatim has no fuzzy matching
@@ -1353,8 +1356,8 @@ serving. (The map view itself was added to the Later horizon above,
       total).
 
   - **Typed addresses restricted to Tel Aviv-Yafo, Ramat Gan and Givatayim**
-    (2026-10-11, first half of "use AI for custom location" - the
-    deterministic half; the AI fallback for typos is still to discuss).
+    (2026-10-11, in production the same day; first half of "use AI for
+    custom location" - the deterministic half).
     Supersedes the "always append Tel Aviv-Yafo" behaviour described under
     plan-ahead geocoding, which had a real gap: it made **Ramat Gan and
     Givatayim unfindable** ("Jabotinsky 50 Ramat Gan, Tel Aviv-Yafo" -> no
@@ -1387,8 +1390,8 @@ serving. (The map view itself was added to the Later horizon above,
       a Maps link are used as given (a deliberate "I mean exactly here").
       A typo ("Dizengoeff") is still not found - that is the AI step.
 
-  - **"Did you mean ...?" for misspelt streets** (2026-10-11, built and
-    verified locally; the second half of "use AI for custom location" - and
+  - **"Did you mean ...?" for misspelt streets** (2026-10-11, verified
+    locally and on staging, in production the same day; the second half of "use AI for custom location" - and
     deliberately **not AI**). Decided after prototyping: Haiku fixed typos
     (Dizengoeff, dizingof, a Hebrew letter swap) at ~$0.001/call but also made
     "Dizengoff Sq" worse and mis-ruled Bar-Ilan as out of area, and a free
