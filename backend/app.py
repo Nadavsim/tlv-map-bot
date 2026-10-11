@@ -328,12 +328,19 @@ async def privacy():
 @app.post("/api/resolve-location")
 async def resolve_location(req: LocationLinkRequest):
     text = req.text.strip()
-    coords = await asyncio.to_thread(location.resolve_maps_link, text)
+    coords, place_text = await asyncio.to_thread(location.resolve_maps_link_detail, text)
     if not coords:
-        # Not a coordinate pair or a Maps link (or the link didn't resolve) -
-        # try it as a free-text address/landmark instead.
+        # No coordinates in the text or its expanded link. A link is looked up
+        # by the place text it carries (and never sent to the address geocoder
+        # as a raw URL - useless there, and a link can hold more than a
+        # place); anything else is a free-text address/landmark.
+        is_link = "http://" in text or "https://" in text
+        queries = (location.geocode_candidates(place_text) if place_text else []) if is_link else [text]
         try:
-            coords = await asyncio.to_thread(location.geocode_address, text)
+            for query in queries:
+                coords = await asyncio.to_thread(location.geocode_address, query)
+                if coords:
+                    break
         except location.GeocodingUnavailable:
             # 503, not the nulls below: "couldn't look it up right now" and
             # "that address doesn't exist" need different messages - the
@@ -342,7 +349,10 @@ async def resolve_location(req: LocationLinkRequest):
     if not coords:
         return {"lat": None, "lon": None}
     lat, lon = coords
-    return {"lat": lat, "lon": lon}
+    # For a link, the place's own text is a better label than the URL the
+    # person pasted; None for typed text, which is its own label.
+    is_link = "http://" in text or "https://" in text
+    return {"lat": lat, "lon": lon, "label": place_text if is_link else None}
 
 
 @app.get("/api/categories")

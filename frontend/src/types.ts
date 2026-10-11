@@ -67,6 +67,9 @@ export interface MorePlacesResponse {
 export interface ResolveLocationResponse {
   lat: number | null
   lon: number | null
+  // For a pasted link: the place's own name/address, shown in place of the
+  // long URL. Absent for typed text, which is its own label.
+  label?: string | null
 }
 
 export interface CategoriesResponse {

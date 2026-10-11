@@ -264,30 +264,30 @@ def test_chat_endpoint_handles_empty_database(monkeypatch):
 
 def test_resolve_location_endpoint_returns_coords_for_maps_link(monkeypatch):
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
-    monkeypatch.setattr(location, "resolve_maps_link", lambda text: (32.0653, 34.7739))
+    monkeypatch.setattr(location, "resolve_maps_link_detail", lambda text: ((32.0653, 34.7739), None))
 
     with TestClient(app_module.app) as client:
         resp = client.post("/api/resolve-location", json={"text": "https://maps.app.goo.gl/abc"})
 
     assert resp.status_code == 200
-    assert resp.json() == {"lat": 32.0653, "lon": 34.7739}
+    assert resp.json() == {"lat": 32.0653, "lon": 34.7739, "label": None}
 
 
 def test_resolve_location_endpoint_falls_back_to_geocoding_a_plain_address(monkeypatch):
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
-    monkeypatch.setattr(location, "resolve_maps_link", lambda text: None)
+    monkeypatch.setattr(location, "resolve_maps_link_detail", lambda text: (None, None))
     monkeypatch.setattr(location, "geocode_address", lambda text: (32.0627450, 34.7704470))
 
     with TestClient(app_module.app) as client:
         resp = client.post("/api/resolve-location", json={"text": "Rothschild 12"})
 
     assert resp.status_code == 200
-    assert resp.json() == {"lat": 32.0627450, "lon": 34.7704470}
+    assert resp.json() == {"lat": 32.0627450, "lon": 34.7704470, "label": None}
 
 
 def test_resolve_location_endpoint_returns_nulls_when_unresolved(monkeypatch):
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
-    monkeypatch.setattr(location, "resolve_maps_link", lambda text: None)
+    monkeypatch.setattr(location, "resolve_maps_link_detail", lambda text: (None, None))
     monkeypatch.setattr(location, "geocode_address", lambda text: None)
 
     with TestClient(app_module.app) as client:
@@ -304,7 +304,7 @@ def test_resolve_location_endpoint_returns_503_when_geocoding_is_unavailable(mon
         raise location.GeocodingUnavailable("down")
 
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
-    monkeypatch.setattr(location, "resolve_maps_link", lambda text: None)
+    monkeypatch.setattr(location, "resolve_maps_link_detail", lambda text: (None, None))
     monkeypatch.setattr(location, "geocode_address", unavailable)
 
     with TestClient(app_module.app) as client:
@@ -1380,3 +1380,87 @@ def test_auth_me_never_includes_saved_addresses(monkeypatch):
         resp = client.get("/api/auth/me", headers=_AUTH)
 
     assert set(resp.json()) == {"name", "email", "picture_url"}
+
+
+# --- resolve-location: links that carry a place name but no coordinates ----
+
+
+def _resolve(monkeypatch, text, detail, geocode):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(location, "resolve_maps_link_detail", lambda t: detail)
+    seen = []
+
+    def fake_geocode(query):
+        seen.append(query)
+        return geocode(query)
+
+    monkeypatch.setattr(location, "geocode_address", fake_geocode)
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/resolve-location", json={"text": text})
+    return resp, seen
+
+
+def test_resolve_location_geocodes_the_place_text_of_a_link_without_coordinates(monkeypatch):
+    resp, seen = _resolve(
+        monkeypatch,
+        "https://maps.app.goo.gl/abc",
+        (None, "Dizengoff Square, Tel Aviv-Yafo"),
+        lambda q: (32.0779938, 34.7743493),
+    )
+
+    assert resp.json() == {"lat": 32.0779938, "lon": 34.7743493, "label": "Dizengoff Square, Tel Aviv-Yafo"}
+    assert seen == ["Dizengoff Square, Tel Aviv-Yafo"]
+
+
+def test_resolve_location_tries_candidates_until_one_hits(monkeypatch):
+    place = "Meat Bar, Shlomo Ibn Gabirol St 67, Tel Aviv-Yafo, 6436214"
+    hits = {"Meat Bar": (32.0793586, 34.7811393)}
+    resp, seen = _resolve(monkeypatch, "https://maps.app.goo.gl/abc", (None, place), lambda q: hits.get(q))
+
+    assert resp.json()["lat"] == 32.0793586
+    # Stopped at the first hit rather than running the rest of the list.
+    assert seen == ["Meat Bar, Shlomo Ibn Gabirol St 67, Tel Aviv-Yafo", "Meat Bar"]
+
+
+def test_resolve_location_never_geocodes_a_raw_url(monkeypatch):
+    # A link with nothing usable in it must not be handed to the address
+    # geocoder as text - useless there, and a URL can hold more than a place.
+    resp, seen = _resolve(
+        monkeypatch, "https://example.com/some/page?token=secret", (None, None), lambda q: (32.0, 34.0)
+    )
+
+    assert resp.json() == {"lat": None, "lon": None}
+    assert seen == []
+
+
+def test_resolve_location_uses_a_links_place_text_as_the_label_when_coordinates_were_in_the_url(monkeypatch):
+    resp, seen = _resolve(
+        monkeypatch,
+        "https://www.google.com/maps/place/Cafe+Xoho/@32.07,34.77,17z",
+        ((32.07, 34.77), "Cafe Xoho"),
+        lambda q: None,
+    )
+
+    assert resp.json() == {"lat": 32.07, "lon": 34.77, "label": "Cafe Xoho"}
+    assert seen == []
+
+
+def test_resolve_location_typed_text_is_geocoded_as_is_and_has_no_label(monkeypatch):
+    resp, seen = _resolve(monkeypatch, "Dizengoff square", (None, None), lambda q: (32.0779938, 34.7743493))
+
+    assert resp.json()["label"] is None
+    assert seen == ["Dizengoff square"]
+
+
+def test_resolve_location_link_lookup_outage_is_a_503_not_not_found(monkeypatch):
+    def unavailable(query):
+        raise location.GeocodingUnavailable("down")
+
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(location, "resolve_maps_link_detail", lambda t: (None, "Dizengoff Square"))
+    monkeypatch.setattr(location, "geocode_address", unavailable)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/resolve-location", json={"text": "https://maps.app.goo.gl/abc"})
+
+    assert resp.status_code == 503

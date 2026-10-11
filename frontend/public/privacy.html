@@ -36,7 +36,11 @@
           OSRM). If you type an address instead of sharing live location, the text
           you type is sent to OpenStreetMap's free address lookup
           (<a href="https://nominatim.openstreetmap.org" target="_blank" rel="noopener noreferrer">nominatim.openstreetmap.org</a>)
-          to turn it into coordinates. If you open the map view, your browser
+          to turn it into coordinates. If you paste a Google Maps link, TLV Bot's
+          server opens that link (a request to Google) to read the place's
+          position; when the link only carries a place name or address, that
+          name or address - never the link itself - is sent to the same
+          OpenStreetMap address lookup. If you open the map view, your browser
           also loads map images straight from OpenStreetMap's tile server
           (<a href="https://tile.openstreetmap.org" target="_blank" rel="noopener noreferrer">tile.openstreetmap.org</a>);
           the tiles it asks for reveal roughly which part of the city the map
@@ -153,7 +157,10 @@
           OSRM). אם הקלדת כתובת במקום לשתף מיקום נוכחי, הטקסט שהקלדת נשלח
           לשירות איתור הכתובות החינמי של OpenStreetMap
           (<a href="https://nominatim.openstreetmap.org" target="_blank" rel="noopener noreferrer">nominatim.openstreetmap.org</a>)
-          כדי להפוך אותו לקואורדינטות. אם אתה פותח את תצוגת המפה, הדפדפן שלך
+          כדי להפוך אותו לקואורדינטות. אם אתה מדביק קישור של Google Maps, השרת
+          של TLV Bot פותח את הקישור (בקשה ל-Google) כדי לקרוא את מיקום המקום;
+          כשבקישור יש רק שם או כתובת של מקום, השם או הכתובת - ולא הקישור עצמו -
+          נשלחים לאותו שירות איתור כתובות של OpenStreetMap. אם אתה פותח את תצוגת המפה, הדפדפן שלך
           טוען גם תמונות מפה ישירות משרת האריחים של OpenStreetMap
           (<a href="https://tile.openstreetmap.org" target="_blank" rel="noopener noreferrer">tile.openstreetmap.org</a>);
           האריחים שהוא מבקש חושפים ל-OpenStreetMap בערך איזה אזור בעיר המפה

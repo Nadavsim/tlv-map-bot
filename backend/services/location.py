@@ -1,4 +1,5 @@
 import re
+from urllib.parse import parse_qs, unquote_plus, urlparse
 
 import requests
 
@@ -26,22 +27,104 @@ def extract_coords_from_url(url: str) -> tuple[float, float] | None:
     return None
 
 
-def resolve_maps_link(text: str) -> tuple[float, float] | None:
-    """Pull lat/lon out of a pasted Google Maps link, following redirects for
-    short links (maps.app.goo.gl) since the coordinates only appear in the
-    fully-expanded URL, not the short one."""
+# Not every Google Maps link carries coordinates: a place shared by name (very
+# common for a business, whose link then holds only its name + address and an
+# opaque feature id) expands to /maps/place/<name>/data=!1s0x...:0x... with no
+# lat/lon anywhere, and so do ?q=<text> and search links. Those are resolved
+# through the place text instead - see geocode_candidates.
+_PLACE_PATH_RE = re.compile(r"/maps/(?:place|search)/([^/@?]+)")
+# Google appends invisible bidi-control characters to RTL place names.
+_BIDI_CONTROLS_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+_POSTCODE_TAIL_RE = re.compile(r"[,\s]+\d{5,7}$")
+_COORD_PAIR_RE = re.compile(r"-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?")
+# google.com, google.co.il, google.com.au, google.de ... and goo.gl - and
+# nothing that merely starts with one of them (google.com.evil.example).
+_GOOGLE_HOST_RE = re.compile(r"(^|\.)(google\.(?:com?\.)?[a-z]{2,3}|goo\.gl)$")
+_MAX_PLACE_TEXT = 200
+
+
+def extract_place_text_from_url(url: str) -> str | None:
+    """The human-readable place text inside a Google Maps URL (the name and/or
+    address in /maps/place/<text>/ or /maps/search/<text>, or a ?q= / ?query=
+    parameter), cleaned up - or None. Only Google hosts: text lifted out of an
+    arbitrary link is not something to hand to a geocoder."""
+    parsed = urlparse(url)
+    if not _GOOGLE_HOST_RE.search((parsed.hostname or "").lower()):
+        return None
+
+    candidates: list[str] = []
+    query = parse_qs(parsed.query)
+    for key in ("q", "query"):
+        candidates.extend(query.get(key, []))
+    match = _PLACE_PATH_RE.search(parsed.path)
+    if match:
+        candidates.append(unquote_plus(match.group(1)))
+
+    for candidate in candidates:
+        text = " ".join(_BIDI_CONTROLS_RE.sub("", candidate).split())[:_MAX_PLACE_TEXT]
+        if text and not _COORD_PAIR_RE.fullmatch(text):
+            return text
+    return None
+
+
+def _tidy_place_text(text: str | None) -> str | None:
+    """Drops the trailing postcode Google adds - noise as a label, and
+    geocode_candidates would strip it anyway."""
+    if not text:
+        return None
+    return _POSTCODE_TAIL_RE.sub("", text).strip(" ,") or None
+
+
+def resolve_maps_link_detail(text: str) -> tuple[tuple[float, float] | None, str | None]:
+    """(coords, place_text) for pasted text. Coordinates come straight from the
+    URL when it has them, otherwise from the expanded URL after following
+    redirects (short links, maps.app.goo.gl, only reveal them once expanded).
+    `place_text` is the place's name/address when the link carries one - the
+    fallback to geocode when there are no coordinates, and a readable label
+    for the location either way."""
     coords = extract_coords_from_url(text)
     if coords:
-        return coords
+        return coords, _tidy_place_text(extract_place_text_from_url(text))
 
     if "http://" not in text and "https://" not in text:
-        return None
+        return None, None
 
     try:
-        resp = requests.get(text.strip(), timeout=5, allow_redirects=True)
-        return extract_coords_from_url(resp.url)
+        final_url = requests.get(text.strip(), timeout=5, allow_redirects=True).url
     except requests.RequestException:
-        return None
+        return None, _tidy_place_text(extract_place_text_from_url(text.strip()))
+    return extract_coords_from_url(final_url), _tidy_place_text(
+        extract_place_text_from_url(final_url) or extract_place_text_from_url(text.strip())
+    )
+
+
+def resolve_maps_link(text: str) -> tuple[float, float] | None:
+    """Just the coordinates of resolve_maps_link_detail."""
+    return resolve_maps_link_detail(text)[0]
+
+
+def geocode_candidates(place_text: str) -> list[str]:
+    """Queries to try, most to least specific, for a place's text from a link.
+    Google writes "<name>, <address>, <city>, <postcode>" with its own
+    transliteration of the street, which OpenStreetMap often doesn't have - so
+    the full text can miss where the place's own name alone hits. Tried in
+    order and stopped at the first hit, capped at three lookups. A geocoder
+    can land on the wrong stretch of a long street, which is why the caller
+    shows the matched text as the location's label for the person to check."""
+    text = _POSTCODE_TAIL_RE.sub("", place_text).strip(" ,")
+    parts = [part.strip() for part in text.split(",") if part.strip()]
+    candidates: list[str] = []
+
+    def add(candidate: str) -> None:
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+
+    add(text)
+    if len(parts) > 1:
+        add(parts[0])
+    if len(parts) > 2:
+        add(", ".join(parts[1:]))
+    return candidates[:3]
 
 
 # Nominatim's usage policy requires a real identifying User-Agent (not the

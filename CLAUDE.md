@@ -1308,6 +1308,50 @@ serving. (The map view itself was added to the Later horizon above,
       keep saved addresses for signed-out visitors on-device (not built -
       needs no server, but doesn't follow you between devices).
 
+  - **Maps links without coordinates** (2026-10-11, found by the curator
+    testing saved addresses on staging: "Dizengoeff square" as text and as a
+    Maps link both failed). Two separate causes:
+    - *The typo* is simply no match - Nominatim has no fuzzy matching
+      ("Dizengoeff" -> nothing, "Dizengoff" -> hit). Only the message
+      changed: it now says to check the spelling.
+    - *The link was a real bug.* Resolution only read coordinates that are
+      literally in the URL. A place shared by name (typical for a business)
+      expands to `/maps/place/<name, address>/data=!1s0x...:0x...` with **no
+      lat/lon anywhere** - a real short link from this project's history did
+      exactly that - and the whole URL was then sent to the address geocoder,
+      which can't parse it. `?q=<text>`, `/maps/search/<text>` and name-only
+      `/maps/place/<name>` URLs are the same shape (Google doesn't redirect
+      them to anything with coordinates).
+    - *Fix* (`services/location.py`): `extract_place_text_from_url` lifts the
+      name/address out of a Google-hosted URL (strict host check - a test
+      caught `google.com.evil.example` slipping past the first regex; strips
+      the invisible bidi marks Google appends to RTL names), and
+      `geocode_candidates` tries up to three queries, full text -> the place's
+      own name -> the address part, stopping at the first hit. `/api/resolve-
+      location` now returns an optional `label` (the place text, postcode
+      trimmed) so the status line shows "Using: <place>" rather than a long
+      URL - which also becomes the saved-address label.
+    - **A raw URL is no longer sent to Nominatim**: it was useless there and a
+      link can carry tokens. `privacy.html` updated (both languages) to say
+      that the server opens a pasted link and that only a link's place
+      name/address goes to the lookup.
+    - **Honest limit:** Nominatim is a street geocoder, not a place search.
+      Probed: "Ibn Gabirol St 67" resolves ~3 km from "Ibn Gabirol 67", and
+      Google's transliterated "Shlomo Ibn Gabirol St 67" resolves to nothing.
+      So a name-only link lands at the right street/number *when* one of the
+      candidates hits (the failing link now resolves to Meat Bar's address),
+      but is street-level, never the exact pin. The exact position is
+      available only from Google itself (the place page's HTML, or the Places
+      API) - scraping it was **deliberately not done** (against Google's
+      terms and brittle); the Places API is the clean route if exact
+      pins from links ever matter (cost/setup tradeoff, same as transit ETA).
+    - Verified: the failing short link (staging returned nulls, local now
+      resolves with a label), the working short link, name-only place URLs,
+      `?q=`, `?api=1&query=`, a non-Google URL (null, geocoder untouched),
+      typed text unchanged, and the real form in the browser (typo message,
+      link message, label in the status line). 27 new backend tests (324
+      total).
+
 ### Later-horizon items shipped
 
 - **Map view** (2026-10-02) - built in a cloud sandbox with no `.env`, no

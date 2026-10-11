@@ -273,3 +273,101 @@ def test_geocode_success_resets_the_failure_count(monkeypatch):
         with pytest.raises(location.GeocodingUnavailable):
             location.geocode_address("c")
     assert state["calls"] == 2  # 2 + 2 failures around a success never reached 3 in a row
+
+
+# --- links that carry a place name but no coordinates ----------------------
+
+import pytest
+
+_HEBREW_PLACE_URL = (
+    "https://www.google.com/maps/place/"
+    "%D7%9E%D7%99%D7%98+%D7%91%D7%A8,+Shlomo+Ibn+Gabirol+St+67,+Tel+Aviv-Yafo,+6436214%E2%80%AD"
+    "/data=!4m2!3m1!1s0x151d4bf4a15a9be5:0x424fb72bc743cd81?utm_source=mstt_1"
+)
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        (_HEBREW_PLACE_URL, "\u05de\u05d9\u05d8 \u05d1\u05e8, Shlomo Ibn Gabirol St 67, Tel Aviv-Yafo, 6436214"),
+        ("https://www.google.com/maps/place/Dizengoff+Square,+Tel+Aviv-Yafo", "Dizengoff Square, Tel Aviv-Yafo"),
+        ("https://www.google.com/maps/place/Cafe+Xoho/@32.07,34.77,17z/data=!3m1", "Cafe Xoho"),
+        ("https://www.google.com/maps?q=Dizengoff+Square", "Dizengoff Square"),
+        ("https://www.google.com/maps/search/?api=1&query=Dizengoff+Square", "Dizengoff Square"),
+        ("https://www.google.com/maps/search/Dizengoff+square", "Dizengoff square"),
+        ("https://www.google.co.il/maps/place/Foo", "Foo"),
+        ("https://maps.google.com/?q=Foo+Bar", "Foo Bar"),
+    ],
+)
+def test_extract_place_text_from_url(url, expected):
+    assert location.extract_place_text_from_url(url) == expected
+
+
+def test_extract_place_text_strips_invisible_bidi_marks():
+    # Google appends U+202D to right-to-left place names.
+    assert "\u202d" not in location.extract_place_text_from_url(_HEBREW_PLACE_URL)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.com/maps/place/Evil+Corp",  # not a Google host
+        "https://www.google.com.evil.example/maps/place/Foo",  # lookalike host
+        "https://www.google.com/maps/@32.0653,34.7739,15z",  # coordinates only
+        "https://www.google.com/maps?q=32.0653,34.7739",  # q is a coordinate pair
+        "https://maps.app.goo.gl/abc123",  # an unexpanded short link has no text
+        "not a url",
+    ],
+)
+def test_extract_place_text_returns_none_when_there_is_nothing_usable(url):
+    assert location.extract_place_text_from_url(url) is None
+
+
+def test_resolve_maps_link_detail_returns_place_text_when_the_expanded_url_has_no_coordinates(monkeypatch):
+    fake_response = MagicMock()
+    fake_response.url = _HEBREW_PLACE_URL
+    monkeypatch.setattr(requests, "get", lambda url, timeout, allow_redirects: fake_response)
+
+    coords, place_text = location.resolve_maps_link_detail("https://maps.app.goo.gl/abc123")
+
+    assert coords is None
+    assert place_text.startswith("\u05de\u05d9\u05d8 \u05d1\u05e8, Shlomo Ibn Gabirol")
+
+
+def test_resolve_maps_link_detail_returns_both_when_the_expanded_url_has_them(monkeypatch):
+    fake_response = MagicMock()
+    fake_response.url = "https://www.google.com/maps/place/Cafe+Xoho/@32.07,34.77,17z/data=!3m1"
+    monkeypatch.setattr(requests, "get", lambda url, timeout, allow_redirects: fake_response)
+
+    assert location.resolve_maps_link_detail("https://maps.app.goo.gl/abc123") == ((32.07, 34.77), "Cafe Xoho")
+
+
+def test_resolve_maps_link_detail_keeps_the_text_when_the_request_fails(monkeypatch):
+    def raise_error(*args, **kwargs):
+        raise requests.RequestException("boom")
+
+    monkeypatch.setattr(requests, "get", raise_error)
+
+    url = "https://www.google.com/maps/place/Dizengoff+Square"
+    assert location.resolve_maps_link_detail(url) == (None, "Dizengoff Square")
+
+
+def test_resolve_maps_link_detail_for_plain_text_does_nothing(monkeypatch):
+    def fail(*args, **kwargs):
+        raise AssertionError("no request expected for plain text")
+
+    monkeypatch.setattr(requests, "get", fail)
+    assert location.resolve_maps_link_detail("Dizengoff square") == (None, None)
+
+
+def test_geocode_candidates_goes_from_full_text_to_name_to_address():
+    text = "Meat Bar, Shlomo Ibn Gabirol St 67, Tel Aviv-Yafo, 6436214"
+    assert location.geocode_candidates(text) == [
+        "Meat Bar, Shlomo Ibn Gabirol St 67, Tel Aviv-Yafo",
+        "Meat Bar",
+        "Shlomo Ibn Gabirol St 67, Tel Aviv-Yafo",
+    ]
+
+
+def test_geocode_candidates_for_a_single_part_is_just_that_part():
+    assert location.geocode_candidates("Dizengoff Square") == ["Dizengoff Square"]

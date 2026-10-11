@@ -51,10 +51,12 @@ export function LocationForm({
     try {
       const data = await resolveLocation(text)
       if (data.lat == null || data.lon == null) {
-        onError(t(lang, 'locationResolveError'))
+        // A link that gave nothing needs different advice from a typed
+        // address that gave nothing - "check the spelling" is no use for it.
+        onError(t(lang, /^https?:\/\//i.test(text) ? 'locationLinkError' : 'locationResolveError'))
         return
       }
-      onLocationSet({ lat: data.lat, lon: data.lon }, text)
+      onLocationSet({ lat: data.lat, lon: data.lon }, data.label || text)
     } catch {
       onError(t(lang, 'locationResolveNetworkError'))
     } finally {

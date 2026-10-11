@@ -21,7 +21,10 @@ const STRINGS = {
     locationUseLiveButtonChecking: 'Checking...',
     locationInputPlaceholder: 'Coordinates, a Maps link, or an address',
     locationSetButton: 'Set',
-    locationResolveError: "Couldn't find that location - try a Maps link, coordinates, or a more specific address.",
+    locationResolveError:
+      "Couldn't find that location - check the spelling, or try a Maps link, coordinates, or a more specific address.",
+    locationLinkError:
+      "Couldn't get a position from that link - try the place's address, or copy the link again from Google Maps (Share).",
     locationResolveNetworkError: "Couldn't reach the server to resolve that - try again.",
     locationModeLive: 'Live',
     locationModeCustom: 'Custom',
@@ -115,7 +118,8 @@ const STRINGS = {
     locationUseLiveButtonChecking: 'בודק...',
     locationInputPlaceholder: 'קואורדינטות, קישור למפות, או כתובת',
     locationSetButton: 'קבע',
-    locationResolveError: 'לא הצלחתי למצוא את המיקום - נסה קישור למפות, קואורדינטות, או כתובת מדויקת יותר.',
+    locationResolveError: 'לא הצלחתי למצוא את המיקום - בדוק את האיות, או נסה קישור למפות, קואורדינטות, או כתובת מדויקת יותר.',
+    locationLinkError: 'לא הצלחתי לקבל מיקום מהקישור - נסה את כתובת המקום, או העתק את הקישור שוב מגוגל מפות (שיתוף).',
     locationResolveNetworkError: 'לא הצלחתי להתחבר לשרת כדי לפענח את זה - נסה שוב.',
     locationModeLive: 'נוכחי',
     locationModeCustom: 'מותאם',
