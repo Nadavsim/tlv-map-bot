@@ -40,7 +40,11 @@
           server opens that link (a request to Google) to read the place's
           position; when the link only carries a place name or address, that
           name or address - never the link itself - is sent to the same
-          OpenStreetMap address lookup. If you open the map view, your browser
+          OpenStreetMap address lookup. If an address you type can't be found,
+          TLV Bot checks the spelling of the street against a list of street
+          names it keeps on its own server (street names (c) OpenStreetMap
+          contributors, ODbL) and may ask whether you meant the corrected
+          spelling - this check sends nothing anywhere. If you open the map view, your browser
           also loads map images straight from OpenStreetMap's tile server
           (<a href="https://tile.openstreetmap.org" target="_blank" rel="noopener noreferrer">tile.openstreetmap.org</a>);
           the tiles it asks for reveal roughly which part of the city the map
@@ -61,7 +65,9 @@
           anonymous things: a count of how often each category (coffee, pizza,
           etc.) is asked for, and the raw text of requests it couldn't match to
           anything. Neither is linked to who sent it. Unmatched-request text is
-          automatically deleted after 90 days.
+          automatically deleted after 90 days. It also counts, as a bare
+          number, how often a typed address couldn't be found - the address
+          itself is never stored.
         </p>
 
         <h2>Accounts and saved addresses</h2>
@@ -160,7 +166,10 @@
           כדי להפוך אותו לקואורדינטות. אם אתה מדביק קישור של Google Maps, השרת
           של TLV Bot פותח את הקישור (בקשה ל-Google) כדי לקרוא את מיקום המקום;
           כשבקישור יש רק שם או כתובת של מקום, השם או הכתובת - ולא הקישור עצמו -
-          נשלחים לאותו שירות איתור כתובות של OpenStreetMap. אם אתה פותח את תצוגת המפה, הדפדפן שלך
+          נשלחים לאותו שירות איתור כתובות של OpenStreetMap. אם כתובת שהקלדת לא נמצאה,
+          TLV Bot בודק את איות הרחוב מול רשימת שמות רחובות ששמורה בשרת שלו
+          (שמות הרחובות (c) תורמי OpenStreetMap, ODbL) ועשוי לשאול אם התכוונת
+          לאיות המתוקן - הבדיקה הזו לא שולחת שום דבר לשום מקום. אם אתה פותח את תצוגת המפה, הדפדפן שלך
           טוען גם תמונות מפה ישירות משרת האריחים של OpenStreetMap
           (<a href="https://tile.openstreetmap.org" target="_blank" rel="noopener noreferrer">tile.openstreetmap.org</a>);
           האריחים שהוא מבקש חושפים ל-OpenStreetMap בערך איזה אזור בעיר המפה
@@ -181,6 +190,8 @@
           בלבד: ספירה של כמה פעמים כל קטגוריה (קפה, פיצה וכו') התבקשה, והטקסט
           הגולמי של בקשות שלא הצלחתי להתאים לשום דבר. אף אחד מהם לא מקושר
           למי ששלח אותו. טקסט של בקשות לא-מותאמות נמחק אוטומטית אחרי 90 יום.
+          בנוסף נספר, כמספר בלבד, כמה פעמים כתובת שהוקלדה לא נמצאה - הכתובת
+          עצמה לא נשמרת לעולם.
         </p>
 
         <h2>חשבונות וכתובות שמורות</h2>

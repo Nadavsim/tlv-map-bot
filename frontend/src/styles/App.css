@@ -1167,3 +1167,50 @@ header h1 svg {
   opacity: 0.6;
   cursor: default;
 }
+
+/* "Did you mean ...?" offered above the address box when a typed street looked
+   misspelt (see services/streets.py). */
+.location-suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.75rem;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  background: var(--card-bg);
+  font-size: 0.9rem;
+}
+
+.location-suggestion p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.location-suggestion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.location-suggestion-actions button {
+  min-height: 44px;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.location-suggestion-actions .location-suggestion-yes {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.location-suggestion-actions button:hover {
+  background: var(--chip-bg);
+}

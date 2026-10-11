@@ -32,11 +32,16 @@ export function LocationForm({
 }: LocationFormProps) {
   const [value, setValue] = useState('')
   const [isResolving, setIsResolving] = useState(false)
+  // A corrected spelling waiting for a yes/no. A wrong silent correction
+  // means searching again, which is worse than one extra tap, so it is only
+  // ever offered.
+  const [suggestion, setSuggestion] = useState<{ text: string; lat: number; lon: number } | null>(null)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     const text = value.trim()
     if (!text) return
+    setSuggestion(null)
 
     const parts = text.split(',').map((s) => parseFloat(s.trim()))
     if (parts.length === 2 && !parts.some(Number.isNaN)) {
@@ -50,6 +55,10 @@ export function LocationForm({
     setIsResolving(true)
     try {
       const data = await resolveLocation(text)
+      if (data.suggestion) {
+        setSuggestion(data.suggestion)
+        return
+      }
       if (data.lat == null || data.lon == null) {
         // A link that gave nothing needs different advice from a typed
         // address that gave nothing - "check the spelling" is no use for it.
@@ -97,13 +106,38 @@ export function LocationForm({
           ))}
         </div>
       )}
+      {suggestion && (
+        <div className="location-suggestion" role="group" aria-live="polite">
+          <p>
+            {t(lang, 'locationSuggestionPrefix')} <strong dir="auto">{suggestion.text}</strong>?
+          </p>
+          <div className="location-suggestion-actions">
+            <button
+              type="button"
+              className="location-suggestion-yes"
+              onClick={() => {
+                onLocationSet({ lat: suggestion.lat, lon: suggestion.lon }, suggestion.text)
+                setSuggestion(null)
+              }}
+            >
+              {t(lang, 'locationSuggestionYes')}
+            </button>
+            <button type="button" onClick={() => setSuggestion(null)}>
+              {t(lang, 'locationSuggestionNo')}
+            </button>
+          </div>
+        </div>
+      )}
       <form className="location-form-row" onSubmit={handleSubmit}>
         <input
           type="text"
           placeholder={t(lang, 'locationInputPlaceholder')}
           value={value}
           maxLength={500}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value)
+            setSuggestion(null)
+          }}
         />
         <button type="submit" disabled={isResolving}>
           {isResolving ? '...' : t(lang, 'locationSetButton')}

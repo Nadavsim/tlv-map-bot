@@ -5,6 +5,25 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def _never_write_usage_stats_to_a_real_database(monkeypatch):
+    """Request handlers write anonymous usage counters and unmatched-query
+    rows (chat, and the location box). Left unmocked those reach whatever
+    MONGODB_URI the developer's .env points at - production, by default.
+    Stubbing the collection getters (not the functions) keeps tests of the
+    real db functions working: a test that sets its own getter, or its own
+    mock of the function, simply overrides this."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from backend import db
+
+    fake_collection = MagicMock()
+    fake_collection.update_one = AsyncMock()
+    fake_collection.insert_one = AsyncMock()
+    monkeypatch.setattr(db, "get_category_stats_collection", lambda: fake_collection)
+    monkeypatch.setattr(db, "get_unmatched_queries_collection", lambda: fake_collection)
+
+
+@pytest.fixture(autouse=True)
 def _disable_rate_limiting():
     """FastAPI's TestClient sends every request from the same fake
     "testclient" host, so without this the rate limiter's in-memory bucket

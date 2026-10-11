@@ -29,6 +29,11 @@ CATEGORIES_CACHE_TTL_SECONDS = 300
 # kept as constants so app.py and db.py agree on the exact strings.
 ANY_CATEGORY_KEY = "any_category"
 UNMATCHED_KEY = "unmatched"
+# Same collection, same idea, for the location box: how often a typed address
+# found nothing / got a spelling suggestion. Counts only - the privacy policy
+# says typed addresses are not stored, so no text is ever logged here.
+LOCATION_UNRESOLVED_KEY = "location_unresolved"
+LOCATION_CORRECTION_OFFERED_KEY = "location_correction_offered"
 
 # How long a raw unmatched-query log entry sticks around before Mongo's TTL
 # index auto-deletes it - long enough to review periodically for curation

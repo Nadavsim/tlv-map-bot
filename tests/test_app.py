@@ -1464,3 +1464,126 @@ def test_resolve_location_link_lookup_outage_is_a_503_not_not_found(monkeypatch)
         resp = client.post("/api/resolve-location", json={"text": "https://maps.app.goo.gl/abc"})
 
     assert resp.status_code == 503
+
+
+# --- resolve-location: "did you mean" suggestions + anonymous counters ------
+
+from backend.services import streets  # noqa: E402
+
+
+def _resolve_typed(monkeypatch, text, *, geocode, suggestion=None, counter=None):
+    """Typed text through /api/resolve-location with the geocoder and the
+    street matcher scripted. Returns (response, geocoded_queries, counter_mock)."""
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(location, "resolve_maps_link_detail", lambda t: (None, None))
+    queries = []
+
+    def fake_geocode(query):
+        queries.append(query)
+        result = geocode(query)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(location, "geocode_address", fake_geocode)
+    suggest_mock = {"calls": []}
+
+    def fake_suggest(t):
+        suggest_mock["calls"].append(t)
+        return suggestion
+
+    monkeypatch.setattr(streets, "suggest_correction", fake_suggest)
+    counter_mock = counter or AsyncMock()
+    monkeypatch.setattr(db, "record_category_request", counter_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/resolve-location", json={"text": text})
+    return resp, queries, counter_mock, suggest_mock["calls"]
+
+
+def test_resolve_location_offers_a_correction_instead_of_applying_it(monkeypatch):
+    hits = {"Dizengoff 50": (32.0757, 34.7744)}
+    resp, queries, counter, _ = _resolve_typed(
+        monkeypatch, "dizingof 50", geocode=lambda q: hits.get(q), suggestion="Dizengoff 50"
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "lat": None,
+        "lon": None,
+        "suggestion": {"text": "Dizengoff 50", "lat": 32.0757, "lon": 34.7744},
+    }
+    assert queries == ["dizingof 50", "Dizengoff 50"]
+    counter.assert_awaited_once_with(db.LOCATION_CORRECTION_OFFERED_KEY)
+
+
+def test_resolve_location_does_not_suggest_a_correction_that_is_itself_not_found(monkeypatch):
+    # A "fix" that geocodes nowhere would only send the person on a detour.
+    resp, queries, counter, _ = _resolve_typed(
+        monkeypatch, "dizingof 5000", geocode=lambda q: None, suggestion="Dizengoff 5000"
+    )
+
+    assert resp.json() == {"lat": None, "lon": None}
+    assert queries == ["dizingof 5000", "Dizengoff 5000"]
+    counter.assert_awaited_once_with(db.LOCATION_UNRESOLVED_KEY)
+
+
+def test_resolve_location_with_no_close_street_is_plain_not_found(monkeypatch):
+    resp, queries, counter, suggest_calls = _resolve_typed(
+        monkeypatch, "asdkfjh", geocode=lambda q: None, suggestion=None
+    )
+
+    assert resp.json() == {"lat": None, "lon": None}
+    assert suggest_calls == ["asdkfjh"]
+    counter.assert_awaited_once_with(db.LOCATION_UNRESOLVED_KEY)
+
+
+def test_resolve_location_does_not_consult_the_matcher_when_the_text_already_resolves(monkeypatch):
+    resp, queries, counter, suggest_calls = _resolve_typed(
+        monkeypatch, "Dizengoff 50", geocode=lambda q: (32.0757, 34.7744), suggestion="should not be used"
+    )
+
+    assert resp.json() == {"lat": 32.0757, "lon": 34.7744, "label": None}
+    assert suggest_calls == []
+    counter.assert_not_awaited()
+
+
+def test_resolve_location_never_suggests_for_a_link(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(location, "resolve_maps_link_detail", lambda t: (None, None))
+    monkeypatch.setattr(location, "geocode_address", lambda q: None)
+    suggest_calls = []
+    monkeypatch.setattr(streets, "suggest_correction", lambda t: suggest_calls.append(t) or "x")
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/resolve-location", json={"text": "https://maps.app.goo.gl/abc"})
+
+    assert resp.json() == {"lat": None, "lon": None}
+    assert suggest_calls == []
+
+
+def test_resolve_location_outage_while_checking_the_correction_is_a_503(monkeypatch):
+    def geocode(query):
+        return None if query == "dizingof 50" else location.GeocodingUnavailable("down")
+
+    resp, *_ = _resolve_typed(monkeypatch, "dizingof 50", geocode=geocode, suggestion="Dizengoff 50")
+
+    assert resp.status_code == 503
+
+
+def test_resolve_location_still_answers_when_the_counter_cannot_be_written(monkeypatch):
+    broken = AsyncMock(side_effect=RuntimeError("database down"))
+    resp, *_ = _resolve_typed(monkeypatch, "asdkfjh", geocode=lambda q: None, counter=broken)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"lat": None, "lon": None}
+
+
+def test_location_counters_never_carry_the_typed_text(monkeypatch):
+    resp, _, counter, _ = _resolve_typed(
+        monkeypatch, "my secret street 7", geocode=lambda q: None, suggestion=None
+    )
+
+    (key,), _ = counter.await_args
+    assert key == db.LOCATION_UNRESOLVED_KEY
+    assert "secret" not in key

@@ -17,7 +17,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import db
 from .models import PlaceResult
-from .services import auth, llm, location, routing
+from .services import auth, llm, location, routing, streets
 
 load_dotenv()
 
@@ -325,6 +325,15 @@ async def privacy():
     return FileResponse(BASE_DIR / "static" / "privacy.html")
 
 
+async def _count_location_outcome(key: str) -> None:
+    """Best-effort anonymous counter (see db.LOCATION_UNRESOLVED_KEY) - a
+    database hiccup must never turn a "not found" into an error."""
+    try:
+        await db.record_category_request(key)
+    except Exception:
+        logging.getLogger(__name__).warning("couldn't record location outcome counter %s", key)
+
+
 @app.post("/api/resolve-location")
 async def resolve_location(req: LocationLinkRequest):
     text = req.text.strip()
@@ -336,17 +345,31 @@ async def resolve_location(req: LocationLinkRequest):
         # place); anything else is a free-text address/landmark.
         is_link = "http://" in text or "https://" in text
         queries = (location.geocode_candidates(place_text) if place_text else []) if is_link else [text]
+        suggestion = None
         try:
             for query in queries:
                 coords = await asyncio.to_thread(location.geocode_address, query)
                 if coords:
                     break
+            if not coords and not is_link:
+                # Nothing for the text as typed: if it looks like a misspelt
+                # street, find where the corrected spelling would be. It is
+                # offered, never applied - the person confirms it.
+                corrected = streets.suggest_correction(text)
+                if corrected:
+                    corrected_coords = await asyncio.to_thread(location.geocode_address, corrected)
+                    if corrected_coords:
+                        suggestion = {"text": corrected, "lat": corrected_coords[0], "lon": corrected_coords[1]}
         except location.GeocodingUnavailable:
             # 503, not the nulls below: "couldn't look it up right now" and
             # "that address doesn't exist" need different messages - the
             # frontend turns any non-OK response into its "try again" copy.
             raise HTTPException(status_code=503, detail="geocoding service unavailable")
+        if suggestion:
+            await _count_location_outcome(db.LOCATION_CORRECTION_OFFERED_KEY)
+            return {"lat": None, "lon": None, "suggestion": suggestion}
     if not coords:
+        await _count_location_outcome(db.LOCATION_UNRESOLVED_KEY)
         return {"lat": None, "lon": None}
     lat, lon = coords
     # For a link, the place's own text is a better label than the URL the

@@ -230,3 +230,15 @@ sibling `app/` package would collide with that filename.
 ```bash
 pytest
 ```
+
+## Street-name data (typo suggestions)
+
+`backend/data/streets.json` is the list of street names of Tel Aviv-Yafo, Ramat
+Gan and Givatayim that `backend/services/streets.py` fuzzy-matches a mistyped
+address against ("dizingof 50" -> "Did you mean Dizengoff 50?"). It is generated
+from OpenStreetMap, so it is (c) OpenStreetMap contributors under the ODbL - the
+attribution lives in the file's own `_meta` header and must stay there.
+
+Regenerate it rarely (street names barely change):
+
+    python -m scripts.build_street_index

@@ -70,6 +70,9 @@ export interface ResolveLocationResponse {
   // For a pasted link: the place's own name/address, shown in place of the
   // long URL. Absent for typed text, which is its own label.
   label?: string | null
+  // Set instead of lat/lon when the typed text found nothing but a corrected
+  // spelling does: offered to the person, never applied on its own.
+  suggestion?: { text: string; lat: number; lon: number } | null
 }
 
 export interface CategoriesResponse {
