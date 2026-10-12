@@ -180,7 +180,8 @@ call):
   ~0.5s faster even without one). Added 2026-09-28 after production
   showed a real 8s stall; needs a per-card loading state, and care that a
   late ETA for an old conversation entry can't land on the wrong card~~ -
-  **built 2026-10-11**, see "Next-horizon items shipped" below.
+  **built 2026-10-11, in staging and production as of 2026-10-12**, see
+  "Next-horizon items shipped" below.
 - **Growth** - make "I added the place you asked about" a standing habit
   when curating - the one growth move no competitor at any size can copy.
 - **Intelligence** - a weekly, manual-trigger LLM pass over
@@ -1465,7 +1466,8 @@ serving. (The map view itself was added to the Later horizon above,
       resolved gets its own message instead.
 
   - **Results first, ETAs after** (2026-10-11, built and verified locally
-    against the real services; not yet deployed). `/api/chat` and
+    against the real services; **in staging and production 2026-10-12**,
+    `/api/etas` checked live on both without writing usage stats). `/api/chat` and
     `/api/more-places` no longer call OSRM at all - places come back with
     distance only (`eta: null`) - and a new `POST /api/etas` takes the
     origin, mode and up to 10 destination coordinates and returns formatted
