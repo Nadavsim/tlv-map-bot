@@ -1255,10 +1255,9 @@ serving. (The map view itself was added to the Later horizon above,
       "יותר זול", etc.) all behave on the real model. Not covered: the
       frontend has no automated test suite, so none of this is under test;
       and the Live-geolocation path to `maybeShowStarter()` was reasoned
-      about, not exercised (no real geolocation in the sandbox). **Still
-      open, curator-only**: on a phone with a fresh browser profile (or a
-      private tab - the `tlv-bot-intro-seen` flag unset), tap Live, allow
-      location, and confirm the first-visit bubble and chips appear.
+      about, not exercised (no real geolocation in the sandbox). **Live-GPS path
+      checked by the curator on a real phone, 2026-10-12: the bubble and
+      chips appear after a real fix.**
   - **Saved addresses + account deletion + privacy page rewrite**
     (2026-10-11, built and verified on staging; **in production
     2026-10-11**, checked there without writing usage stats).
