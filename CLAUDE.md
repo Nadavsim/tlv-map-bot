@@ -1255,7 +1255,10 @@ serving. (The map view itself was added to the Later horizon above,
       "יותר זול", etc.) all behave on the real model. Not covered: the
       frontend has no automated test suite, so none of this is under test;
       and the Live-geolocation path to `maybeShowStarter()` was reasoned
-      about, not exercised (no real geolocation in the sandbox).
+      about, not exercised (no real geolocation in the sandbox). **Still
+      open, curator-only**: on a phone with a fresh browser profile (or a
+      private tab - the `tlv-bot-intro-seen` flag unset), tap Live, allow
+      location, and confirm the first-visit bubble and chips appear.
   - **Saved addresses + account deletion + privacy page rewrite**
     (2026-10-11, built and verified on staging; **in production
     2026-10-11**, checked there without writing usage stats).
@@ -1315,11 +1318,10 @@ serving. (The map view itself was added to the Later horizon above,
       (409), link->coordinates label, truncation, validation (422), reuse
       chip without geocoding, remove, two-step delete (record gone, refresh
       then 401), the raw stored document, Hebrew/RTL at 375 px (status row
-      wraps cleanly, no overflow). Test users removed afterward. **Not
-      verified:** the real Google sign-in path into
-      `loadSavedAddresses` (same function as the refresh path, but Google
-      OAuth can't be completed in the sandbox), and a real phone. 40 new
-      backend tests (297 total). No frontend test suite exists.
+      wraps cleanly, no overflow). Test users removed afterward. **The
+      real Google sign-in path into `loadSavedAddresses`, on a real phone,
+      was checked by the curator on 2026-10-12: saved addresses work.** 40
+      new backend tests (297 total). No frontend test suite exists.
     - **Open decisions** for the curator: the cap of 5; whether to also
       keep saved addresses for signed-out visitors on-device (not built -
       needs no server, but doesn't follow you between devices).
@@ -1510,7 +1512,9 @@ serving. (The map view itself was added to the Later horizon above,
       distance + placeholder, ETAs filling at 4.3 s; "Show more" cards pending
       while earlier ones keep theirs; a failing ETA call leaves distance-only
       cards with no stuck placeholder; clear-while-pending then Undo ends with
-      real ETAs. Not covered: no frontend test suite exists.
+      real ETAs. Not covered: no frontend test suite exists. **Real phone,
+      checked by the curator 2026-10-12: results appear at once and the
+      times follow "a second or two" later - works well.**
 
 ### Later-horizon items shipped
 
