@@ -36,6 +36,28 @@ def test_health_endpoint_returns_ok_when_database_is_reachable(monkeypatch):
     assert response.json() == {"status": "ok"}
 
 
+def test_health_endpoint_answers_head_requests_for_uptime_monitors(monkeypatch):
+    # Free-plan uptime monitors send HEAD; a 405 would make the app look down.
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "ping_database", AsyncMock(return_value=True))
+
+    with TestClient(app_module.app) as client:
+        resp = client.head("/health")
+
+    assert resp.status_code == 200
+    assert resp.content == b""
+
+
+def test_health_endpoint_head_reports_503_when_database_is_unreachable(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "ping_database", AsyncMock(return_value=False))
+
+    with TestClient(app_module.app) as client:
+        resp = client.head("/health")
+
+    assert resp.status_code == 503
+
+
 def test_health_endpoint_returns_503_when_database_is_unreachable(monkeypatch):
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
     monkeypatch.setattr(db, "ping_database", AsyncMock(return_value=False))

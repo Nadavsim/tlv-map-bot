@@ -981,7 +981,12 @@ serving. (The map view itself was added to the Later horizon above,
     pre-public-hardening pass's Azure spend cap note below:
     - **Wiring Azure App Service's Health Check setting to `/health`**
       (General settings, both environments) - no Azure CLI/Portal access
-      from this environment.
+      from this environment. **Update 2026-10-12:** Health Check is a
+      paid-tier feature - the Free (F1) staging plan can't use it, so it
+      applies to production only. The curator also did the budget alert,
+      HTTPS Only and App Service logs the same day. `/health` now answers
+      HEAD as well as GET (uptime monitors often probe with HEAD; it was a
+      405).
     - **Signing up for free uptime/error-alert services** (e.g.
       UptimeRobot, Sentry) and pointing them at `/health` - creating
       accounts on the user's behalf is outside what this session does

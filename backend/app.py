@@ -297,7 +297,9 @@ async def service_worker():
     return FileResponse(BASE_DIR / "static" / "sw.js", media_type="application/javascript")
 
 
-@app.get("/health")
+# GET and HEAD: external uptime monitors commonly probe with HEAD (some can't
+# be switched to GET on a free plan), and a 405 there reads as "down" forever.
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     # Wired into Azure App Service's built-in Health Check feature (General
     # settings -> Health check, point it at this path) so a hung or
