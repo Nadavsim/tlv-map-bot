@@ -215,8 +215,8 @@ call):
   2026-10-02**, re-verified in a browser on each deployed site (chunk loads
   only on first open, 6/6 tiles from the one allowed host, no CSP
   violations, dark-mode attribution 6.35/14.75:1, pins within 5m of their
-  cards' distances on the production DB). Still unchecked: a real finger on
-  a real phone.
+  cards' distances on the production DB). **Real phone: checked by the
+  curator 2026-10-12 - "works good".**
 - **Usability** - **end game: the map as the home page.** The curator's
   stated destination (2026-10-11): a full-page map as the app's main
   screen, showing recommendations around your location, with the chat as a
