@@ -983,7 +983,8 @@ serving. (The map view itself was added to the Later horizon above,
       (General settings, both environments) - no Azure CLI/Portal access
       from this environment. **Update 2026-10-12:** Health Check is a
       paid-tier feature - the Free (F1) staging plan can't use it, so it
-      applies to production only. The curator also did the budget alert,
+      applies to production only, **where the curator has enabled it
+      (path `/health`)**. The curator also did the budget alert,
       HTTPS Only and App Service logs the same day. `/health` now answers
       HEAD as well as GET (uptime monitors often probe with HEAD; it was a
       405).
