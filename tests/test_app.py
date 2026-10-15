@@ -1720,3 +1720,131 @@ def test_etas_endpoint_never_echoes_coordinates_back(monkeypatch):
         resp = client.post("/api/etas", json=_etas_request())
 
     assert set(resp.json()) == {"etas"}
+
+
+# --- favorites endpoints -----------------------------------------------------
+
+
+def test_format_place_includes_the_place_id():
+    place = SAMPLE_PLACE.model_copy(update={"id": "64b0000000000000000000a1"})
+    assert format_place(place)["id"] == "64b0000000000000000000a1"
+
+
+def test_favorites_endpoints_require_a_signed_in_user(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        assert client.get("/api/favorites/ids").status_code == 401
+        assert client.get("/api/favorites?lat=32&lon=34").status_code == 401
+        assert client.post("/api/favorites", json={"place_id": "x"}).status_code == 401
+        assert client.delete("/api/favorites/x").status_code == 401
+
+
+def test_favorite_ids_returns_the_ids_and_the_cap(monkeypatch):
+    _signed_in(monkeypatch)
+    monkeypatch.setattr(db, "list_favorite_ids", AsyncMock(return_value=["a", "b"]))
+
+    with TestClient(app_module.app) as client:
+        resp = client.get("/api/favorites/ids", headers=_AUTH)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ids": ["a", "b"], "max": db.MAX_FAVORITES}
+
+
+def test_favorite_ids_for_a_deleted_user_is_401(monkeypatch):
+    _signed_in(monkeypatch)
+    monkeypatch.setattr(db, "list_favorite_ids", AsyncMock(return_value=None))
+
+    with TestClient(app_module.app) as client:
+        resp = client.get("/api/favorites/ids", headers=_AUTH)
+
+    assert resp.status_code == 401
+
+
+def test_favorite_places_come_back_as_ordinary_cards_for_the_given_location(monkeypatch):
+    _signed_in(monkeypatch)
+    place = SAMPLE_PLACE.model_copy(update={"id": "64b0000000000000000000a1", "distance": 420})
+    find_mock = AsyncMock(return_value=[place])
+    monkeypatch.setattr(db, "find_favorite_places", find_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.get("/api/favorites?lat=32.07&lon=34.77", headers=_AUTH)
+
+    assert resp.status_code == 200
+    body = resp.json()["places"]
+    assert body[0]["id"] == "64b0000000000000000000a1"
+    assert body[0]["name"] == "Cafelix"
+    assert body[0]["distance"] == "0.42 km"
+    assert body[0]["eta"] is None  # filled in by /api/etas like every other card
+    find_mock.assert_awaited_once_with("user-id-1", 32.07, 34.77)
+
+
+@pytest.mark.parametrize("query", ["", "?lat=32", "?lat=abc&lon=34", "?lat=95&lon=34", "?lat=32&lon=190"])
+def test_favorite_places_requires_a_valid_location(monkeypatch, query):
+    _signed_in(monkeypatch)
+    find_mock = AsyncMock()
+    monkeypatch.setattr(db, "find_favorite_places", find_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.get(f"/api/favorites{query}", headers=_AUTH)
+
+    assert resp.status_code == 422
+    find_mock.assert_not_awaited()
+
+
+def test_add_favorite_statuses(monkeypatch):
+    _signed_in(monkeypatch)
+    cases = [("added", 201), ("exists", 200), ("full", 409), ("no_place", 404), ("no_user", 401)]
+
+    for status, expected in cases:
+        monkeypatch.setattr(db, "add_favorite", AsyncMock(return_value=status))
+        with TestClient(app_module.app) as client:
+            resp = client.post("/api/favorites", json={"place_id": "64b0000000000000000000a1"}, headers=_AUTH)
+        assert resp.status_code == expected, status
+
+
+def test_add_favorite_passes_the_user_and_place_through(monkeypatch):
+    _signed_in(monkeypatch)
+    add_mock = AsyncMock(return_value="added")
+    monkeypatch.setattr(db, "add_favorite", add_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/favorites", json={"place_id": "64b0000000000000000000a1"}, headers=_AUTH)
+
+    assert resp.json() == {"id": "64b0000000000000000000a1"}
+    add_mock.assert_awaited_once_with("user-id-1", "64b0000000000000000000a1")
+
+
+@pytest.mark.parametrize("body", [{}, {"place_id": ""}, {"place_id": "x" * 65}, {"place_id": 5}])
+def test_add_favorite_rejects_invalid_bodies(monkeypatch, body):
+    _signed_in(monkeypatch)
+    add_mock = AsyncMock()
+    monkeypatch.setattr(db, "add_favorite", add_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/favorites", json=body, headers=_AUTH)
+
+    assert resp.status_code == 422
+    add_mock.assert_not_awaited()
+
+
+def test_remove_favorite(monkeypatch):
+    _signed_in(monkeypatch)
+    remove_mock = AsyncMock(return_value=True)
+    monkeypatch.setattr(db, "remove_favorite", remove_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.delete("/api/favorites/64b0000000000000000000a1", headers=_AUTH)
+
+    assert resp.status_code == 200
+    remove_mock.assert_awaited_once_with("user-id-1", "64b0000000000000000000a1")
+
+
+def test_remove_favorite_that_was_not_saved_is_404(monkeypatch):
+    _signed_in(monkeypatch)
+    monkeypatch.setattr(db, "remove_favorite", AsyncMock(return_value=False))
+
+    with TestClient(app_module.app) as client:
+        resp = client.delete("/api/favorites/64b0000000000000000000a1", headers=_AUTH)
+
+    assert resp.status_code == 404

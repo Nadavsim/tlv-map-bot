@@ -1,4 +1,4 @@
-import { Banknote, Camera, Clock, Navigation, Umbrella } from 'lucide-react'
+import { Banknote, Camera, Clock, Heart, Navigation, Umbrella } from 'lucide-react'
 import { t } from '../i18n'
 import type { Lang, Place } from '../types'
 
@@ -16,9 +16,20 @@ interface PlaceCardProps {
   mapNumber?: number
   isActive?: boolean
   onSelect?: () => void
+  isFavorite?: boolean
+  // Absent = no heart (never the case in the app; keeps the card reusable).
+  onToggleFavorite?: () => void
 }
 
-export function PlaceCard({ place, lang, mapNumber, isActive = false, onSelect }: PlaceCardProps) {
+export function PlaceCard({
+  place,
+  lang,
+  mapNumber,
+  isActive = false,
+  onSelect,
+  isFavorite = false,
+  onToggleFavorite,
+}: PlaceCardProps) {
   return (
     <div className={`place-card${isActive ? ' is-active' : ''}`} onClick={onSelect}>
       <div className="name">
@@ -98,6 +109,23 @@ export function PlaceCard({ place, lang, mapNumber, isActive = false, onSelect }
         </span>
       </div>
       <div className="links">
+        {place.id && onToggleFavorite && (
+          // stopPropagation: the whole card is a click target for the map's
+          // pin highlight, and saving a place shouldn't also select it.
+          <button
+            type="button"
+            className={`favorite-button${isFavorite ? ' is-favorite' : ''}`}
+            aria-pressed={isFavorite}
+            aria-label={`${t(lang, isFavorite ? 'favoriteSaved' : 'favoriteSave')}: ${place.name}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleFavorite()
+            }}
+          >
+            <Heart size={14} aria-hidden="true" fill={isFavorite ? 'currentColor' : 'none'} />
+            {t(lang, isFavorite ? 'favoriteSaved' : 'favoriteSave')}
+          </button>
+        )}
         <a href={place.maps_url} target="_blank" rel="noopener noreferrer">
           <Navigation size={14} aria-hidden="true" />
           {t(lang, 'navigate')}

@@ -209,8 +209,10 @@ call):
 - **Trust** - "this place closed / wrong category" feedback action - now
   explicitly the second line of defense behind hours-tagging above, not
   the primary one.
-- **Usability** - Favorites (save a spot for later), once the schema
-  above is locked in.
+- ~~**Usability** - Favorites (save a spot for later), once the schema
+  above is locked in~~ - **built 2026-10-15, verified locally against the
+  staging database; not yet pushed** - see "Next-horizon items shipped"
+  below.
 - **Trust** - a private "I'd go back" signal, visible only to the
   curator - the user's explicit 2026-09-24 call on the open "Ratings"
   question this review raised: not public star ratings (risks the
@@ -1541,6 +1543,71 @@ serving. (The map view itself was added to the Later horizon above,
       real ETAs. Not covered: no frontend test suite exists. **Real phone,
       checked by the curator 2026-10-12: results appear at once and the
       times follow "a second or two" later - works well.**
+
+  - **Favorites** (2026-10-15, built and verified locally against
+    `tlvbot_staging`; **committed on `staging`, not pushed**). Account-only,
+    like saved addresses: a heart ("Save") pill on every result card, and a
+    "Favorites (N)" row in the side menu that drops the saved places into the
+    chat as ordinary result cards, nearest to the active location first.
+    - **Design defaults, flagged for the curator** (changeable, none are
+      load-bearing): account-only (no on-device favorites for signed-out
+      visitors - same call as saved addresses); the heart is visible to
+      everyone, and a signed-out tap opens the menu at the Google button with
+      a one-line hint instead of silently doing nothing; cap of **100** per
+      account (the whole list is ~165 places); no notes, no ratings, nothing
+      visible to anyone but the owner; a favorite whose place has since left
+      the map is silently dropped from the view.
+    - **Storage** is the `favorites` collection locked on 2026-09-28
+      (`{user_id, place_id, created_at}`, unique `(user_id, place_id)`), so
+      no schema change. `PlaceResult` and `format_place` gained `id` - the
+      document's `_id` as a string - which is what a favorite points at
+      (sync preserves it across renames).
+    - **API** (all bearer-token, not cookie, like saved addresses):
+      `GET /api/favorites/ids` (ids + cap, for drawing hearts - no
+      location needed), `GET /api/favorites?lat&lon` (the places, nearest
+      first; validated coordinates), `POST /api/favorites` (201 added / 200
+      already there / 409 full / 404 no such place or malformed id / 401),
+      `DELETE /api/favorites/{place_id}` (404 if it wasn't saved). The cap
+      and duplicate checks are backed by the unique index (a concurrent
+      double tap returns "exists", not a 500). The listing is the same
+      `$geoNear` pipeline as search, restricted with `_id: {$in: ...}`, so
+      distance/ETA/map/share all work on favorites unchanged; it
+      deliberately skips weather/hours deprioritization (this is "my list",
+      not "what's good now").
+    - **Frontend**: optimistic toggle, reverted if the server refuses (a 409
+      also says the list is full; deleting something already gone counts as
+      done). The menu's open state moved from `Header` up to `App` so a card
+      can open it. The favorites view is a `places` entry flagged
+      `isFavorites`, which `getPreviousContext` ignores - otherwise "something
+      else" afterwards would continue a search that never happened. ETAs are
+      requested for the nearest 10 only (`/api/etas` takes at most 10
+      destinations); anything past that stays distance-only. Hebrew strings
+      written by me, **not reviewed by the curator**.
+    - **Privacy**: `privacy.html` (both languages) now describes favorites -
+      what is stored (which place and when, nothing else), the 100 cap, that
+      only the owner sees them, and that "Delete account" removes them (the
+      cascade already existed in `db.delete_user`) - plus the hosting
+      sentence. Same lesson as saved addresses: a feature that changes what
+      is stored touches the privacy page in the same change.
+    - **Verified**: 33 new backend tests (448 total: statuses, cap, race,
+      malformed ids, dangling places, `place_ids` pipeline, auth and
+      validation on every endpoint). Against the staging database with a
+      throwaway signed-in user: add/dedupe/404/401/remove, nearest-first
+      listing, and in the real UI - signed-out tap (menu + hint), hearts
+      filling with 201s, the menu row showing the count, the favorites view
+      with ETAs and the menu closing, un-saving from that view keeping every
+      copy of the card in sync and the server agreeing, Hebrew/RTL cards.
+      Account deletion removed the user's favorites (0 left). **Not
+      covered:** the 409 "full" path in the UI (needs 100 saves; the status
+      is unit-tested and the handler is a single branch), a real phone, and
+      light theme (dark and English/Hebrew were checked). No frontend test
+      suite exists.
+    - **Worth knowing for next time**: injecting a session on `127.0.0.1`
+      failed first because an older httpOnly `refresh_token` cookie on the
+      same host shadows `document.cookie` (cookies aren't port-scoped).
+      `POST /api/auth/logout` clears it (the server can overwrite httpOnly),
+      after which `document.cookie = "refresh_token=...; path=/api/auth"`
+      works - no Secure/httpOnly flags needed for the server to read it.
 
 ### Later-horizon items shipped
 

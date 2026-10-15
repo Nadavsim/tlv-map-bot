@@ -2,14 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ApiError,
   deleteAccount,
+  deleteFavorite,
   deleteSavedAddress,
   getAuthConfig,
   getCategories,
+  getFavoriteIds,
+  getFavoritePlaces,
   getSavedAddresses,
   postChat,
   postGoogleAuth,
   postLogout,
   postEtas,
+  postFavorite,
   postMorePlaces,
   postRefresh,
   postSavedAddress,
@@ -35,6 +39,11 @@ const HELP_COMMANDS = ['help', 'עזרה']
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
 }
+
+// /api/etas accepts at most this many destinations per request. The Favorites
+// view can hold far more cards than that; the nearest ones get travel times and
+// the rest simply stay distance-only.
+const ETA_BATCH_LIMIT = 10
 
 // How long an accidental "New Conversation" tap stays undoable.
 const UNDO_WINDOW_MS = 5000
@@ -87,6 +96,11 @@ export default function App() {
   // the server's cap on how many they can keep.
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([])
   const [maxSavedAddresses, setMaxSavedAddresses] = useState(5)
+  // Ids of the places the signed-in person has favorited (empty when signed
+  // out). Card hearts read from this; toggling is optimistic and reverted if
+  // the server refuses.
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([])
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
   // Never triggers a re-render on its own (only authUser does) - this is
   // exactly why it's a ref and not state: nothing in the UI reads the raw
   // token value itself, only whether someone is signed in.
@@ -160,6 +174,7 @@ export default function App() {
         if (result) {
           applySession(result.access_token, result.user)
           void loadSavedAddresses(result.access_token)
+          void loadFavoriteIds(result.access_token)
         }
       })
       .catch(() => {
@@ -194,6 +209,7 @@ export default function App() {
       const result = await postGoogleAuth(credential)
       applySession(result.access_token, result.user)
       void loadSavedAddresses(result.access_token)
+      void loadFavoriteIds(result.access_token)
     } catch {
       // Sign-in failing shouldn't be a chat-log error bubble - it's not part
       // of that conversation. Silently staying signed out is the safe
@@ -211,6 +227,100 @@ export default function App() {
       setMaxSavedAddresses(data.max)
     } catch {
       // see above
+    }
+  }
+
+  // Same stance as saved addresses: failing leaves hearts unfilled, never an
+  // error in the chat.
+  async function loadFavoriteIds(token: string) {
+    try {
+      const data = await getFavoriteIds(token)
+      setFavoriteIds(data.ids)
+    } catch {
+      // see above
+    }
+  }
+
+  function pushBotText(text: string) {
+    setEntries((prev) => [...prev, { id: makeEntryId(), kind: 'bot-text', text }])
+  }
+
+  async function handleToggleFavorite(place: Place) {
+    const placeId = place.id
+    if (!placeId) return
+    const token = accessTokenRef.current
+    if (!token) {
+      // Favorites belong to an account: point at the sign-in button instead of
+      // silently doing nothing. Not repeated if the hint is already the last
+      // thing in the log.
+      const hint = t(lang, 'favoriteSignInHint')
+      setEntries((prev) => {
+        const last = prev[prev.length - 1]
+        return last && last.kind === 'bot-text' && last.text === hint
+          ? prev
+          : [...prev, { id: makeEntryId(), kind: 'bot-text', text: hint }]
+      })
+      setIsMenuOpen(true)
+      return
+    }
+
+    const wasFavorite = favoriteIds.includes(placeId)
+    setFavoriteIds((prev) => (wasFavorite ? prev.filter((id) => id !== placeId) : [placeId, ...prev]))
+    try {
+      if (wasFavorite) {
+        await deleteFavorite(token, placeId)
+      } else {
+        await postFavorite(token, placeId)
+      }
+    } catch (err) {
+      // Removing something the server no longer has is already the state we
+      // wanted. Anything else: put the heart back the way it was.
+      if (wasFavorite && err instanceof ApiError && err.status === 404) return
+      setFavoriteIds((prev) => (wasFavorite ? [placeId, ...prev] : prev.filter((id) => id !== placeId)))
+      if (err instanceof ApiError && err.status === 409) pushBotText(t(lang, 'favoritesFull'))
+    }
+  }
+
+  // The favorites as ordinary result cards in the chat, nearest to the active
+  // location first - so distance, travel time, the map and share all work on
+  // them exactly as on any other result.
+  async function handleShowFavorites() {
+    dismissUndo()
+    retireStarter()
+    const token = accessTokenRef.current
+    if (!token) return
+    const origin = activeLocation
+    if (!origin) {
+      pushBotText(t(lang, 'favoritesNeedLocation'))
+      return
+    }
+    try {
+      const data = await getFavoritePlaces(token, origin.lat, origin.lon)
+      if (data.places.length === 0) {
+        pushBotText(t(lang, 'favoritesNoneYet'))
+        return
+      }
+      const entryId = makeEntryId()
+      setEntries((prev) => [
+        ...prev,
+        { id: makeEntryId(), kind: 'bot-text', text: t(lang, 'favoritesIntro') },
+        {
+          id: entryId,
+          kind: 'places',
+          places: data.places.map((place, i) => ({ ...place, etaPending: i < ETA_BATCH_LIMIT })),
+          origin,
+          mode,
+          category: null,
+          dietaryTag: null,
+          priceTier: null,
+          offset: 0,
+          hasMore: false,
+          isFavorites: true,
+        },
+      ])
+      void requestEtas(entryId, origin, mode, data.places.slice(0, ETA_BATCH_LIMIT))
+    } catch {
+      pushBotText(t(lang, 'chatNetworkError'))
     }
   }
 
@@ -258,6 +368,7 @@ export default function App() {
     accessTokenRef.current = null
     setAuthUser(null)
     setSavedAddresses([])
+    setFavoriteIds([])
     return true
   }
 
@@ -266,6 +377,7 @@ export default function App() {
     accessTokenRef.current = null
     setAuthUser(null)
     setSavedAddresses([])
+    setFavoriteIds([])
     await postLogout().catch(() => {
       // Already signed out client-side regardless - a failed request here
       // just means the server-side session lingers until its own expiry.
@@ -451,7 +563,7 @@ export default function App() {
   } | null {
     for (let i = entries.length - 1; i >= 0; i--) {
       const entry = entries[i]
-      if (entry.kind === 'places') {
+      if (entry.kind === 'places' && !entry.isFavorites) {
         return {
           category: entry.category,
           dietaryTag: entry.dietaryTag,
@@ -640,6 +752,7 @@ export default function App() {
   // unmediated, same reasoning as place names never being translated.
   const activeLocation = locationMode === 'manual' ? manualLocation : liveLocation
   const chatDisabled = !activeLocation || isWaitingForReply
+  const favoriteIdSet = new Set(favoriteIds)
   const canChangeManualLocation = locationMode === 'manual' && manualLocation !== null && !showLocationForm
   // Matches the server's own 4-decimal rounding, so "already saved" agrees
   // with what the backend would treat as the same spot.
@@ -686,6 +799,10 @@ export default function App() {
         onUseSavedAddress={(address) => handleLocationSet({ lat: address.lat, lon: address.lon }, address.label)}
         onRemoveSavedAddress={handleRemoveSavedAddress}
         onDeleteAccount={handleDeleteAccount}
+        isMenuOpen={isMenuOpen}
+        onMenuOpenChange={setIsMenuOpen}
+        favoriteCount={favoriteIds.length}
+        onShowFavorites={handleShowFavorites}
       />
       <ChatLog
         greeting={t(lang, 'greeting')}
@@ -704,6 +821,8 @@ export default function App() {
         loadingMoreId={loadingMoreId}
         onPickStarter={handleSend}
         savedAddresses={savedAddresses}
+        favoriteIds={favoriteIdSet}
+        onToggleFavorite={handleToggleFavorite}
         lang={lang}
       />
       {clearedEntries && (

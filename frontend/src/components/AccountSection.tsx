@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, MapPin } from 'lucide-react'
+import { ChevronDown, ChevronUp, Heart, MapPin } from 'lucide-react'
 import { useState } from 'react'
 import { GoogleSignInButton } from './GoogleSignInButton'
 import { t } from '../i18n'
@@ -18,6 +18,8 @@ interface AccountSectionProps {
   // Resolves true once the account is gone (the caller closes the menu),
   // false if it couldn't be deleted - the account is then left untouched.
   onDeleteAccount: () => Promise<boolean>
+  favoriteCount: number
+  onShowFavorites: () => void
 }
 
 // Pure content, no trigger/popover of its own - lives pinned to the bottom
@@ -39,6 +41,8 @@ export function AccountSection({
   onUseSavedAddress,
   onRemoveSavedAddress,
   onDeleteAccount,
+  favoriteCount,
+  onShowFavorites,
 }: AccountSectionProps) {
   // Deleting is two deliberate steps (button -> explicit confirmation), and
   // never one tap away from the sign-out button sitting right above it.
@@ -80,6 +84,20 @@ export function AccountSection({
                 {t(lang, 'signOut')}
               </button>
             </div>
+          </div>
+
+          <div className="saved-addresses">
+            {favoriteCount === 0 ? (
+              <>
+                <p className="account-section-heading">{t(lang, 'favoritesHeading')}</p>
+                <p className="saved-addresses-note">{t(lang, 'favoritesEmpty')}</p>
+              </>
+            ) : (
+              <button type="button" className="side-menu-item" onClick={onShowFavorites}>
+                <Heart size={18} aria-hidden="true" />
+                {t(lang, 'favoritesHeading')} ({favoriteCount})
+              </button>
+            )}
           </div>
 
           <div className="saved-addresses">

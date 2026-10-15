@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
-from fastapi import Cookie, FastAPI, Header, HTTPException, Request, Response
+from fastapi import Cookie, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -266,6 +266,8 @@ def format_place(place: PlaceResult, eta_seconds: float | None = None) -> dict:
     maps_url = f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}"
 
     return {
+        # Stable reference to this exact place (favorites point at it).
+        "id": place.id,
         "name": place.name,
         "category": place.category,
         "distance": distance_str,
@@ -695,4 +697,59 @@ async def delete_saved_address(address_id: str, authorization: str | None = Head
     user_id = await get_current_user_id(authorization)
     if not await db.remove_saved_address(user_id, address_id):
         raise HTTPException(status_code=404, detail="Saved address not found")
+    return {"ok": True}
+
+
+# --- Favorites ----------------------------------------------------------
+# Account-only, like saved addresses. A favorite is just {user, place, when}:
+# nothing about *why* (no notes, no ratings) and nothing visible to anyone but
+# its owner. Shown back as ordinary result cards, nearest first.
+
+
+class FavoriteRequest(BaseModel):
+    place_id: str = Field(min_length=1, max_length=64)
+
+
+@app.get("/api/favorites/ids")
+async def favorite_ids(authorization: str | None = Header(None)):
+    """Just the ids, for drawing the heart state on cards - no location."""
+    user_id = await get_current_user_id(authorization)
+    ids = await db.list_favorite_ids(user_id)
+    if ids is None:
+        raise HTTPException(status_code=401, detail="User no longer exists")
+    return {"ids": ids, "max": db.MAX_FAVORITES}
+
+
+@app.get("/api/favorites")
+async def favorite_places(
+    lat: float = Query(ge=-90, le=90),
+    lon: float = Query(ge=-180, le=180),
+    authorization: str | None = Header(None),
+):
+    user_id = await get_current_user_id(authorization)
+    places = await db.find_favorite_places(user_id, lat, lon)
+    if places is None:
+        raise HTTPException(status_code=401, detail="User no longer exists")
+    return {"places": [format_place(p) for p in places]}
+
+
+@app.post("/api/favorites")
+async def add_favorite(req: FavoriteRequest, response: Response, authorization: str | None = Header(None)):
+    user_id = await get_current_user_id(authorization)
+    status = await db.add_favorite(user_id, req.place_id)
+    if status == "no_user":
+        raise HTTPException(status_code=401, detail="User no longer exists")
+    if status == "no_place":
+        raise HTTPException(status_code=404, detail="Place not found")
+    if status == "full":
+        raise HTTPException(status_code=409, detail="Favorites limit reached")
+    response.status_code = 201 if status == "added" else 200
+    return {"id": req.place_id}
+
+
+@app.delete("/api/favorites/{place_id}")
+async def remove_favorite(place_id: str, authorization: str | None = Header(None)):
+    user_id = await get_current_user_id(authorization)
+    if not await db.remove_favorite(user_id, place_id):
+        raise HTTPException(status_code=404, detail="Favorite not found")
     return {"ok": True}

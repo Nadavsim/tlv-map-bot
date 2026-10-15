@@ -1,5 +1,4 @@
 import { BookmarkPlus, Car, Check, Footprints, LocateFixed, MapPin, Menu } from 'lucide-react'
-import { useState } from 'react'
 import { SideMenu } from './SideMenu'
 import { t } from '../i18n'
 import type { AuthUser, Lang, LocationMode, SavedAddress, Theme, TransportMode } from '../types'
@@ -30,6 +29,12 @@ interface HeaderProps {
   onUseSavedAddress: (address: SavedAddress) => void
   onRemoveSavedAddress: (id: string) => void
   onDeleteAccount: () => Promise<boolean>
+  // Owned by App (not here) so a signed-out tap on a card's heart can open
+  // the menu to the sign-in button.
+  isMenuOpen: boolean
+  onMenuOpenChange: (open: boolean) => void
+  favoriteCount: number
+  onShowFavorites: () => void
 }
 
 export function Header({
@@ -56,9 +61,11 @@ export function Header({
   onUseSavedAddress,
   onRemoveSavedAddress,
   onDeleteAccount,
+  isMenuOpen,
+  onMenuOpenChange,
+  favoriteCount,
+  onShowFavorites,
 }: HeaderProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-
   return (
     <header>
       <div className="header-top">
@@ -70,7 +77,7 @@ export function Header({
           <button
             type="button"
             className="icon-button"
-            onClick={() => setIsMenuOpen(true)}
+            onClick={() => onMenuOpenChange(true)}
             aria-label={t(lang, 'menuLabel')}
           >
             <Menu size={20} aria-hidden="true" />
@@ -79,7 +86,7 @@ export function Header({
       </div>
       <SideMenu
         isOpen={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
+        onClose={() => onMenuOpenChange(false)}
         lang={lang}
         onLangChange={onLangChange}
         theme={theme}
@@ -94,6 +101,8 @@ export function Header({
         onUseSavedAddress={onUseSavedAddress}
         onRemoveSavedAddress={onRemoveSavedAddress}
         onDeleteAccount={onDeleteAccount}
+        favoriteCount={favoriteCount}
+        onShowFavorites={onShowFavorites}
       />
       <div className="location-status-row">
         <p className="location-status">{locationStatus}</p>

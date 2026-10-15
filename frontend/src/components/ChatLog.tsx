@@ -4,7 +4,7 @@ import { ChatBubble } from './ChatBubble'
 import { PlaceCards } from './PlaceCards'
 import { TypingIndicator } from './TypingIndicator'
 import { LocationForm } from './LocationForm'
-import type { Coordinates, Lang, SavedAddress } from '../types'
+import type { Coordinates, Lang, Place, SavedAddress } from '../types'
 
 interface ChatLogProps {
   greeting: string
@@ -20,6 +20,8 @@ interface ChatLogProps {
   loadingMoreId: string | null
   onPickStarter: (prompt: string) => void
   savedAddresses: SavedAddress[]
+  favoriteIds: ReadonlySet<string>
+  onToggleFavorite: (place: Place) => void
   lang: Lang
 }
 
@@ -37,6 +39,8 @@ export function ChatLog({
   loadingMoreId,
   onPickStarter,
   savedAddresses,
+  favoriteIds,
+  onToggleFavorite,
   lang,
 }: ChatLogProps) {
   const logRef = useRef<HTMLElement>(null)
@@ -85,6 +89,8 @@ export function ChatLog({
                 hasMore={entry.hasMore}
                 isLoadingMore={loadingMoreId === entry.id}
                 onShowMore={() => onShowMore(entry.id)}
+                favoriteIds={favoriteIds}
+                onToggleFavorite={onToggleFavorite}
                 lang={lang}
               />
             )

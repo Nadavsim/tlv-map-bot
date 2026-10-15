@@ -6,6 +6,8 @@ import type {
   ChatResponse,
   EtasRequest,
   EtasResponse,
+  FavoriteIdsResponse,
+  FavoritePlacesResponse,
   MorePlacesRequest,
   MorePlacesResponse,
   ResolveLocationResponse,
@@ -129,4 +131,21 @@ export async function deleteSavedAddress(token: string, id: string): Promise<voi
 
 export async function deleteAccount(token: string): Promise<void> {
   await authedJSON<{ ok: boolean }>('DELETE', '/api/auth/me', token)
+}
+
+export function getFavoriteIds(token: string): Promise<FavoriteIdsResponse> {
+  return authedJSON<FavoriteIdsResponse>('GET', '/api/favorites/ids', token)
+}
+
+// The favorites as ordinary result cards, nearest to the given spot first.
+export function getFavoritePlaces(token: string, lat: number, lon: number): Promise<FavoritePlacesResponse> {
+  return authedJSON<FavoritePlacesResponse>('GET', `/api/favorites?lat=${lat}&lon=${lon}`, token)
+}
+
+export async function postFavorite(token: string, placeId: string): Promise<void> {
+  await authedJSON<{ id: string }>('POST', '/api/favorites', token, { place_id: placeId })
+}
+
+export async function deleteFavorite(token: string, placeId: string): Promise<void> {
+  await authedJSON<{ ok: boolean }>('DELETE', `/api/favorites/${encodeURIComponent(placeId)}`, token)
 }

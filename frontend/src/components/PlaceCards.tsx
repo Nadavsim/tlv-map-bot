@@ -16,10 +16,21 @@ interface PlaceCardsProps {
   hasMore: boolean
   isLoadingMore: boolean
   onShowMore: () => void
+  favoriteIds: ReadonlySet<string>
+  onToggleFavorite: (place: Place) => void
   lang: Lang
 }
 
-export function PlaceCards({ places, origin, hasMore, isLoadingMore, onShowMore, lang }: PlaceCardsProps) {
+export function PlaceCards({
+  places,
+  origin,
+  hasMore,
+  isLoadingMore,
+  onShowMore,
+  favoriteIds,
+  onToggleFavorite,
+  lang,
+}: PlaceCardsProps) {
   // Local to this results block (not App state): each results entry has its
   // own map, and nothing outside it needs to know whether it's open.
   const [mapOpen, setMapOpen] = useState(false)
@@ -50,6 +61,8 @@ export function PlaceCards({ places, origin, hasMore, isLoadingMore, onShowMore,
             mapNumber={mapOpen ? i + 1 : undefined}
             isActive={mapOpen && activeIndex === i}
             onSelect={mapOpen ? () => setActiveIndex(i) : undefined}
+            isFavorite={place.id ? favoriteIds.has(place.id) : false}
+            onToggleFavorite={() => onToggleFavorite(place)}
           />
         </div>
       ))}

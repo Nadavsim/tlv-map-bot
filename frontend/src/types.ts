@@ -26,6 +26,9 @@ export interface ChatRequest {
 export type PriceTier = '$' | '$$' | '$$$'
 
 export interface Place {
+  // The place's stable id (what a favorite points at). Always present from
+  // the API; optional only so a card never breaks if one is missing.
+  id?: string | null
   name: string
   category: string
   distance: string
@@ -122,6 +125,15 @@ export interface SavedAddress {
 export interface SavedAddressesResponse {
   addresses: SavedAddress[]
   max: number
+}
+
+export interface FavoriteIdsResponse {
+  ids: string[]
+  max: number
+}
+
+export interface FavoritePlacesResponse {
+  places: Place[]
 }
 
 export interface AuthResponse {

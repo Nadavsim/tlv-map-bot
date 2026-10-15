@@ -8,7 +8,7 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.errors import OperationFailure
+from pymongo.errors import DuplicateKeyError, OperationFailure
 
 from .models import PlaceResult, SavedAddress, User
 from .services import weather
@@ -109,6 +109,11 @@ MAX_SAVED_ADDRESSES = 5
 # privacy measure available - so it's applied at the storage layer itself.
 SAVED_ADDRESS_COORD_DECIMALS = 4
 SAVED_ADDRESS_LABEL_MAX_LENGTH = 80
+
+# A person's favorite places. Bounded so what is stored about one account
+# can't grow without limit on a free-tier database; generous enough that a
+# real person won't hit it (the whole curated list is ~165 places).
+MAX_FAVORITES = 100
 
 # One document per (user, place) pair - a dedicated collection rather than an
 # array on the user document, so "who favorited place X" stays a plain indexed
@@ -318,6 +323,7 @@ def build_geo_pipeline(
     offset: int = 0,
     tag: str | None = None,
     price: str | None = None,
+    place_ids: list | None = None,
 ) -> list[dict]:
     """Pure function (no I/O) so the query shape can be unit tested without a
     real MongoDB connection. category=None means "any category" (surprise me).
@@ -326,7 +332,9 @@ def build_geo_pipeline(
     tag filters to places whose dietary_tags array contains that value -
     Mongo matches an array field against a scalar query value by "contains"
     automatically, no special operator needed. price filters to places whose
-    price_tier is exactly that tier (a place has one, unlike tags)."""
+    price_tier is exactly that tier (a place has one, unlike tags).
+    place_ids restricts the search to those documents (a person's favorites,
+    ordered nearest-first like any other result)."""
     query: dict = {}
     if category:
         query["category"] = category
@@ -334,6 +342,8 @@ def build_geo_pipeline(
         query["dietary_tags"] = tag
     if price:
         query["price_tier"] = price
+    if place_ids is not None:
+        query["_id"] = {"$in": place_ids}
     pipeline = [
         {
             "$geoNear": {
@@ -380,6 +390,12 @@ def deprioritize_unlikely_matches(
     return fine + later
 
 
+def _place_result(doc: dict) -> PlaceResult:
+    """A $geoNear document as a PlaceResult, with Mongo's _id as `id`."""
+    raw_id = doc.get("_id")
+    return PlaceResult(**{**doc, "id": str(raw_id) if raw_id is not None else None})
+
+
 async def find_nearest(
     category: str | None,
     lat: float,
@@ -391,7 +407,7 @@ async def find_nearest(
 ) -> list[PlaceResult]:
     places = get_places_collection()
     pipeline = build_geo_pipeline(category, lat, lon, limit, offset, tag, price)
-    matches = [PlaceResult(**doc) async for doc in places.aggregate(pipeline)]
+    matches = [_place_result(doc) async for doc in places.aggregate(pipeline)]
     current_hour = datetime.now(_TLV_TZ).hour
     is_raining = await weather.is_raining_now(lat, lon)
     return deprioritize_unlikely_matches(matches, current_hour, is_raining)
@@ -532,6 +548,67 @@ async def remove_saved_address(user_id: str, address_id: str) -> bool:
     users = get_users_collection()
     result = await users.update_one({"_id": object_id}, {"$pull": {"saved_addresses": {"id": address_id}}})
     return result.modified_count > 0
+
+
+async def list_favorite_ids(user_id: str) -> list[str] | None:
+    """The place ids a user has favorited (newest first), or None when the
+    user no longer exists - distinct from a real user with no favorites."""
+    if await get_user_by_id(user_id) is None:
+        return None
+    cursor = get_favorites_collection().find({"user_id": ObjectId(user_id)}).sort("created_at", -1)
+    return [str(doc["place_id"]) async for doc in cursor]
+
+
+async def find_favorite_places(user_id: str, lat: float, lon: float) -> list[PlaceResult] | None:
+    """The user's favorites as ordinary results, nearest to (lat, lon) first -
+    the same $geoNear shape every other result uses, so distance, ETA, map and
+    share all work on them unchanged. A favorite whose place has since been
+    removed from the map simply isn't in `places` any more and drops out here
+    (it is a dangling reference, never an error)."""
+    if await get_user_by_id(user_id) is None:
+        return None
+    cursor = get_favorites_collection().find({"user_id": ObjectId(user_id)}, {"place_id": 1})
+    place_ids = [doc["place_id"] async for doc in cursor]
+    if not place_ids:
+        return []
+    pipeline = build_geo_pipeline(None, lat, lon, limit=MAX_FAVORITES, place_ids=place_ids)
+    return [_place_result(doc) async for doc in get_places_collection().aggregate(pipeline)]
+
+
+async def add_favorite(user_id: str, place_id: str) -> str:
+    """"added", "exists" (idempotent - already favorited), "full" (at
+    MAX_FAVORITES), "no_place" (no such place, or a malformed id) or
+    "no_user"."""
+    try:
+        user_oid, place_oid = ObjectId(user_id), ObjectId(place_id)
+    except InvalidId:
+        return "no_place"
+    if await get_user_by_id(user_id) is None:
+        return "no_user"
+    if await get_places_collection().find_one({"_id": place_oid}, {"_id": 1}) is None:
+        return "no_place"
+    favorites = get_favorites_collection()
+    if await favorites.find_one({"user_id": user_oid, "place_id": place_oid}, {"_id": 1}) is not None:
+        return "exists"
+    if await favorites.count_documents({"user_id": user_oid}) >= MAX_FAVORITES:
+        return "full"
+    try:
+        await favorites.insert_one(
+            {"user_id": user_oid, "place_id": place_oid, "created_at": datetime.now(timezone.utc)}
+        )
+    except DuplicateKeyError:
+        # A concurrent tap won the race - the unique index is the real guard.
+        return "exists"
+    return "added"
+
+
+async def remove_favorite(user_id: str, place_id: str) -> bool:
+    try:
+        user_oid, place_oid = ObjectId(user_id), ObjectId(place_id)
+    except InvalidId:
+        return False
+    result = await get_favorites_collection().delete_one({"user_id": user_oid, "place_id": place_oid})
+    return result.deleted_count > 0
 
 
 async def delete_user(user_id: str) -> bool:

@@ -30,6 +30,10 @@ export type ChatEntry =
       priceTier: PriceTier | null
       offset: number
       hasMore: boolean
+      // The "Favorites" view, not a search: it must not count as the previous
+      // query, or "something else" afterwards would continue a search that
+      // never happened.
+      isFavorites?: boolean
     }
 
 let nextId = 0

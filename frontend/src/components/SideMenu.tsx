@@ -21,6 +21,8 @@ interface SideMenuProps {
   onUseSavedAddress: (address: SavedAddress) => void
   onRemoveSavedAddress: (id: string) => void
   onDeleteAccount: () => Promise<boolean>
+  favoriteCount: number
+  onShowFavorites: () => void
 }
 
 // The header's old icon row (language/theme/reset/help, plus the account
@@ -47,6 +49,8 @@ export function SideMenu({
   onUseSavedAddress,
   onRemoveSavedAddress,
   onDeleteAccount,
+  favoriteCount,
+  onShowFavorites,
 }: SideMenuProps) {
   useEffect(() => {
     if (!isOpen) return
@@ -108,6 +112,8 @@ export function SideMenu({
           savedAddresses={savedAddresses}
           onUseSavedAddress={(address) => selectAndClose(() => onUseSavedAddress(address))}
           onRemoveSavedAddress={onRemoveSavedAddress}
+          favoriteCount={favoriteCount}
+          onShowFavorites={() => selectAndClose(onShowFavorites)}
           onDeleteAccount={async () => {
             const ok = await onDeleteAccount()
             if (ok) onClose()

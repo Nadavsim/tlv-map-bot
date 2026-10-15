@@ -53,7 +53,11 @@ class Place(BaseModel):
 
 class PlaceResult(Place):
     """A Place as returned by a $geoNear query - adds the distance in meters
-    that MongoDB computes and attaches to each result."""
+    that MongoDB computes and attaches to each result, and the document's own
+    id (as a string) so a client can refer back to this exact place - favorites
+    point at `places._id`, which sync deliberately keeps stable across renames."""
+
+    id: str | None = None
 
     distance: float
 

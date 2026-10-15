@@ -601,3 +601,210 @@ async def test_delete_user_with_a_malformed_id_touches_nothing(monkeypatch):
 def test_users_schema_describes_saved_addresses_without_any_name_field():
     item = db.USERS_JSON_SCHEMA["properties"]["saved_addresses"]["items"]
     assert set(item["properties"]) == {"id", "label", "lat", "lon"}
+
+
+# --- favorites -----------------------------------------------------------------
+
+_FAV_USER = "64b000000000000000000001"
+_FAV_PLACE = "64b0000000000000000000a1"
+
+
+class _FakeCursor:
+    """Just enough of a Motor cursor: .sort() chains, async iteration."""
+
+    def __init__(self, docs):
+        self._docs = docs
+
+    def sort(self, *args, **kwargs):
+        return self
+
+    def __aiter__(self):
+        async def gen():
+            for doc in self._docs:
+                yield doc
+
+        return gen()
+
+
+def _a_user():
+    from backend.models import User
+
+    return User(google_sub="g-1", email="a@example.com", name="A", created_at=datetime.now(timezone.utc))
+
+
+def test_geo_pipeline_can_be_restricted_to_given_place_ids():
+    ids = ["id-1", "id-2"]
+    pipeline = build_geo_pipeline(None, lat=32.08, lon=34.78, limit=100, place_ids=ids)
+    assert pipeline[0]["$geoNear"]["query"] == {"_id": {"$in": ids}}
+    assert pipeline[-1] == {"$limit": 100}
+
+
+def test_geo_pipeline_without_place_ids_has_no_id_filter():
+    pipeline = build_geo_pipeline("coffee", lat=32.08, lon=34.78, limit=3)
+    assert "_id" not in pipeline[0]["$geoNear"]["query"]
+
+
+def test_place_result_carries_the_documents_id_as_a_string():
+    from bson import ObjectId
+
+    oid = ObjectId()
+    doc = {
+        "_id": oid,
+        "name": "Cafelix",
+        "category": "coffee",
+        "location": {"type": "Point", "coordinates": [34.78, 32.08]},
+        "distance": 120.0,
+    }
+    assert db._place_result(doc).id == str(oid)
+    assert db._place_result({k: v for k, v in doc.items() if k != "_id"}).id is None
+
+
+@pytest.mark.asyncio
+async def test_list_favorite_ids_returns_strings_and_distinguishes_a_missing_user(monkeypatch):
+    from bson import ObjectId
+
+    place_a, place_b = ObjectId(), ObjectId()
+    favorites = MagicMock()
+    favorites.find = MagicMock(return_value=_FakeCursor([{"place_id": place_a}, {"place_id": place_b}]))
+    monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
+
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=None))
+    assert await db.list_favorite_ids(_FAV_USER) is None
+
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=_a_user()))
+    assert await db.list_favorite_ids(_FAV_USER) == [str(place_a), str(place_b)]
+
+
+@pytest.mark.asyncio
+async def test_find_favorite_places_searches_only_the_favorited_ids_nearest_first(monkeypatch):
+    from bson import ObjectId
+
+    place_oid = ObjectId()
+    favorites = MagicMock()
+    favorites.find = MagicMock(return_value=_FakeCursor([{"place_id": place_oid}]))
+    places = MagicMock()
+    places.aggregate = MagicMock(
+        return_value=_FakeCursor(
+            [
+                {
+                    "_id": place_oid,
+                    "name": "Cafelix",
+                    "category": "coffee",
+                    "location": {"type": "Point", "coordinates": [34.78, 32.08]},
+                    "distance": 150.0,
+                }
+            ]
+        )
+    )
+    monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
+    monkeypatch.setattr(db, "get_places_collection", lambda: places)
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=_a_user()))
+
+    results = await db.find_favorite_places(_FAV_USER, 32.07, 34.77)
+
+    assert [r.name for r in results] == ["Cafelix"]
+    assert results[0].id == str(place_oid)
+    pipeline = places.aggregate.call_args.args[0]
+    assert pipeline[0]["$geoNear"]["query"] == {"_id": {"$in": [place_oid]}}
+    assert pipeline[0]["$geoNear"]["near"]["coordinates"] == [34.77, 32.07]
+
+
+@pytest.mark.asyncio
+async def test_find_favorite_places_with_none_saved_does_not_query_places(monkeypatch):
+    favorites = MagicMock()
+    favorites.find = MagicMock(return_value=_FakeCursor([]))
+    places = MagicMock()
+    places.aggregate = MagicMock()
+    monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
+    monkeypatch.setattr(db, "get_places_collection", lambda: places)
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=_a_user()))
+
+    assert await db.find_favorite_places(_FAV_USER, 32.07, 34.77) == []
+    places.aggregate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_find_favorite_places_for_a_deleted_user_is_none(monkeypatch):
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=None))
+    assert await db.find_favorite_places(_FAV_USER, 32.07, 34.77) is None
+
+
+def _fav_collections(monkeypatch, *, place_exists=True, already=False, count=0, insert_error=None, user=True):
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=_a_user() if user else None))
+    places = MagicMock()
+    places.find_one = AsyncMock(return_value={"_id": "x"} if place_exists else None)
+    favorites = MagicMock()
+    favorites.find_one = AsyncMock(return_value={"_id": "y"} if already else None)
+    favorites.count_documents = AsyncMock(return_value=count)
+    favorites.insert_one = AsyncMock(side_effect=insert_error)
+    monkeypatch.setattr(db, "get_places_collection", lambda: places)
+    monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
+    return favorites
+
+
+@pytest.mark.asyncio
+async def test_add_favorite_inserts_a_document_with_object_ids(monkeypatch):
+    from bson import ObjectId
+
+    favorites = _fav_collections(monkeypatch)
+
+    assert await db.add_favorite(_FAV_USER, _FAV_PLACE) == "added"
+    doc = favorites.insert_one.call_args.args[0]
+    assert doc["user_id"] == ObjectId(_FAV_USER) and doc["place_id"] == ObjectId(_FAV_PLACE)
+    assert doc["created_at"].tzinfo is not None
+
+
+@pytest.mark.asyncio
+async def test_add_favorite_is_idempotent(monkeypatch):
+    favorites = _fav_collections(monkeypatch, already=True)
+
+    assert await db.add_favorite(_FAV_USER, _FAV_PLACE) == "exists"
+    favorites.insert_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_add_favorite_treats_a_duplicate_key_race_as_exists(monkeypatch):
+    from pymongo.errors import DuplicateKeyError
+
+    _fav_collections(monkeypatch, insert_error=DuplicateKeyError("dup"))
+
+    assert await db.add_favorite(_FAV_USER, _FAV_PLACE) == "exists"
+
+
+@pytest.mark.asyncio
+async def test_add_favorite_stops_at_the_cap(monkeypatch):
+    favorites = _fav_collections(monkeypatch, count=db.MAX_FAVORITES)
+
+    assert await db.add_favorite(_FAV_USER, _FAV_PLACE) == "full"
+    favorites.insert_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_add_favorite_rejects_unknown_places_users_and_malformed_ids(monkeypatch):
+    favorites = _fav_collections(monkeypatch, place_exists=False)
+    assert await db.add_favorite(_FAV_USER, _FAV_PLACE) == "no_place"
+    assert await db.add_favorite(_FAV_USER, "not-an-object-id") == "no_place"
+
+    favorites = _fav_collections(monkeypatch, user=False)
+    assert await db.add_favorite(_FAV_USER, _FAV_PLACE) == "no_user"
+    favorites.insert_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("deleted,expected", [(1, True), (0, False)])
+async def test_remove_favorite(monkeypatch, deleted, expected):
+    favorites = MagicMock()
+    favorites.delete_one = AsyncMock(return_value=MagicMock(deleted_count=deleted))
+    monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
+
+    assert await db.remove_favorite(_FAV_USER, _FAV_PLACE) is expected
+
+
+@pytest.mark.asyncio
+async def test_remove_favorite_with_a_malformed_id_touches_nothing(monkeypatch):
+    favorites = MagicMock()
+    favorites.delete_one = AsyncMock()
+    monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
+
+    assert await db.remove_favorite(_FAV_USER, "nope") is False
+    favorites.delete_one.assert_not_awaited()
