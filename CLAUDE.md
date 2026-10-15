@@ -132,9 +132,13 @@ privacy page's Hebrew sections) was **read and approved**. Saved addresses:
 now**. Price filtering: **"cheap" means exactly `$`** (no "up to"). Sign-out
 **ends every device** (kept as is). **Account self-deletion stays.**
 Privacy and 404 pages: **improve** (typography ladder - done, see
-`pages.css`). Open questions the curator asked about: self-hosting the
-Nunito font so Google no longer sees visitors' IPs, and keyed/alternative
-map tiles - both pending a go-ahead.
+`pages.css`). **Map tiles: keep the public OSM tiles for now** - the
+on-demand per-results map is light use within OSM's policy; revisit when
+the map-as-home-page is designed (lean: self-hosted Protomaps/PMTiles - no
+third party, no quota; CARTO Dark Matter/Positron is the no-key interim
+if OSM's policy ever becomes a problem). **Open**: self-hosting the Nunito
+font so Google stops seeing every visitor's IP (explained, awaiting a
+go-ahead).
 
 **Now** - all 5 done 2026-09-24, see "Now items shipped" below for the
 full writeup:
