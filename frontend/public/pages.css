@@ -23,7 +23,7 @@ body {
 }
 
 .page {
-  max-width: 560px;
+  max-width: 600px;
   width: 100%;
 }
 
@@ -32,21 +32,33 @@ body {
   margin: auto 0;
 }
 
+/* A real size ladder rather than three near-equal steps: body 1rem, section
+   headings 1.3rem (1.3x), page title 2.1rem (1.6x over a section heading).
+   The standalone pages used to run 0.95 / 1.2 / 1.4rem, which read as one
+   undifferentiated block on the long privacy page. */
 h1 {
-  font-size: 1.4rem;
-  margin: 0 0 0.75rem;
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  margin: 0 0 1rem;
 }
 
 h2 {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   font-weight: 800;
-  margin: 1.75rem 0 0.5rem;
+  line-height: 1.25;
+  margin: 2.25rem 0 0.6rem;
 }
 
 p,
 li {
-  line-height: 1.6;
-  font-size: 0.95rem;
+  line-height: 1.65;
+  font-size: 1rem;
+}
+
+.page.centered h1 {
+  font-size: 2.4rem;
 }
 
 a {

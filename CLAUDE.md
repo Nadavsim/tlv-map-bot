@@ -124,6 +124,18 @@ location mode, and auth core (Google Sign-In + JWT sessions with the
 slide-out account menu) - built, verified live, and in production as of
 2026-09-13.
 
+**Curator decisions, 2026-10-15** (settled - don't re-ask): the Hebrew copy
+written by the assistant (price words, first-visit prompt, saved-address
+and account-deletion strings, "Did you mean", not-found messages, the
+privacy page's Hebrew sections) was **read and approved**. Saved addresses:
+**cap stays at 5**; **no on-device saving for signed-out visitors for
+now**. Price filtering: **"cheap" means exactly `$`** (no "up to"). Sign-out
+**ends every device** (kept as is). **Account self-deletion stays.**
+Privacy and 404 pages: **improve** (typography ladder - done, see
+`pages.css`). Open questions the curator asked about: self-hosting the
+Nunito font so Google no longer sees visitors' IPs, and keyed/alternative
+map tiles - both pending a go-ahead.
+
 **Now** - all 5 done 2026-09-24, see "Now items shipped" below for the
 full writeup:
 - ~~**Trust** - put "one trusted list, not reviews" into the product's own
@@ -235,9 +247,10 @@ call):
   - roughly 4x the entire monthly budget.
 - **Growth** - a static About/story page, same cost pattern as the
   existing privacy/404 pages.
-- **Reliability** - decide on purpose whether sign-out should revoke
+- ~~**Reliability** - decide on purpose whether sign-out should revoke
   every device or just one (currently: every device, via
-  `token_version`) - before Favorites makes staying signed in matter.
+  `token_version`) - before Favorites makes staying signed in matter~~ -
+  **decided 2026-10-15: every device, kept.**
 - **Usability** - session-local "don't suggest what I already navigated
   to" - may end up folded into Favorites instead of built separately.
 - **Trust** - user-suggested new places, with a moderation queue (never
