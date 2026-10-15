@@ -859,16 +859,17 @@ async def test_record_place_report_ignores_unknown_and_malformed_places(monkeypa
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind,expected_query", [
+@pytest.mark.parametrize("kinds,expected_query", [
     (None, {"place_id": {"$in": ["a", "b"]}}),
-    ("wrong_category", {"place_id": {"$in": ["a", "b"]}, "kind": "wrong_category"}),
+    (["wrong_category"], {"place_id": {"$in": ["a", "b"]}, "kind": {"$in": ["wrong_category"]}}),
+    (db.PROBLEM_KINDS, {"place_id": {"$in": ["a", "b"]}, "kind": {"$in": ["closed", "wrong_category"]}}),
 ])
-async def test_clear_place_reports(monkeypatch, kind, expected_query):
+async def test_clear_place_reports(monkeypatch, kinds, expected_query):
     reports = MagicMock()
     reports.delete_many = AsyncMock(return_value=MagicMock(deleted_count=2))
     monkeypatch.setattr(db, "get_place_reports_collection", lambda: reports)
 
-    assert await db.clear_place_reports(["a", "b"], kind=kind) == 2
+    assert await db.clear_place_reports(["a", "b"], kinds=kinds) == 2
     reports.delete_many.assert_awaited_once_with(expected_query)
 
 
@@ -880,3 +881,10 @@ async def test_clear_place_reports_with_nothing_to_clear_does_not_touch_the_data
 
     assert await db.clear_place_reports([]) == 0
     reports.delete_many.assert_not_awaited()
+
+
+def test_an_endorsement_is_not_a_problem_kind():
+    assert "would_return" in db.PLACE_REPORT_KINDS
+    assert "would_return" not in db.PROBLEM_KINDS
+    # The schema validator knows about it too.
+    assert "would_return" in db.PLACE_REPORTS_JSON_SCHEMA["properties"]["kind"]["enum"]

@@ -1,14 +1,15 @@
-"""Lists what visitors have reported about places ("closed" / "wrong
-category"), most-reported first - the curator's view of backend.db's
-`place_reports` collection.
+"""Lists what visitors have told you about places - problems ("closed" /
+"wrong category") and endorsements ("I'd go back") - most first. The
+curator's view of backend.db's `place_reports` collection.
 
     python -m scripts.show_reports                 # production (per .env)
     MONGODB_DB_NAME=tlvbot_staging python -m scripts.show_reports
     python -m scripts.show_reports --dismiss <place_id> [<place_id> ...]
 
-Reports clear themselves when sync sees the map change (a removed place, or a
-pin moved to another layer). `--dismiss` is for the other case: you checked
-and the place is fine as it is, so the reports should stop showing."""
+Problems clear themselves when sync sees the map change (a removed place, or
+a pin moved to another layer). `--dismiss` is for the other case: you checked
+and the place is fine as it is, so its problem reports should stop showing.
+It never touches "I'd go back" counts."""
 
 import argparse
 import asyncio
@@ -21,7 +22,7 @@ load_dotenv()
 
 from backend import db  # noqa: E402
 
-KIND_LABELS = {"closed": "closed", "wrong_category": "wrong category"}
+KIND_LABELS = {"closed": "closed", "wrong_category": "wrong category", "would_return": "would go back"}
 
 
 def build_rows(reports: list[dict], places_by_id: dict) -> list[dict]:
@@ -51,20 +52,30 @@ def build_rows(reports: list[dict], places_by_id: dict) -> list[dict]:
     return rows
 
 
+def _format_row(row: dict) -> str:
+    last = row["last_at"].strftime("%Y-%m-%d") if row["last_at"] else "?"
+    line = (
+        f"  {row['count']:>3}x  {KIND_LABELS.get(row['kind'], row['kind']):<14}  "
+        f"{row['name']} ({row['category']})  last {last}  id={row['place_id']}"
+    )
+    if row["note"]:
+        line += f"  [{row['note']}]"
+    return line
+
+
 def format_rows(rows: list[dict]) -> str:
+    """Two sections - what needs a look, then what people like - each already
+    most-first because build_rows sorted them."""
     if not rows:
         return "No reports."
-    lines = []
-    for row in rows:
-        last = row["last_at"].strftime("%Y-%m-%d") if row["last_at"] else "?"
-        line = (
-            f"{row['count']:>3}x  {KIND_LABELS.get(row['kind'], row['kind']):<14}  "
-            f"{row['name']} ({row['category']})  last {last}  id={row['place_id']}"
-        )
-        if row["note"]:
-            line += f"  [{row['note']}]"
-        lines.append(line)
-    return "\n".join(lines)
+    problems = [row for row in rows if row["kind"] in db.PROBLEM_KINDS]
+    endorsed = [row for row in rows if row["kind"] not in db.PROBLEM_KINDS]
+    sections = []
+    if problems:
+        sections.append("Problems\n" + "\n".join(_format_row(row) for row in problems))
+    if endorsed:
+        sections.append("Would go back\n" + "\n".join(_format_row(row) for row in endorsed))
+    return "\n\n".join(sections)
 
 
 async def show() -> None:
@@ -82,12 +93,14 @@ async def dismiss(place_ids: list[str]) -> None:
             oids.append(ObjectId(raw))
         except InvalidId:
             print(f"Skipping {raw!r}: not a place id.")
-    removed = await db.clear_place_reports(oids)
-    print(f"Dismissed {removed} report row(s).")
+    removed = await db.clear_place_reports(oids, kinds=db.PROBLEM_KINDS)
+    print(f"Dismissed {removed} problem report row(s).")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--dismiss", nargs="+", metavar="PLACE_ID", help="clear all reports for these places")
+    parser.add_argument(
+        "--dismiss", nargs="+", metavar="PLACE_ID", help="clear the problem reports for these places"
+    )
     args = parser.parse_args()
     asyncio.run(dismiss(args.dismiss) if args.dismiss else show())

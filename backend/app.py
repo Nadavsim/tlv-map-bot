@@ -512,18 +512,19 @@ async def etas(request: Request, req: EtaRequest):
 
 class PlaceReportRequest(BaseModel):
     place_id: str = Field(min_length=1, max_length=64)
-    kind: Literal["closed", "wrong_category"]
+    kind: Literal["closed", "wrong_category", "would_return"]
 
 
 @app.post("/api/place-reports")
 @limiter.limit("10/minute;60/day")
 async def report_place(request: Request, req: PlaceReportRequest):
-    """A visitor telling the curator a place is closed or in the wrong
-    category. Open to signed-out visitors on purpose (most visitors have no
-    account) and anonymous on purpose: only the place, the kind and a running
-    count are stored, never who sent it. It changes nothing other visitors
-    see - the list stays the curator's call; this is just a cheaper way for
-    them to hear that a pin has gone stale."""
+    """A visitor telling the curator something about a place: it's closed,
+    it's in the wrong category, or they'd go back. Open to signed-out
+    visitors on purpose (most visitors have no account) and anonymous on
+    purpose: only the place, the kind and a running count are stored, never
+    who sent it. It changes nothing other visitors see - "I'd go back" in
+    particular is private to the curator and never becomes a rating shown to
+    anyone; the list stays the curator's call."""
     status = await db.record_place_report(req.place_id, req.kind)
     if status == "no_place":
         raise HTTPException(status_code=404, detail="Place not found")

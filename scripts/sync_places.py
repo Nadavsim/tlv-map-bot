@@ -105,7 +105,7 @@ async def sync() -> None:
             if existing.get("category") != validated.category:
                 # The pin was moved to another layer: the "wrong category"
                 # reports about it have been acted on.
-                await clear_place_reports([existing["_id"]], kind="wrong_category")
+                await clear_place_reports([existing["_id"]], kinds=["wrong_category"])
             await collection.update_one(
                 {"_id": existing["_id"]},
                 {

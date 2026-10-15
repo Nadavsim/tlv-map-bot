@@ -137,15 +137,18 @@ FAVORITES_JSON_SCHEMA = {
     },
 }
 
-# "This place is closed" / "wrong category" - what a visitor tells the curator
-# about a place. One document per (place, kind) holding a running count, not
-# one per report: growth is bounded by (places x 2), a pile of identical
-# reports reads as a number instead of a wall of rows, and nothing about who
-# sent one is kept - the endpoint is open to signed-out visitors and the
-# privacy page promises exactly that. Reports never change what other visitors
-# see; they only feed curation (see scripts/show_reports.py), and sync clears
-# them once the map has been changed (sync_places.py).
-PLACE_REPORT_KINDS = ("closed", "wrong_category")
+# What a visitor tells the curator about a place: that it's closed, that it's
+# in the wrong category (problems - cleared once the map is changed), or that
+# they'd go back (an endorsement - private to the curator, never a rating shown
+# to anyone else, and it survives map edits unless the place itself is gone).
+# One document per (place, kind) holding a running count, not one per report:
+# growth is bounded by (places x kinds), a pile of identical reports reads as
+# a number instead of a wall of rows, and nothing about who sent one is kept -
+# the endpoint is open to signed-out visitors and the privacy page promises
+# exactly that. Nothing here changes what other visitors see; it only feeds
+# curation (see scripts/show_reports.py and sync_places.py).
+PROBLEM_KINDS = ("closed", "wrong_category")
+PLACE_REPORT_KINDS = PROBLEM_KINDS + ("would_return",)
 PLACE_REPORTS_JSON_SCHEMA = {
     "bsonType": "object",
     "required": ["place_id", "kind", "count", "first_at", "last_at"],
@@ -668,15 +671,17 @@ async def record_place_report(place_id: str, kind: str) -> str:
     return "recorded"
 
 
-async def clear_place_reports(place_ids: list, kind: str | None = None) -> int:
-    """Removes the reports about these places (ObjectIds), optionally only one
-    kind. Used by sync once the map change they asked for has happened, and by
-    the curator's dismiss command. Returns how many were removed."""
+async def clear_place_reports(place_ids: list, kinds=None) -> int:
+    """Removes the reports about these places (ObjectIds), optionally only the
+    given kinds (None = every kind). Used by sync once the map change they
+    asked for has happened (or the place is gone), and by the curator's
+    dismiss command - which only ever clears problems, never endorsements.
+    Returns how many were removed."""
     if not place_ids:
         return 0
     query: dict = {"place_id": {"$in": list(place_ids)}}
-    if kind is not None:
-        query["kind"] = kind
+    if kinds is not None:
+        query["kind"] = {"$in": list(kinds)}
     result = await get_place_reports_collection().delete_many(query)
     return result.deleted_count
 

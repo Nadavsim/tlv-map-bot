@@ -1,4 +1,4 @@
-import { Banknote, Camera, Clock, Flag, Heart, Navigation, Umbrella } from 'lucide-react'
+import { Banknote, Camera, Clock, Heart, MessageCircle, Navigation, Umbrella } from 'lucide-react'
 import { useState } from 'react'
 import { postPlaceReport } from '../api'
 import { t } from '../i18n'
@@ -36,11 +36,16 @@ export function PlaceCard({
   // a dialog. 'sent' is final for this card for as long as it's on screen.
   const [reportStep, setReportStep] = useState<'idle' | 'choosing' | 'sending' | 'failed' | 'sent'>('idle')
 
+  // What was sent, so the thank-you can match it ("I'd go back" is good news,
+  // the other two aren't).
+  const [sentKind, setSentKind] = useState<ReportKind | null>(null)
+
   async function sendReport(kind: ReportKind) {
     if (!place.id) return
     setReportStep('sending')
     try {
       await postPlaceReport(place.id, kind)
+      setSentKind(kind)
       setReportStep('sent')
     } catch {
       setReportStep('failed')
@@ -164,7 +169,7 @@ export function PlaceCard({
               setReportStep('choosing')
             }}
           >
-            <Flag size={14} aria-hidden="true" />
+            <MessageCircle size={14} aria-hidden="true" />
           </button>
         )}
       </div>
@@ -177,6 +182,9 @@ export function PlaceCard({
         >
           <p className="report-prompt">{t(lang, 'reportPrompt')}</p>
           <div className="report-options">
+            <button type="button" disabled={reportStep === 'sending'} onClick={() => sendReport('would_return')}>
+              {t(lang, 'reportWouldReturn')}
+            </button>
             <button type="button" disabled={reportStep === 'sending'} onClick={() => sendReport('closed')}>
               {t(lang, 'reportClosed')}
             </button>
@@ -201,7 +209,7 @@ export function PlaceCard({
       )}
       {reportStep === 'sent' && (
         <p className="report-thanks" role="status">
-          {t(lang, 'reportThanks')}
+          {t(lang, sentKind === 'would_return' ? 'reportThanksWouldReturn' : 'reportThanks')}
         </p>
       )}
     </div>

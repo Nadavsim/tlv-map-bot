@@ -89,7 +89,7 @@ async def _run_sync(monkeypatch, *, stored_category, new_category, stale_ids=())
 async def test_sync_clears_wrong_category_reports_when_the_category_changed(monkeypatch):
     clear_mock = await _run_sync(monkeypatch, stored_category="coffee", new_category="bakery")
 
-    clear_mock.assert_awaited_once_with(["place-1"], kind="wrong_category")
+    clear_mock.assert_awaited_once_with(["place-1"], kinds=["wrong_category"])
 
 
 @pytest.mark.asyncio

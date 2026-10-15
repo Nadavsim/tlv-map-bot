@@ -1858,6 +1858,18 @@ def test_place_report_is_open_to_signed_out_visitors_and_stores_no_identity(monk
     record_mock.assert_awaited_once_with("64b0000000000000000000a1", "closed")
 
 
+def test_i_would_go_back_is_accepted_the_same_anonymous_way(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    record_mock = AsyncMock(return_value="recorded")
+    monkeypatch.setattr(db, "record_place_report", record_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/place-reports", json={"place_id": "64b0000000000000000000a1", "kind": "would_return"})
+
+    assert resp.status_code == 200
+    record_mock.assert_awaited_once_with("64b0000000000000000000a1", "would_return")
+
+
 def test_place_report_for_an_unknown_place_is_404(monkeypatch):
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
     monkeypatch.setattr(db, "record_place_report", AsyncMock(return_value="no_place"))

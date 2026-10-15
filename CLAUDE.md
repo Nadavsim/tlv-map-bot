@@ -215,7 +215,7 @@ call):
   above is locked in~~ - **built 2026-10-15, verified locally against the
   staging database; not yet pushed** - see "Next-horizon items shipped"
   below.
-- **Trust** - a private "I'd go back" signal, visible only to the
+- ~~**Trust** - a private "I'd go back" signal, visible only to the
   curator - the user's explicit 2026-09-24 call on the open "Ratings"
   question this review raised: not public star ratings (risks the
   product's whole "curated, not crowdsourced" identity - a friend
@@ -224,7 +224,8 @@ call):
   signal that feeds curation the same way the closed-place feedback
   action does, without ever becoming a crowd signal shown to other users.
   Not blocked on anything, so pulled forward into Next once the call was
-  made.
+  made~~ - **built 2026-10-15, verified locally against the staging
+  database; not yet pushed** - see "Next-horizon items shipped" below.
 
 **Later** (needs a real decision first, or is a bigger technical bet):
 - **Usability** - two-person / meet-in-the-middle search, reusing the
@@ -1671,6 +1672,9 @@ serving. (The map view itself was added to the Later horizon above,
       cleared while another place's "closed" report stayed. A "closed"
       report on a place you decide is fine has nothing to clear it, which
       is what the dismiss command is for.
+    - *(Superseded in part by "I'd go back" below: the card button is now a
+      speech bubble opening a three-option menu, and the report kinds and
+      `--dismiss` semantics there replace what is described here.)*
     - **Reading them**: `python -m scripts.show_reports` (production per
       `.env`; prefix `MONGODB_DB_NAME=tlvbot_staging` for staging) lists
       them most-reported first with the place's current name/category and a
@@ -1696,6 +1700,58 @@ serving. (The map view itself was added to the Later horizon above,
       was cleaned afterwards (and re-seeded by the sync run: 167 places).
       **Not covered**: Hebrew/RTL rendering of the panel, light theme, a real
       phone, and the per-IP rate limit in practice (disabled in tests).
+
+  - **"I'd go back"** (2026-10-15, built and verified locally against
+    `tlvbot_staging`; **committed on `staging`, not pushed**). The private
+    signal the Ratings decision resolved into - built as a third option in
+    the same card menu as the problem reports rather than as another pill:
+    the card's small button (now a speech bubble, was a flag) opens "Tell me
+    about this place" with **I'd go back / It's closed / Wrong category**.
+    - **Design defaults, flagged for the curator**: same infrastructure and
+      the same anonymity as the problem reports (open to signed-out visitors,
+      no identity, per-IP rate limit) - a third `kind`, `would_return`, in
+      `place_reports`. It is **never displayed to anyone**: no count on a
+      card, no badge, no sort effect - only `scripts.show_reports` shows it
+      ("Would go back" section, after "Problems"). Positive option listed
+      first.
+    - **Semantics that differ from problems** (each checked on the real
+      database): a category change in sync does **not** clear it (a place you
+      moved to another layer is still one people would go back to; only
+      `wrong_category` clears), `--dismiss` clears **problems only** so an
+      endorsement can't be wiped by dismissing a "closed" report on the same
+      place, and it goes away only when the place itself leaves the map.
+      `db.clear_place_reports` therefore takes `kinds` (was a single `kind`),
+      and `db.PROBLEM_KINDS` names the two that clear.
+    - **It counts taps, not people.** No identity means one person can send it
+      several times; for "which pins are loved" that is arguably fine (coming
+      back and tapping again is itself a signal), but it is not a headcount.
+      An account-based version (dedupe per person, like favorites) was
+      considered and not built: far fewer signals from a cohort that mostly
+      doesn't sign in, for a number that only the curator ever sees.
+    - **Related, deliberately not done**: favorites already give a per-place
+      "someone cares" signal (a `favorites` row per person), and a
+      listing of the most-saved places would be one query. Not added because
+      the privacy page promises a favorite is visible only to the person who
+      saved it - aggregating them for the curator would need that sentence
+      changed first. Worth a decision if "I'd go back" turns out too sparse.
+    - **Copy**: English "Tell me about this place" (the bot already speaks as
+      the curator in first person), "Glad to hear it - noted." Hebrew
+      `שווה לחזור` rather than `הייתי חוזר` - the latter is gendered and the
+      app can't know the user's gender; `ספר לי על המקום הזה`,
+      `שמח לשמוע - נרשם.`. Written by me, **not reviewed by the curator**.
+      The privacy page's section was renamed "Telling the curator about a
+      place" (Hebrew `לספר למנהל הרשימה על מקום`) and now covers all three,
+      stating that "I'd go back" is never a rating other people see.
+    - **Verified**: 4 more backend tests (473 total) - the new kind through the
+      endpoint, endorsements vs problems in the kinds, `clear` with a kinds
+      filter, and the script's sections. On the real staging cluster: the
+      schema validator now lists `would_return` (the startup `collMod`
+      applied); in the real UI the menu shows three options and each thank-you
+      matches its kind; a repeat tap counted 2; the listing prints Problems
+      then Would go back; dismissing a place cleared its problem and left its
+      endorsement; a junk category + real sync left the endorsement in
+      place. Staging reports were wiped afterwards. **Not covered**:
+      Hebrew/RTL rendering of the menu, light theme, a real phone.
 
 ### Later-horizon items shipped
 

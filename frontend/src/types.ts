@@ -25,8 +25,9 @@ export interface ChatRequest {
 
 export type PriceTier = '$' | '$$' | '$$$'
 
-// What a visitor can tell the curator about a place.
-export type ReportKind = 'closed' | 'wrong_category'
+// What a visitor can tell the curator about a place: two problems and one
+// endorsement. Anonymous, and none of it is ever shown to other visitors.
+export type ReportKind = 'closed' | 'wrong_category' | 'would_return'
 
 export interface Place {
   // The place's stable id (what a favorite points at). Always present from

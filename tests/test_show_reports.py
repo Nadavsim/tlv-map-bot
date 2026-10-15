@@ -57,5 +57,18 @@ def test_format_rows():
     assert "id=a" in text
 
 
+def test_endorsements_get_their_own_section_after_the_problems():
+    reports = [
+        _report("a", "would_return", 5, 10),
+        _report("b", "closed", 1, 10),
+    ]
+    places = {"a": {"name": "Loved", "category": "coffee"}, "b": {"name": "Shut", "category": "coffee"}}
+
+    text = format_rows(build_rows(reports, places))
+
+    assert text.index("Problems") < text.index("Shut") < text.index("Would go back") < text.index("Loved")
+    assert "would go back" in text
+
+
 def test_format_rows_when_empty():
     assert format_rows([]) == "No reports."
