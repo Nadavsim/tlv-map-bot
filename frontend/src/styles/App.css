@@ -494,6 +494,9 @@ header h1 svg {
 }
 
 .place-card .category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   background: var(--chip-bg);
   color: var(--chip-fg);
   font-size: 0.75rem;
@@ -736,6 +739,12 @@ header h1 svg {
   color: var(--muted);
   font-size: 0.78rem;
   text-decoration: underline;
+}
+
+.app-footer-sep {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 0 0.5rem;
 }
 
 .undo-toast {

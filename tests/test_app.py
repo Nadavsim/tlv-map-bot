@@ -1901,3 +1901,18 @@ def test_place_report_rejects_invalid_bodies(monkeypatch, body):
 
     assert resp.status_code == 422
     record_mock.assert_not_awaited()
+
+
+# --- static pages --------------------------------------------------------------
+
+
+@pytest.mark.parametrize("path,marker", [("/about", "About TLV Bot"), ("/privacy", "Privacy Policy")])
+def test_static_pages_are_served_at_clean_urls(monkeypatch, path, marker):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        resp = client.get(path)
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/html")
+    assert marker in resp.text

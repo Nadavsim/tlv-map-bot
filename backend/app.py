@@ -329,6 +329,12 @@ async def privacy():
     return FileResponse(BASE_DIR / "static" / "privacy.html")
 
 
+@app.get("/about")
+async def about():
+    # Same shape as /privacy: a static, bilingual page, clean root-level URL.
+    return FileResponse(BASE_DIR / "static" / "about.html")
+
+
 async def _count_location_outcome(key: str) -> None:
     """Best-effort anonymous counter (see db.LOCATION_UNRESOLVED_KEY) - a
     database hiccup must never turn a "not found" into an error."""

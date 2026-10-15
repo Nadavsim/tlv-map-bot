@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { postPlaceReport } from '../api'
 import { t } from '../i18n'
 import type { Lang, Place, ReportKind } from '../types'
+import { CategoryIcon } from './CategoryIcon'
 
 // "23" -> "23:00" - the raw hour this app stores/sends, formatted the one
 // way a chip actually needs to show it.
@@ -71,7 +72,10 @@ export function PlaceCard({
         {place.name}
       </div>
       <div className="meta">
-        <span className="category-chip">{place.category}</span>
+        <span className="category-chip">
+          <CategoryIcon category={place.category} />
+          {place.category}
+        </span>
         {place.price_tier && (
           // A distinct icon (not shared with category/tag chips) so it
           // reads as a different kind of fact at a glance, not another tag.
