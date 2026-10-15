@@ -258,8 +258,9 @@ call):
   precomputed embeddings, in-process cosine similarity. Deliberately
   **not** MongoDB Atlas Vector Search, which alone needs an M10+ cluster
   - roughly 4x the entire monthly budget.
-- **Growth** - a static About/story page, same cost pattern as the
-  existing privacy/404 pages.
+- ~~**Growth** - a static About/story page, same cost pattern as the
+  existing privacy/404 pages~~ - **built 2026-10-15, committed on
+  `staging`, not yet pushed** - see "Later-horizon items shipped" below.
 - **Trust** - a daily "nudge" for place reports (curator's idea,
   2026-10-15; deferred on purpose): an email digest of
   `scripts.show_reports`, **sent from the existing daily GitHub Actions
@@ -290,12 +291,14 @@ call):
   you asked about" follow-up habit in Next with a real submission flow,
   once that outgrows a few close friends.
 
-Also still open, carried over unchanged from "Visual upgrades" below:
-category icons on the result chips, and generating a formal `DESIGN.md`.
-Neither was in scope for the three-perspective review, so they're not yet
-placed on a horizon - revisit alongside whichever theme they end up
-serving. (The map view itself was added to the Later horizon above,
-2026-09-24, at the user's explicit request.)
+The two loose ends carried over from "Visual upgrades" below - category
+icons on the result chips, and a formal `DESIGN.md` - were closed on
+2026-10-15 (see "Later-horizon items shipped"). Of the Later horizon, what
+is left is either blocked on the curator (the daily report nudge needs an
+email credential), a real design decision (two-person search, the map as
+home page), or deliberately not worth building yet (semantic search,
+user-suggested places, "don't suggest what I already navigated to" -
+see the note on that last one in the shipped entry).
 
 ## To-do list
 
@@ -1923,6 +1926,56 @@ serving. (The map view itself was added to the Later horizon above,
     one. Also `static/` must exist (run `npm run build`) before `pytest`
     will even collect `test_app.py`, since the app mounts it at import.
 
+- **About page, category icons, `DESIGN.md`** (2026-10-15, the three
+  "easy and immediate" items from reviewing the Later horizon; built and
+  verified locally against `tlvbot_staging`, **committed on `staging`, not
+  pushed**).
+  - **About page**: `frontend/public/about.html`, served at `/about` the
+    same way as `/privacy` (static, bilingual, `noindex`, shared
+    `pages.css`), linked from the footer next to Privacy ("About · Privacy").
+    Written in the curator's first-person voice from copy that already
+    existed (the greeting, the "since my teens" line, the Goals section) -
+    no new biographical claims. Stores nothing, so no `privacy.html`
+    change. **Hebrew and English were written by me and are for the
+    curator to edit** - it is the one page where the words are really theirs.
+    Consistent with the standing "no landing page for strangers" guardrail:
+    it is footer-linked only and not search-indexed.
+  - **Category icons**: `frontend/src/components/CategoryIcon.tsx` maps the
+    ten current categories to lucide icons (coffee -> Coffee, burger ->
+    Hamburger, wine bar -> Wine, italian -> Wheat, japanese -> Fish, thai ->
+    Soup, steakhouse -> Beef, mexican -> Flame, pizza -> Pizza); anything
+    else, including `miscellaneous`, gets a generic Utensils. Categories are
+    free-form My Maps layer names, so **a new layer shows the generic icon
+    until an entry is added to that one map** - deliberate, instead of
+    guessing. A first version computed the component with a function call
+    inside render and lint caught it (`react/static-components`); it is now
+    a small component doing a plain lookup.
+  - **`DESIGN.md`** (project root) plus the sidecar
+    `.impeccable/design.json` (untracked, like the other `.impeccable/`
+    files): generated in the skill's scan mode from `theme.css`,
+    `App.css` and the shipped components, with three creative calls made by
+    the curator - North Star **"The Friend's List"**, depth **soft ambient
+    lift**, components **soft, tactile pills**. Day tokens use plain names
+    and night tokens a `-night` suffix (the frontmatter can't hold two
+    values per key); at runtime both are the CSS variables. There is **no
+    `PRODUCT.md`** - the skill's context loader reports that and proposes
+    `/impeccable init`; not run, since `DESIGN.md` doesn't need it and the
+    product context already lives in this file. **Maintenance**: if
+    `theme.css` or the component styles change, re-run the document step -
+    the file is derived, not authoritative over the CSS.
+  - **Considered and not built**: "don't suggest what I already navigated
+    to". Paging is offset-based (`$skip`), so excluding places mid-
+    conversation shifts the window and "Show more" would repeat or skip
+    results; and it overlaps with Favorites. If it is ever wanted, the
+    clean shape is a keyset/`$nin` approach with the offset recomputed,
+    not a bolt-on filter.
+  - **Verified**: 2 more backend tests (475 total: `/about` and `/privacy`
+    served at clean URLs as HTML). In the real UI against the staging
+    data: burger / japanese / wine bar / miscellaneous chips rendered
+    their expected icons (and the generic fallback), the footer link, and
+    the About page in both languages at 420px with no horizontal overflow.
+    **Not covered**: light theme for the icons, Hebrew chips, a real phone.
+
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
   tradeoff vs. the free OSRM walk/drive ETAs already in place)
@@ -2046,11 +2099,9 @@ filtering) - revisit once favorites/the user system make session-level
 state worth adding.
 
 ### Visual upgrades
-- Category icons on the chips, and generating a formal `DESIGN.md`, are
-  still open - not part of the three-perspective review's scope, so
-  tracked as a loose end under "## Roadmap" above rather than placed on a
-  horizon yet. (Map view has its own entry under "## Roadmap" -> Later,
-  added 2026-09-24.)
+- Category icons on the chips, and generating a formal `DESIGN.md` - done
+  2026-10-15, see "Later-horizon items shipped". (Map view has its own
+  entry under "## Roadmap" -> Later, added 2026-09-24.)
 - "Plan ahead for the header before it's forced" (2026-09-11) - resolved
   2026-09-13: the slide-out menu drawer (see "Bigger builds - user
   system" below) replaced the whole header icon row with two fixed
