@@ -3,6 +3,37 @@
    app's strict style-src CSP (self + Google Fonts only, no 'unsafe-inline')
    covers these pages too without an exception. */
 
+/* Light by default; dark for a dark OS preference unless the visitor picked
+   light in the app, and always dark when they picked dark there (page-theme.js
+   copies that choice onto <html data-theme>). Same precedence as the app's
+   own theme.css. */
+:root {
+  color-scheme: light dark;
+  --page-bg: #fff8f2;
+  --page-fg: #2a1b12;
+  --page-accent: #c23f19;
+  --page-accent-fg: #ffffff;
+  --page-border: #f0dccb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --page-bg: #15161a;
+    --page-fg: #f2f2ed;
+    --page-accent: #c9ff3d;
+    --page-accent-fg: #15161a;
+    --page-border: #2c2e36;
+  }
+}
+
+:root[data-theme='dark'] {
+  --page-bg: #15161a;
+  --page-fg: #f2f2ed;
+  --page-accent: #c9ff3d;
+  --page-accent-fg: #15161a;
+  --page-border: #2c2e36;
+}
+
 body {
   margin: 0;
   min-height: 100dvh;
@@ -11,15 +42,8 @@ body {
   align-items: center;
   padding: 2.5rem 1.25rem;
   font-family: 'Nunito', system-ui, sans-serif;
-  background: #fff8f2;
-  color: #2a1b12;
-}
-
-@media (prefers-color-scheme: dark) {
-  body {
-    background: #15161a;
-    color: #f2f2ed;
-  }
+  background: var(--page-bg);
+  color: var(--page-fg);
 }
 
 .page {
@@ -62,13 +86,7 @@ li {
 }
 
 a {
-  color: #c23f19;
-}
-
-@media (prefers-color-scheme: dark) {
-  a {
-    color: #c9ff3d;
-  }
+  color: var(--page-accent);
 }
 
 .button {
@@ -76,29 +94,16 @@ a {
   margin-top: 1.25rem;
   padding: 0.7rem 1.3rem;
   border-radius: 999px;
-  background: #c23f19;
-  color: #ffffff;
+  background: var(--page-accent);
+  color: var(--page-accent-fg);
   text-decoration: none;
   font-weight: 800;
 }
 
-@media (prefers-color-scheme: dark) {
-  .button {
-    background: #c9ff3d;
-    color: #15161a;
-  }
-}
-
 hr {
   border: none;
-  border-top: 1.5px solid #f0dccb;
+  border-top: 1.5px solid var(--page-border);
   margin: 2.5rem 0;
-}
-
-@media (prefers-color-scheme: dark) {
-  hr {
-    border-top-color: #2c2e36;
-  }
 }
 
 [dir='rtl'] {

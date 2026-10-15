@@ -1963,6 +1963,21 @@ see the note on that last one in the shipped entry).
     product context already lives in this file. **Maintenance**: if
     `theme.css` or the component styles change, re-run the document step -
     the file is derived, not authoritative over the CSS.
+  - **Follow-up fix (same day, reported by the curator on a real phone):
+    the About, Privacy and 404 pages ignored the app's light/dark toggle** -
+    `pages.css` only read the OS `prefers-color-scheme`, so a phone set to
+    dark showed those pages dark even with the app on light. They now follow
+    the app's saved choice: `frontend/public/page-theme.js` (an external
+    script - the CSP has no inline scripts - loaded first in each page's
+    `<head>`, so no flash) copies `localStorage['tlv-bot-theme']` onto
+    `<html data-theme>`, and `pages.css` uses variables with the same
+    precedence as `theme.css` (OS dark unless the visitor picked light;
+    always dark when they picked dark). Verified in a browser across OS
+    light/dark x no choice/light/dark. **A new standalone page must include
+    the script** - a test asserts the three existing pages do.
+    This had been wrong since the 404/privacy pages were written
+    (2026-09-11); the type-scale pass and the About page just made it
+    visible.
   - **Considered and not built**: "don't suggest what I already navigated
     to". Paging is offset-based (`$skip`), so excluding places mid-
     conversation shifts the window and "Show more" would repeat or skip

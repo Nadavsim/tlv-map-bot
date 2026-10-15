@@ -1916,3 +1916,21 @@ def test_static_pages_are_served_at_clean_urls(monkeypatch, path, marker):
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
     assert marker in resp.text
+
+
+def test_standalone_pages_follow_the_apps_theme_choice():
+    """About, Privacy and 404 are static pages outside the React app, so they
+    only know the visitor's light/dark choice through page-theme.js. A new page
+    that forgets the script would silently follow the OS setting only."""
+    from pathlib import Path
+
+    public = Path(__file__).resolve().parent.parent / "frontend" / "public"
+    for page in ("about.html", "privacy.html", "404.html"):
+        assert '<script src="/static/page-theme.js"></script>' in (public / page).read_text(encoding="utf-8"), page
+
+    script = (public / "page-theme.js").read_text(encoding="utf-8")
+    assert "tlv-bot-theme" in script and "data-theme" in script
+
+    css = (public / "pages.css").read_text(encoding="utf-8")
+    assert ":root[data-theme='dark']" in css
+    assert ":root:not([data-theme='light'])" in css
