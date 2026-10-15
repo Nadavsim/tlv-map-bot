@@ -136,9 +136,13 @@ Privacy and 404 pages: **improve** (typography ladder - done, see
 on-demand per-results map is light use within OSM's policy; revisit when
 the map-as-home-page is designed (lean: self-hosted Protomaps/PMTiles - no
 third party, no quota; CARTO Dark Matter/Positron is the no-key interim
-if OSM's policy ever becomes a problem). **Open**: self-hosting the Nunito
-font so Google stops seeing every visitor's IP (explained, awaiting a
-go-ahead).
+if OSM's policy ever becomes a problem). **Font: leave as is for now**
+(2026-10-15) - self-hosting Nunito so Google stops seeing every visitor's
+IP was explained and deliberately deferred; it is disclosed on the privacy
+page. If revisited: one ~39 KB variable `woff2` (Latin only - Nunito has no
+Hebrew), an `@font-face`, drop the three Google `<link>`s in `index.html`/
+`privacy.html`/`404.html`, tighten the CSP's `style-src`/`font-src`, and
+delete the Google Fonts sentences from `privacy.html`.
 
 **Now** - all 5 done 2026-09-24, see "Now items shipped" below for the
 full writeup:
