@@ -710,22 +710,16 @@ class FavoriteRequest(BaseModel):
     place_id: str = Field(min_length=1, max_length=64)
 
 
-@app.get("/api/favorites/ids")
-async def favorite_ids(authorization: str | None = Header(None)):
-    """Just the ids, for drawing the heart state on cards - no location."""
-    user_id = await get_current_user_id(authorization)
-    ids = await db.list_favorite_ids(user_id)
-    if ids is None:
-        raise HTTPException(status_code=401, detail="User no longer exists")
-    return {"ids": ids, "max": db.MAX_FAVORITES}
-
-
 @app.get("/api/favorites")
 async def favorite_places(
-    lat: float = Query(ge=-90, le=90),
-    lon: float = Query(ge=-180, le=180),
+    lat: float | None = Query(None, ge=-90, le=90),
+    lon: float | None = Query(None, ge=-180, le=180),
     authorization: str | None = Header(None),
 ):
+    """Without lat/lon this is just the list (distances are meaningless then);
+    with both, the same places nearest-first for the chat's card view."""
+    if (lat is None) != (lon is None):
+        raise HTTPException(status_code=422, detail="lat and lon go together")
     user_id = await get_current_user_id(authorization)
     places = await db.find_favorite_places(user_id, lat, lon)
     if places is None:

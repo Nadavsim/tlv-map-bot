@@ -660,22 +660,6 @@ def test_place_result_carries_the_documents_id_as_a_string():
 
 
 @pytest.mark.asyncio
-async def test_list_favorite_ids_returns_strings_and_distinguishes_a_missing_user(monkeypatch):
-    from bson import ObjectId
-
-    place_a, place_b = ObjectId(), ObjectId()
-    favorites = MagicMock()
-    favorites.find = MagicMock(return_value=_FakeCursor([{"place_id": place_a}, {"place_id": place_b}]))
-    monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
-
-    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=None))
-    assert await db.list_favorite_ids(_FAV_USER) is None
-
-    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=_a_user()))
-    assert await db.list_favorite_ids(_FAV_USER) == [str(place_a), str(place_b)]
-
-
-@pytest.mark.asyncio
 async def test_find_favorite_places_searches_only_the_favorited_ids_nearest_first(monkeypatch):
     from bson import ObjectId
 
@@ -707,6 +691,25 @@ async def test_find_favorite_places_searches_only_the_favorited_ids_nearest_firs
     pipeline = places.aggregate.call_args.args[0]
     assert pipeline[0]["$geoNear"]["query"] == {"_id": {"$in": [place_oid]}}
     assert pipeline[0]["$geoNear"]["near"]["coordinates"] == [34.77, 32.07]
+
+
+@pytest.mark.asyncio
+async def test_find_favorite_places_without_a_position_still_runs_the_query(monkeypatch):
+    from bson import ObjectId
+
+    place_oid = ObjectId()
+    favorites = MagicMock()
+    favorites.find = MagicMock(return_value=_FakeCursor([{"place_id": place_oid}]))
+    places = MagicMock()
+    places.aggregate = MagicMock(return_value=_FakeCursor([]))
+    monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
+    monkeypatch.setattr(db, "get_places_collection", lambda: places)
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=_a_user()))
+
+    await db.find_favorite_places(_FAV_USER)
+
+    near = places.aggregate.call_args.args[0][0]["$geoNear"]["near"]["coordinates"]
+    assert near == [db.FAVORITES_REFERENCE_POINT[1], db.FAVORITES_REFERENCE_POINT[0]]
 
 
 @pytest.mark.asyncio

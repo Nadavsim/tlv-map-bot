@@ -1563,9 +1563,8 @@ serving. (The map view itself was added to the Later horizon above,
       document's `_id` as a string - which is what a favorite points at
       (sync preserves it across renames).
     - **API** (all bearer-token, not cookie, like saved addresses):
-      `GET /api/favorites/ids` (ids + cap, for drawing hearts - no
-      location needed), `GET /api/favorites?lat&lon` (the places, nearest
-      first; validated coordinates), `POST /api/favorites` (201 added / 200
+      `GET /api/favorites` (the places; with `?lat&lon` nearest
+      first - see the menu-list note below), `POST /api/favorites` (201 added / 200
       already there / 409 full / 404 no such place or malformed id / 401),
       `DELETE /api/favorites/{place_id}` (404 if it wasn't saved). The cap
       and duplicate checks are backed by the unique index (a concurrent
@@ -1574,6 +1573,20 @@ serving. (The map view itself was added to the Later horizon above,
       distance/ETA/map/share all work on favorites unchanged; it
       deliberately skips weather/hours deprioritization (this is "my list",
       not "what's good now").
+    - **Menu list (revised the same day, at the curator's request)**: the
+      menu's "Favorites (N)" is a collapsible list like saved addresses -
+      collapsed by default, each row the place's name with its category as a
+      tag, **one tap opens its navigation link** (a plain `<a>` to the
+      place's `maps_url`, new tab), plus a small separate un-save button per
+      row. A quiet "Show nearest first in the chat" button inside the
+      expanded list keeps the earlier card view (distance, travel time, map,
+      share). To support this the app loads whole favorite places at
+      sign-in (`GET /api/favorites` with no position - `lat`/`lon` are now
+      optional, but both or neither, else 422), so `GET /api/favorites/ids`
+      and `db.list_favorite_ids` were removed as dead code; the list is
+      sorted by name client-side. No privacy change (same data). Verified
+      against the staging database: list without a position, 422 on a lone
+      coordinate, rows/tags/links, un-save with the server agreeing.
     - **Frontend**: optimistic toggle, reverted if the server refuses (a 409
       also says the list is full; deleting something already gone counts as
       done). The menu's open state moved from `Header` up to `App` so a card

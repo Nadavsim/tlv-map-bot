@@ -1331,3 +1331,66 @@ header h1 svg {
   background: var(--accent);
   color: var(--accent-fg);
 }
+
+/* Favorites in the menu: each row is a navigation link with its category as a
+   tag, and a separate small button to un-save. */
+.saved-addresses-list li.favorites-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.saved-addresses-row.favorites-link {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.favorites-category {
+  flex-shrink: 0;
+  background: var(--chip-bg);
+  color: var(--chip-fg);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+
+.favorites-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.favorites-remove:hover {
+  background: var(--chip-bg);
+  color: var(--fg);
+}
+
+.favorites-show-in-chat {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.favorites-show-in-chat:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}

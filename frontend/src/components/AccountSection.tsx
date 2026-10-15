@@ -1,8 +1,8 @@
-import { ChevronDown, ChevronUp, Heart, MapPin } from 'lucide-react'
+import { ChevronDown, ChevronUp, HeartOff, MapPin, Navigation } from 'lucide-react'
 import { useState } from 'react'
 import { GoogleSignInButton } from './GoogleSignInButton'
 import { t } from '../i18n'
-import type { AuthUser, Lang, SavedAddress, Theme } from '../types'
+import type { AuthUser, Lang, Place, SavedAddress, Theme } from '../types'
 
 interface AccountSectionProps {
   isOpen: boolean
@@ -18,8 +18,10 @@ interface AccountSectionProps {
   // Resolves true once the account is gone (the caller closes the menu),
   // false if it couldn't be deleted - the account is then left untouched.
   onDeleteAccount: () => Promise<boolean>
-  favoriteCount: number
+  favorites: Place[]
+  // Shows them as result cards in the chat, nearest first.
   onShowFavorites: () => void
+  onRemoveFavorite: (place: Place) => void
 }
 
 // Pure content, no trigger/popover of its own - lives pinned to the bottom
@@ -41,8 +43,9 @@ export function AccountSection({
   onUseSavedAddress,
   onRemoveSavedAddress,
   onDeleteAccount,
-  favoriteCount,
+  favorites,
   onShowFavorites,
+  onRemoveFavorite,
 }: AccountSectionProps) {
   // Deleting is two deliberate steps (button -> explicit confirmation), and
   // never one tap away from the sign-out button sitting right above it.
@@ -53,6 +56,9 @@ export function AccountSection({
   // buttons.
   const [listOpen, setListOpen] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  // Same idea for favorites: collapsed until asked for. A row is a navigation
+  // link (one tap), so there's no per-row accordion here.
+  const [favoritesOpen, setFavoritesOpen] = useState(false)
 
   async function handleConfirmDelete() {
     setDeleteStep('deleting')
@@ -87,16 +93,64 @@ export function AccountSection({
           </div>
 
           <div className="saved-addresses">
-            {favoriteCount === 0 ? (
+            {favorites.length === 0 ? (
               <>
                 <p className="account-section-heading">{t(lang, 'favoritesHeading')}</p>
                 <p className="saved-addresses-note">{t(lang, 'favoritesEmpty')}</p>
               </>
             ) : (
-              <button type="button" className="side-menu-item" onClick={onShowFavorites}>
-                <Heart size={18} aria-hidden="true" />
-                {t(lang, 'favoritesHeading')} ({favoriteCount})
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="saved-addresses-toggle"
+                  aria-expanded={favoritesOpen}
+                  aria-controls="favorites-list"
+                  onClick={() => setFavoritesOpen((open) => !open)}
+                >
+                  <span>
+                    {t(lang, 'favoritesHeading')} ({favorites.length})
+                  </span>
+                  {favoritesOpen ? (
+                    <ChevronUp size={16} aria-hidden="true" />
+                  ) : (
+                    <ChevronDown size={16} aria-hidden="true" />
+                  )}
+                </button>
+                {favoritesOpen && (
+                  <>
+                    <ul className="saved-addresses-list" id="favorites-list">
+                      {[...favorites]
+                        .sort((a, b) => a.name.localeCompare(b.name, lang))
+                        .map((place) => (
+                          <li key={place.id ?? place.maps_url} className="favorites-row">
+                            <a
+                              className="saved-addresses-row favorites-link"
+                              href={place.maps_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Navigation size={14} aria-hidden="true" />
+                              <span className="saved-addresses-label">{place.name}</span>
+                              <span className="favorites-category">{place.category}</span>
+                            </a>
+                            <button
+                              type="button"
+                              className="favorites-remove"
+                              aria-label={`${t(lang, 'favoriteRemove')}: ${place.name}`}
+                              title={t(lang, 'favoriteRemove')}
+                              onClick={() => onRemoveFavorite(place)}
+                            >
+                              <HeartOff size={16} aria-hidden="true" />
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                    <button type="button" className="favorites-show-in-chat" onClick={onShowFavorites}>
+                      {t(lang, 'favoritesShowInChat')}
+                    </button>
+                  </>
+                )}
+              </>
             )}
           </div>
 

@@ -1734,31 +1734,9 @@ def test_favorites_endpoints_require_a_signed_in_user(monkeypatch):
     monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
 
     with TestClient(app_module.app) as client:
-        assert client.get("/api/favorites/ids").status_code == 401
         assert client.get("/api/favorites?lat=32&lon=34").status_code == 401
         assert client.post("/api/favorites", json={"place_id": "x"}).status_code == 401
         assert client.delete("/api/favorites/x").status_code == 401
-
-
-def test_favorite_ids_returns_the_ids_and_the_cap(monkeypatch):
-    _signed_in(monkeypatch)
-    monkeypatch.setattr(db, "list_favorite_ids", AsyncMock(return_value=["a", "b"]))
-
-    with TestClient(app_module.app) as client:
-        resp = client.get("/api/favorites/ids", headers=_AUTH)
-
-    assert resp.status_code == 200
-    assert resp.json() == {"ids": ["a", "b"], "max": db.MAX_FAVORITES}
-
-
-def test_favorite_ids_for_a_deleted_user_is_401(monkeypatch):
-    _signed_in(monkeypatch)
-    monkeypatch.setattr(db, "list_favorite_ids", AsyncMock(return_value=None))
-
-    with TestClient(app_module.app) as client:
-        resp = client.get("/api/favorites/ids", headers=_AUTH)
-
-    assert resp.status_code == 401
 
 
 def test_favorite_places_come_back_as_ordinary_cards_for_the_given_location(monkeypatch):
@@ -1779,8 +1757,22 @@ def test_favorite_places_come_back_as_ordinary_cards_for_the_given_location(monk
     find_mock.assert_awaited_once_with("user-id-1", 32.07, 34.77)
 
 
-@pytest.mark.parametrize("query", ["", "?lat=32", "?lat=abc&lon=34", "?lat=95&lon=34", "?lat=32&lon=190"])
-def test_favorite_places_requires_a_valid_location(monkeypatch, query):
+def test_favorite_places_without_a_location_is_just_the_list(monkeypatch):
+    _signed_in(monkeypatch)
+    place = SAMPLE_PLACE.model_copy(update={"id": "64b0000000000000000000a1"})
+    find_mock = AsyncMock(return_value=[place])
+    monkeypatch.setattr(db, "find_favorite_places", find_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.get("/api/favorites", headers=_AUTH)
+
+    assert resp.status_code == 200
+    assert resp.json()["places"][0]["id"] == "64b0000000000000000000a1"
+    find_mock.assert_awaited_once_with("user-id-1", None, None)
+
+
+@pytest.mark.parametrize("query", ["?lat=32", "?lon=34", "?lat=abc&lon=34", "?lat=95&lon=34", "?lat=32&lon=190"])
+def test_favorite_places_rejects_a_partial_or_invalid_location(monkeypatch, query):
     _signed_in(monkeypatch)
     find_mock = AsyncMock()
     monkeypatch.setattr(db, "find_favorite_places", find_mock)

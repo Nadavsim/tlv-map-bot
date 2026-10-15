@@ -127,11 +127,6 @@ export interface SavedAddressesResponse {
   max: number
 }
 
-export interface FavoriteIdsResponse {
-  ids: string[]
-  max: number
-}
-
 export interface FavoritePlacesResponse {
   places: Place[]
 }

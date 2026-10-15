@@ -6,7 +6,6 @@ import type {
   ChatResponse,
   EtasRequest,
   EtasResponse,
-  FavoriteIdsResponse,
   FavoritePlacesResponse,
   MorePlacesRequest,
   MorePlacesResponse,
@@ -133,13 +132,14 @@ export async function deleteAccount(token: string): Promise<void> {
   await authedJSON<{ ok: boolean }>('DELETE', '/api/auth/me', token)
 }
 
-export function getFavoriteIds(token: string): Promise<FavoriteIdsResponse> {
-  return authedJSON<FavoriteIdsResponse>('GET', '/api/favorites/ids', token)
-}
-
-// The favorites as ordinary result cards, nearest to the given spot first.
-export function getFavoritePlaces(token: string, lat: number, lon: number): Promise<FavoritePlacesResponse> {
-  return authedJSON<FavoritePlacesResponse>('GET', `/api/favorites?lat=${lat}&lon=${lon}`, token)
+// The signed-in person's favorites. With a position they come nearest-first
+// (the chat's card view); without one it's just the list, in no useful order.
+export function getFavoritePlaces(
+  token: string,
+  near?: { lat: number; lon: number },
+): Promise<FavoritePlacesResponse> {
+  const query = near ? `?lat=${near.lat}&lon=${near.lon}` : ''
+  return authedJSON<FavoritePlacesResponse>('GET', `/api/favorites${query}`, token)
 }
 
 export async function postFavorite(token: string, placeId: string): Promise<void> {

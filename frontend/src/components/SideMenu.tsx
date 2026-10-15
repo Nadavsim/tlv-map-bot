@@ -2,7 +2,7 @@ import { CircleHelp, Languages, Moon, RotateCcw, Sun, X } from 'lucide-react'
 import { useEffect } from 'react'
 import { AccountSection } from './AccountSection'
 import { t } from '../i18n'
-import type { AuthUser, Lang, SavedAddress, Theme } from '../types'
+import type { AuthUser, Lang, Place, SavedAddress, Theme } from '../types'
 
 interface SideMenuProps {
   isOpen: boolean
@@ -21,8 +21,9 @@ interface SideMenuProps {
   onUseSavedAddress: (address: SavedAddress) => void
   onRemoveSavedAddress: (id: string) => void
   onDeleteAccount: () => Promise<boolean>
-  favoriteCount: number
+  favorites: Place[]
   onShowFavorites: () => void
+  onRemoveFavorite: (place: Place) => void
 }
 
 // The header's old icon row (language/theme/reset/help, plus the account
@@ -49,8 +50,9 @@ export function SideMenu({
   onUseSavedAddress,
   onRemoveSavedAddress,
   onDeleteAccount,
-  favoriteCount,
+  favorites,
   onShowFavorites,
+  onRemoveFavorite,
 }: SideMenuProps) {
   useEffect(() => {
     if (!isOpen) return
@@ -112,8 +114,9 @@ export function SideMenu({
           savedAddresses={savedAddresses}
           onUseSavedAddress={(address) => selectAndClose(() => onUseSavedAddress(address))}
           onRemoveSavedAddress={onRemoveSavedAddress}
-          favoriteCount={favoriteCount}
+          favorites={favorites}
           onShowFavorites={() => selectAndClose(onShowFavorites)}
+          onRemoveFavorite={onRemoveFavorite}
           onDeleteAccount={async () => {
             const ok = await onDeleteAccount()
             if (ok) onClose()

@@ -114,6 +114,9 @@ SAVED_ADDRESS_LABEL_MAX_LENGTH = 80
 # can't grow without limit on a free-tier database; generous enough that a
 # real person won't hit it (the whole curated list is ~165 places).
 MAX_FAVORITES = 100
+# Central Tel Aviv - only used to run the favorites query when the caller has
+# no location of its own and doesn't care about distance.
+FAVORITES_REFERENCE_POINT = (32.0853, 34.7818)
 
 # One document per (user, place) pair - a dedicated collection rather than an
 # array on the user document, so "who favorited place X" stays a plain indexed
@@ -550,16 +553,9 @@ async def remove_saved_address(user_id: str, address_id: str) -> bool:
     return result.modified_count > 0
 
 
-async def list_favorite_ids(user_id: str) -> list[str] | None:
-    """The place ids a user has favorited (newest first), or None when the
-    user no longer exists - distinct from a real user with no favorites."""
-    if await get_user_by_id(user_id) is None:
-        return None
-    cursor = get_favorites_collection().find({"user_id": ObjectId(user_id)}).sort("created_at", -1)
-    return [str(doc["place_id"]) async for doc in cursor]
-
-
-async def find_favorite_places(user_id: str, lat: float, lon: float) -> list[PlaceResult] | None:
+async def find_favorite_places(
+    user_id: str, lat: float | None = None, lon: float | None = None
+) -> list[PlaceResult] | None:
     """The user's favorites as ordinary results, nearest to (lat, lon) first -
     the same $geoNear shape every other result uses, so distance, ETA, map and
     share all work on them unchanged. A favorite whose place has since been
@@ -571,6 +567,10 @@ async def find_favorite_places(user_id: str, lat: float, lon: float) -> list[Pla
     place_ids = [doc["place_id"] async for doc in cursor]
     if not place_ids:
         return []
+    if lat is None or lon is None:
+        # No position (the menu's list): any fixed point will do, since the
+        # caller ignores the distances - $geoNear just needs one.
+        lat, lon = FAVORITES_REFERENCE_POINT
     pipeline = build_geo_pipeline(None, lat, lon, limit=MAX_FAVORITES, place_ids=place_ids)
     return [_place_result(doc) async for doc in get_places_collection().aggregate(pipeline)]
 

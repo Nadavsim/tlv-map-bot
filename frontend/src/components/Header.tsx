@@ -1,7 +1,7 @@
 import { BookmarkPlus, Car, Check, Footprints, LocateFixed, MapPin, Menu } from 'lucide-react'
 import { SideMenu } from './SideMenu'
 import { t } from '../i18n'
-import type { AuthUser, Lang, LocationMode, SavedAddress, Theme, TransportMode } from '../types'
+import type { AuthUser, Lang, LocationMode, Place, SavedAddress, Theme, TransportMode } from '../types'
 
 interface HeaderProps {
   locationStatus: string
@@ -33,8 +33,9 @@ interface HeaderProps {
   // the menu to the sign-in button.
   isMenuOpen: boolean
   onMenuOpenChange: (open: boolean) => void
-  favoriteCount: number
+  favorites: Place[]
   onShowFavorites: () => void
+  onRemoveFavorite: (place: Place) => void
 }
 
 export function Header({
@@ -63,8 +64,9 @@ export function Header({
   onDeleteAccount,
   isMenuOpen,
   onMenuOpenChange,
-  favoriteCount,
+  favorites,
   onShowFavorites,
+  onRemoveFavorite,
 }: HeaderProps) {
   return (
     <header>
@@ -101,8 +103,9 @@ export function Header({
         onUseSavedAddress={onUseSavedAddress}
         onRemoveSavedAddress={onRemoveSavedAddress}
         onDeleteAccount={onDeleteAccount}
-        favoriteCount={favoriteCount}
+        favorites={favorites}
         onShowFavorites={onShowFavorites}
+        onRemoveFavorite={onRemoveFavorite}
       />
       <div className="location-status-row">
         <p className="location-status">{locationStatus}</p>
