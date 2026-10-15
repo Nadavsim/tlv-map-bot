@@ -259,6 +259,22 @@ call):
   - roughly 4x the entire monthly budget.
 - **Growth** - a static About/story page, same cost pattern as the
   existing privacy/404 pages.
+- **Trust** - a daily "nudge" for place reports (curator's idea,
+  2026-10-15; deferred on purpose): an email digest of
+  `scripts.show_reports`, **sent from the existing daily GitHub Actions
+  workflow, not from the web app**, and only on days that have reports. Not
+  built because the volume is tiny at this stage and reading the script
+  when curating is enough; revisit if reports pile up unseen. Deliberately
+  **not** an email per report from the app: the report endpoint is
+  anonymous and open to signed-out visitors, so that would hand anyone a
+  way to mail the project inbox (the per-IP limit doesn't stop a few
+  IPs), and it would add an email vendor and a send credential to the
+  app's settings, a fallback for failed sends, and a third party to the
+  privacy page. The digest route keeps all of that out of the app: no
+  email code in the web app, at most one email a day, and the only new
+  secret is a send credential for the project's mail in GitHub secrets
+  - an app password for the project Gmail, or a free email-provider key,
+  which the curator would have to create.
 - ~~**Reliability** - decide on purpose whether sign-out should revoke
   every device or just one (currently: every device, via
   `token_version`) - before Favorites makes staying signed in matter~~ -
