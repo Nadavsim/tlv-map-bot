@@ -9,6 +9,7 @@ import type {
   FavoritePlacesResponse,
   MorePlacesRequest,
   MorePlacesResponse,
+  ReportKind,
   ResolveLocationResponse,
   SavedAddress,
   SavedAddressesResponse,
@@ -46,6 +47,11 @@ export function postMorePlaces(body: MorePlacesRequest): Promise<MorePlacesRespo
 
 export function postEtas(body: EtasRequest): Promise<EtasResponse> {
   return postJSON<EtasResponse>('/api/etas', body)
+}
+
+// Anonymous on purpose: no token, and the server stores no identity with it.
+export async function postPlaceReport(placeId: string, kind: ReportKind): Promise<void> {
+  await postJSON<{ ok: boolean }>('/api/place-reports', { place_id: placeId, kind })
 }
 
 export async function getCategories(): Promise<CategoriesResponse> {

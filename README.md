@@ -213,6 +213,9 @@ backend/                                FastAPI app package.
 scripts/                                Maintenance CLI scripts, run as
   sync_places.py                          python -m scripts.sync_places
   seed_instagram_from_csv.py              python -m scripts.seed_instagram_from_csv
+  show_reports.py                         python -m scripts.show_reports
+                                            (what visitors reported as
+                                            closed / wrong category)
 data/                                   Local data files (gitignored - your
   map.kml, cleaned_places.csv             curated list stays private)
 frontend/                               React + TypeScript chat UI (source)

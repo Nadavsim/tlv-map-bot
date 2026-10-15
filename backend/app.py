@@ -510,6 +510,26 @@ async def etas(request: Request, req: EtaRequest):
     return {"etas": [routing.format_duration(s) if s is not None else None for s in seconds]}
 
 
+class PlaceReportRequest(BaseModel):
+    place_id: str = Field(min_length=1, max_length=64)
+    kind: Literal["closed", "wrong_category"]
+
+
+@app.post("/api/place-reports")
+@limiter.limit("10/minute;60/day")
+async def report_place(request: Request, req: PlaceReportRequest):
+    """A visitor telling the curator a place is closed or in the wrong
+    category. Open to signed-out visitors on purpose (most visitors have no
+    account) and anonymous on purpose: only the place, the kind and a running
+    count are stored, never who sent it. It changes nothing other visitors
+    see - the list stays the curator's call; this is just a cheaper way for
+    them to hear that a pin has gone stale."""
+    status = await db.record_place_report(req.place_id, req.kind)
+    if status == "no_place":
+        raise HTTPException(status_code=404, detail="Place not found")
+    return {"ok": True}
+
+
 # --- Auth ---------------------------------------------------------------
 # Google Sign-In only (see CLAUDE.md for why no self-managed password path
 # exists) - the base chat above stays fully usable with zero login; this

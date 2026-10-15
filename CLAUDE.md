@@ -206,9 +206,11 @@ call):
   when curating - the one growth move no competitor at any size can copy.
 - **Intelligence** - a weekly, manual-trigger LLM pass over
   `unmatched_queries` proposing new categories/tags.
-- **Trust** - "this place closed / wrong category" feedback action - now
+- ~~**Trust** - "this place closed / wrong category" feedback action - now
   explicitly the second line of defense behind hours-tagging above, not
-  the primary one.
+  the primary one~~ - **built 2026-10-15, verified locally against the
+  staging database; not yet pushed** - see "Next-horizon items shipped"
+  below.
 - ~~**Usability** - Favorites (save a spot for later), once the schema
   above is locked in~~ - **built 2026-10-15, verified locally against the
   staging database; not yet pushed** - see "Next-horizon items shipped"
@@ -1621,6 +1623,63 @@ serving. (The map view itself was added to the Later horizon above,
       `POST /api/auth/logout` clears it (the server can overwrite httpOnly),
       after which `document.cookie = "refresh_token=...; path=/api/auth"`
       works - no Secure/httpOnly flags needed for the server to read it.
+
+  - **"Report a problem": closed / wrong category** (2026-10-15, built and
+    verified locally against `tlvbot_staging`; **committed on `staging`, not
+    pushed**). A small flag at the end of every result card's action row
+    opens an inline step - "What's wrong?" It's closed / Wrong category /
+    Cancel - and then a quiet "Thanks - noted". No dialog, no free text.
+    - **Design defaults, flagged for the curator**: open to signed-out
+      visitors (most visitors have no account, and the point is a cheap
+      signal); **anonymous** - no user id, no IP, nothing about who sent it;
+      two kinds only; it **never changes what other visitors see** (no
+      auto-hiding after N reports - that would be exactly the crowd signal
+      the product deliberately avoids; the list stays the curator's call).
+    - **Storage**: `place_reports`, one document per `(place_id, kind)`
+      (unique index) holding `count`, `first_at`, `last_at` and a name /
+      category snapshot, upserted with `$inc`. Growth is bounded at
+      places x 2, a pile of identical reports reads as a number, and the
+      snapshot keeps a row readable if the place is later renamed or
+      removed. A warn-mode `$jsonSchema` validator like every other
+      collection. Caveat of counting without identity: one person tapping
+      from several devices counts several times - fine for "someone should
+      look at this", not for anything stricter.
+    - **API**: `POST /api/place-reports {place_id, kind}`, rate-limited
+      10/minute and 60/day per IP; 404 for an unknown or malformed place id
+      (so junk ids can't create documents), 422 for any other `kind`.
+    - **The loop closes itself**: `sync_places` now clears reports once the
+      map has been acted on - a place removed from the map loses all its
+      reports, and a place whose category changed loses its "wrong
+      category" reports. Verified for real: set a staging place's category
+      to a junk value, ran the real sync, and its wrong-category report was
+      cleared while another place's "closed" report stayed. A "closed"
+      report on a place you decide is fine has nothing to clear it, which
+      is what the dismiss command is for.
+    - **Reading them**: `python -m scripts.show_reports` (production per
+      `.env`; prefix `MONGODB_DB_NAME=tlvbot_staging` for staging) lists
+      them most-reported first with the place's current name/category and a
+      note when a place is gone or its category has changed;
+      `--dismiss <place_id> ...` clears a place's reports. Deliberately a
+      script, not an endpoint or UI - same stance as the usage stats.
+    - **Privacy**: `privacy.html` (both languages) gained a "Reporting a
+      place" section and the hosting sentence now lists place reports.
+      Hebrew written by me, **not reviewed by the curator**; so are the card
+      strings (`המקום סגור`, `קטגוריה שגויה`, `מה הבעיה?`, ...).
+    - **Test safety net**: the existing `ensure_indexes` test patched each
+      collection getter by hand, so adding a collection made it reach for a
+      real one (production, per `.env`) until the new getter was patched too -
+      worth remembering whenever `ensure_indexes` gains a collection.
+    - **Verified**: 22 new backend tests (469 total: upsert shape and that
+      nothing identifying is stored, unknown/malformed ids, validation, the
+      signed-out endpoint, the sync cascade incl. a no-op when nothing
+      changed, the curator script's pure parts). In the real UI as a
+      signed-out visitor: flag on every card, panel, both kinds, thanks
+      state with the flag gone, two 200s; a repeat report incremented the
+      counter; bogus/malformed ids 404, bad kind 422; the raw documents and
+      the unique index; the script's listing and `--dismiss`. Staging data
+      was cleaned afterwards (and re-seeded by the sync run: 167 places).
+      **Not covered**: Hebrew/RTL rendering of the panel, light theme, a real
+      phone, and the per-IP rate limit in practice (disabled in tests).
 
 ### Later-horizon items shipped
 

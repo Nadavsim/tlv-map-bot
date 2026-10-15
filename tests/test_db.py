@@ -149,11 +149,12 @@ async def test_ensure_indexes_sets_up_favorites_with_unique_pair_index_and_valid
         collection.index_information = AsyncMock(return_value={})
         return collection
 
-    places, unmatched, users, favorites = (fake_collection() for _ in range(4))
+    places, unmatched, users, favorites, place_reports = (fake_collection() for _ in range(5))
     monkeypatch.setattr(db, "get_places_collection", lambda: places)
     monkeypatch.setattr(db, "get_unmatched_queries_collection", lambda: unmatched)
     monkeypatch.setattr(db, "get_users_collection", lambda: users)
     monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
+    monkeypatch.setattr(db, "get_place_reports_collection", lambda: place_reports)
     validator_mock = AsyncMock()
     monkeypatch.setattr(db, "_ensure_schema_validator", validator_mock)
 
@@ -161,6 +162,8 @@ async def test_ensure_indexes_sets_up_favorites_with_unique_pair_index_and_valid
 
     favorites.create_index.assert_awaited_once_with([("user_id", 1), ("place_id", 1)], unique=True)
     validator_mock.assert_any_await(favorites, "favorites", db.FAVORITES_JSON_SCHEMA)
+    place_reports.create_index.assert_awaited_once_with([("place_id", 1), ("kind", 1)], unique=True)
+    validator_mock.assert_any_await(place_reports, "place_reports", db.PLACE_REPORTS_JSON_SCHEMA)
 
 
 @pytest.mark.asyncio
@@ -811,3 +814,69 @@ async def test_remove_favorite_with_a_malformed_id_touches_nothing(monkeypatch):
 
     assert await db.remove_favorite(_FAV_USER, "nope") is False
     favorites.delete_one.assert_not_awaited()
+
+
+# --- place reports -------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_record_place_report_upserts_a_counter_with_a_snapshot(monkeypatch):
+    from bson import ObjectId
+
+    place_oid = ObjectId()
+    places = MagicMock()
+    places.find_one = AsyncMock(return_value={"_id": place_oid, "name": "Cafelix", "category": "coffee"})
+    reports = MagicMock()
+    reports.update_one = AsyncMock()
+    monkeypatch.setattr(db, "get_places_collection", lambda: places)
+    monkeypatch.setattr(db, "get_place_reports_collection", lambda: reports)
+
+    assert await db.record_place_report(str(place_oid), "closed") == "recorded"
+
+    query, update = reports.update_one.call_args.args
+    assert query == {"place_id": place_oid, "kind": "closed"}
+    assert update["$inc"] == {"count": 1}
+    assert update["$set"]["name"] == "Cafelix" and update["$set"]["category"] == "coffee"
+    assert "first_at" in update["$setOnInsert"]
+    assert reports.update_one.call_args.kwargs == {"upsert": True}
+    # Nothing about who sent it is stored.
+    stored_keys = set(update["$set"]) | set(update["$inc"]) | set(update["$setOnInsert"])
+    assert stored_keys == {"count", "last_at", "name", "category", "first_at"}
+
+
+@pytest.mark.asyncio
+async def test_record_place_report_ignores_unknown_and_malformed_places(monkeypatch):
+    places = MagicMock()
+    places.find_one = AsyncMock(return_value=None)
+    reports = MagicMock()
+    reports.update_one = AsyncMock()
+    monkeypatch.setattr(db, "get_places_collection", lambda: places)
+    monkeypatch.setattr(db, "get_place_reports_collection", lambda: reports)
+
+    assert await db.record_place_report("64b0000000000000000000a1", "closed") == "no_place"
+    assert await db.record_place_report("not-an-id", "closed") == "no_place"
+    reports.update_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,expected_query", [
+    (None, {"place_id": {"$in": ["a", "b"]}}),
+    ("wrong_category", {"place_id": {"$in": ["a", "b"]}, "kind": "wrong_category"}),
+])
+async def test_clear_place_reports(monkeypatch, kind, expected_query):
+    reports = MagicMock()
+    reports.delete_many = AsyncMock(return_value=MagicMock(deleted_count=2))
+    monkeypatch.setattr(db, "get_place_reports_collection", lambda: reports)
+
+    assert await db.clear_place_reports(["a", "b"], kind=kind) == 2
+    reports.delete_many.assert_awaited_once_with(expected_query)
+
+
+@pytest.mark.asyncio
+async def test_clear_place_reports_with_nothing_to_clear_does_not_touch_the_database(monkeypatch):
+    reports = MagicMock()
+    reports.delete_many = AsyncMock()
+    monkeypatch.setattr(db, "get_place_reports_collection", lambda: reports)
+
+    assert await db.clear_place_reports([]) == 0
+    reports.delete_many.assert_not_awaited()

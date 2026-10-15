@@ -25,6 +25,9 @@ export interface ChatRequest {
 
 export type PriceTier = '$' | '$$' | '$$$'
 
+// What a visitor can tell the curator about a place.
+export type ReportKind = 'closed' | 'wrong_category'
+
 export interface Place {
   // The place's stable id (what a favorite points at). Always present from
   // the API; optional only so a card never breaks if one is missing.

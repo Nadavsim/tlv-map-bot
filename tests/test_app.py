@@ -1840,3 +1840,52 @@ def test_remove_favorite_that_was_not_saved_is_404(monkeypatch):
         resp = client.delete("/api/favorites/64b0000000000000000000a1", headers=_AUTH)
 
     assert resp.status_code == 404
+
+
+# --- place reports endpoint ----------------------------------------------------
+
+
+def test_place_report_is_open_to_signed_out_visitors_and_stores_no_identity(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    record_mock = AsyncMock(return_value="recorded")
+    monkeypatch.setattr(db, "record_place_report", record_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/place-reports", json={"place_id": "64b0000000000000000000a1", "kind": "closed"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+    record_mock.assert_awaited_once_with("64b0000000000000000000a1", "closed")
+
+
+def test_place_report_for_an_unknown_place_is_404(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "record_place_report", AsyncMock(return_value="no_place"))
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/place-reports", json={"place_id": "64b0000000000000000000a1", "kind": "wrong_category"})
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"place_id": "64b0000000000000000000a1"},
+        {"place_id": "64b0000000000000000000a1", "kind": "spam"},
+        {"place_id": "", "kind": "closed"},
+        {"place_id": "x" * 65, "kind": "closed"},
+        {"place_id": 5, "kind": "closed"},
+    ],
+)
+def test_place_report_rejects_invalid_bodies(monkeypatch, body):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    record_mock = AsyncMock()
+    monkeypatch.setattr(db, "record_place_report", record_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/place-reports", json=body)
+
+    assert resp.status_code == 422
+    record_mock.assert_not_awaited()

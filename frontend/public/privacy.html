@@ -109,6 +109,17 @@
           immediately.
         </p>
 
+        <h2>Reporting a place</h2>
+        <p>
+          A result card has a small flag for telling the curator that a place is
+          closed or in the wrong category - no account needed. A report stores
+          only which place, which of those two things, a running count and when
+          one was last sent. Nothing about who sent it is kept (the network
+          address is only held briefly in memory to limit abuse, as described
+          below). Reports aren't shown to other visitors; they only help the
+          curator fix the map, and they're cleared once the map is updated.
+        </p>
+
         <h2>What's stored only in your own browser</h2>
         <p>
           Your language and light/dark theme choice, and a flag noting that
@@ -126,8 +137,9 @@
 
         <h2>Where data is hosted</h2>
         <p>
-          The anonymous usage stats above and, if you sign in, your account
-          details, saved addresses and favorites are stored in MongoDB Atlas. The app
+          The anonymous usage stats and place reports above and, if you sign
+          in, your account details, saved addresses and favorites are stored in
+          MongoDB Atlas. The app
           itself runs on Microsoft Azure, which - like any web host - handles
           each request and may keep standard server logs. To limit abuse, the
           network address a request comes from is also held briefly in the
@@ -234,6 +246,16 @@
           ששמור איתה - כתובות שמורות ומועדפים.
         </p>
 
+        <h2>דיווח על מקום</h2>
+        <p>
+          בכרטיס של תוצאה יש דגל קטן כדי לספר למנהל הרשימה שמקום סגור או נמצא
+          בקטגוריה שגויה - בלי צורך בחשבון. דיווח שומר רק איזה מקום, איזה משני
+          הדברים האלה, מונה רץ ומתי נשלח האחרון. שום דבר על מי ששלח לא נשמר
+          (כתובת הרשת נשמרת רק לזמן קצר בזיכרון כדי להגביל ניצול לרעה, כמתואר
+          למטה). דיווחים לא מוצגים למבקרים אחרים; הם רק עוזרים למנהל הרשימה
+          לתקן את המפה, ונמחקים כשהמפה מתעדכנת.
+        </p>
+
         <h2>מה שנשמר רק בדפדפן שלך</h2>
         <p>בחירת השפה והמצב הבהיר/כהה שלך, וסימון שכבר השתמשת באפליקציה (כדי שטיפים לביקור ראשון לא יוצגו שוב), נשמרים באחסון המקומי של הדפדפן שלך ולעולם לא נשלחים לשום שרת.</p>
 
@@ -246,8 +268,8 @@
 
         <h2>היכן המידע מאוחסן</h2>
         <p>
-          נתוני השימוש האנונימיים שלמעלה, ואם אתה מתחבר - פרטי החשבון שלך,
-          הכתובות השמורות והמועדפים - מאוחסנים ב-MongoDB Atlas. האפליקציה עצמה רצה על
+          נתוני השימוש האנונימיים והדיווחים על מקומות שלמעלה, ואם אתה מתחבר -
+          פרטי החשבון שלך, הכתובות השמורות והמועדפים - מאוחסנים ב-MongoDB Atlas. האפליקציה עצמה רצה על
           Microsoft Azure, שכמו כל אחסון אתרים מטפל בכל בקשה ועשוי לשמור יומני
           שרת סטנדרטיים. כדי להגביל ניצול לרעה, הכתובת ברשת ממנה מגיעה בקשה
           נשמרת גם לזמן קצר בזיכרון השרת כדי לספור כמה פעמים היא פונה; היא לא

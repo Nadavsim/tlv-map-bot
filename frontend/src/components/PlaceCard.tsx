@@ -1,6 +1,8 @@
-import { Banknote, Camera, Clock, Heart, Navigation, Umbrella } from 'lucide-react'
+import { Banknote, Camera, Clock, Flag, Heart, Navigation, Umbrella } from 'lucide-react'
+import { useState } from 'react'
+import { postPlaceReport } from '../api'
 import { t } from '../i18n'
-import type { Lang, Place } from '../types'
+import type { Lang, Place, ReportKind } from '../types'
 
 // "23" -> "23:00" - the raw hour this app stores/sends, formatted the one
 // way a chip actually needs to show it.
@@ -30,6 +32,21 @@ export function PlaceCard({
   isFavorite = false,
   onToggleFavorite,
 }: PlaceCardProps) {
+  // "Report a problem" is a small inline two-option step inside the card, not
+  // a dialog. 'sent' is final for this card for as long as it's on screen.
+  const [reportStep, setReportStep] = useState<'idle' | 'choosing' | 'sending' | 'failed' | 'sent'>('idle')
+
+  async function sendReport(kind: ReportKind) {
+    if (!place.id) return
+    setReportStep('sending')
+    try {
+      await postPlaceReport(place.id, kind)
+      setReportStep('sent')
+    } catch {
+      setReportStep('failed')
+    }
+  }
+
   return (
     <div className={`place-card${isActive ? ' is-active' : ''}`} onClick={onSelect}>
       <div className="name">
@@ -136,7 +153,57 @@ export function PlaceCard({
             {t(lang, 'instagram')}
           </a>
         )}
+        {place.id && reportStep === 'idle' && (
+          <button
+            type="button"
+            className="report-button"
+            aria-label={`${t(lang, 'reportPlace')}: ${place.name}`}
+            title={t(lang, 'reportPlace')}
+            onClick={(e) => {
+              e.stopPropagation()
+              setReportStep('choosing')
+            }}
+          >
+            <Flag size={14} aria-hidden="true" />
+          </button>
+        )}
       </div>
+      {(reportStep === 'choosing' || reportStep === 'sending' || reportStep === 'failed') && (
+        <div
+          className="report-panel"
+          role="group"
+          aria-label={t(lang, 'reportPrompt')}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="report-prompt">{t(lang, 'reportPrompt')}</p>
+          <div className="report-options">
+            <button type="button" disabled={reportStep === 'sending'} onClick={() => sendReport('closed')}>
+              {t(lang, 'reportClosed')}
+            </button>
+            <button type="button" disabled={reportStep === 'sending'} onClick={() => sendReport('wrong_category')}>
+              {t(lang, 'reportWrongCategory')}
+            </button>
+            <button
+              type="button"
+              className="report-cancel"
+              disabled={reportStep === 'sending'}
+              onClick={() => setReportStep('idle')}
+            >
+              {t(lang, 'cancel')}
+            </button>
+          </div>
+          {reportStep === 'failed' && (
+            <p className="report-error" role="alert">
+              {t(lang, 'reportFailed')}
+            </p>
+          )}
+        </div>
+      )}
+      {reportStep === 'sent' && (
+        <p className="report-thanks" role="status">
+          {t(lang, 'reportThanks')}
+        </p>
+      )}
     </div>
   )
 }

@@ -6,6 +6,7 @@ import requests
 from dotenv import load_dotenv
 
 from backend.db import (
+    clear_place_reports,
     ensure_indexes,
     find_nearby,
     get_places_collection,
@@ -101,6 +102,10 @@ async def sync() -> None:
             place["latitude"], place["longitude"], PROXIMITY_MATCH_METERS, query=not_yet_touched_this_run
         )
         if existing:
+            if existing.get("category") != validated.category:
+                # The pin was moved to another layer: the "wrong category"
+                # reports about it have been acted on.
+                await clear_place_reports([existing["_id"]], kind="wrong_category")
             await collection.update_one(
                 {"_id": existing["_id"]},
                 {
@@ -132,9 +137,13 @@ async def sync() -> None:
             )
 
     # Anything not touched this run is no longer on the map at that location.
+    stale_ids = [doc["_id"] async for doc in collection.find(not_yet_touched_this_run, {"_id": 1})]
     result = await collection.delete_many(not_yet_touched_this_run)
     if result.deleted_count:
         print(f"Removed {result.deleted_count} place(s) no longer on the map.")
+        # Reports about a place that's gone (e.g. "closed") have nothing left
+        # to point at.
+        await clear_place_reports(stale_ids)
 
     invalidate_categories_cache()
 

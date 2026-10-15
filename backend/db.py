@@ -137,6 +137,31 @@ FAVORITES_JSON_SCHEMA = {
     },
 }
 
+# "This place is closed" / "wrong category" - what a visitor tells the curator
+# about a place. One document per (place, kind) holding a running count, not
+# one per report: growth is bounded by (places x 2), a pile of identical
+# reports reads as a number instead of a wall of rows, and nothing about who
+# sent one is kept - the endpoint is open to signed-out visitors and the
+# privacy page promises exactly that. Reports never change what other visitors
+# see; they only feed curation (see scripts/show_reports.py), and sync clears
+# them once the map has been changed (sync_places.py).
+PLACE_REPORT_KINDS = ("closed", "wrong_category")
+PLACE_REPORTS_JSON_SCHEMA = {
+    "bsonType": "object",
+    "required": ["place_id", "kind", "count", "first_at", "last_at"],
+    "properties": {
+        "place_id": {"bsonType": "objectId"},
+        "kind": {"enum": list(PLACE_REPORT_KINDS)},
+        "count": {"bsonType": ["int", "long"]},
+        "first_at": {"bsonType": "date"},
+        "last_at": {"bsonType": "date"},
+        # Snapshots from the moment of the latest report, so a row stays
+        # readable even if the place is renamed or removed afterwards.
+        "name": {"bsonType": "string"},
+        "category": {"bsonType": "string"},
+    },
+}
+
 _client: AsyncIOMotorClient | None = None
 _categories_cache: list[str] | None = None
 _categories_cache_expires_at: float = 0.0
@@ -187,6 +212,10 @@ def get_favorites_collection():
     return _get_collection("favorites")
 
 
+def get_place_reports_collection():
+    return _get_collection("place_reports")
+
+
 async def ensure_indexes() -> None:
     places = get_places_collection()
     await places.create_index([("location", "2dsphere")])
@@ -219,6 +248,10 @@ async def ensure_indexes() -> None:
     favorites = get_favorites_collection()
     await favorites.create_index([("user_id", 1), ("place_id", 1)], unique=True)
     await _ensure_schema_validator(favorites, "favorites", FAVORITES_JSON_SCHEMA)
+
+    place_reports = get_place_reports_collection()
+    await place_reports.create_index([("place_id", 1), ("kind", 1)], unique=True)
+    await _ensure_schema_validator(place_reports, "place_reports", PLACE_REPORTS_JSON_SCHEMA)
 
 
 async def _ensure_schema_validator(collection, name: str, schema: dict) -> None:
@@ -609,6 +642,43 @@ async def remove_favorite(user_id: str, place_id: str) -> bool:
         return False
     result = await get_favorites_collection().delete_one({"user_id": user_oid, "place_id": place_oid})
     return result.deleted_count > 0
+
+
+async def record_place_report(place_id: str, kind: str) -> str:
+    """Counts one report. "recorded", or "no_place" for an unknown or
+    malformed id - checked so junk ids can't create documents. The caller
+    validates `kind` (the endpoint's Literal)."""
+    try:
+        place_oid = ObjectId(place_id)
+    except InvalidId:
+        return "no_place"
+    place = await get_places_collection().find_one({"_id": place_oid}, {"name": 1, "category": 1})
+    if place is None:
+        return "no_place"
+    now = datetime.now(timezone.utc)
+    await get_place_reports_collection().update_one(
+        {"place_id": place_oid, "kind": kind},
+        {
+            "$inc": {"count": 1},
+            "$set": {"last_at": now, "name": place.get("name"), "category": place.get("category")},
+            "$setOnInsert": {"first_at": now},
+        },
+        upsert=True,
+    )
+    return "recorded"
+
+
+async def clear_place_reports(place_ids: list, kind: str | None = None) -> int:
+    """Removes the reports about these places (ObjectIds), optionally only one
+    kind. Used by sync once the map change they asked for has happened, and by
+    the curator's dismiss command. Returns how many were removed."""
+    if not place_ids:
+        return 0
+    query: dict = {"place_id": {"$in": list(place_ids)}}
+    if kind is not None:
+        query["kind"] = kind
+    result = await get_place_reports_collection().delete_many(query)
+    return result.deleted_count
 
 
 async def delete_user(user_id: str) -> bool:

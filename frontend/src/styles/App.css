@@ -1394,3 +1394,77 @@ header h1 svg {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* "Report a problem": a quiet flag at the end of a card's action row that
+   opens a small inline two-option step. Deliberately low-key - it is for the
+   occasional stale pin, not an action every card should invite. */
+.place-card .report-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.35rem 0.5rem;
+  border-radius: 999px;
+  cursor: pointer;
+  margin-inline-start: auto;
+}
+
+.place-card .report-button:hover {
+  background: var(--chip-bg);
+  color: var(--fg);
+}
+
+.place-card .report-panel {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1.5px solid var(--border);
+}
+
+.place-card .report-prompt {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.place-card .report-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.place-card .report-options button {
+  min-height: 44px;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.place-card .report-options button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.place-card .report-options button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.place-card .report-options .report-cancel {
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.place-card .report-thanks,
+.place-card .report-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
