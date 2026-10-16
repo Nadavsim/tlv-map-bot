@@ -2010,6 +2010,14 @@ see the note on that last one in the shipped entry).
     edge on fields, saved heart and delete in watermelon, Outdoor tag in lemon, drawer on the
     overlay surface with a token scrim, ink undo toast with its own action colour, plus
     `forced-colors` and `prefers-contrast: more` fallbacks.
+  - **Phase 3** (2026-10-16, committed on `staging`): distance and travel time moved into a blue
+    "sign plate" at the card's trailing edge (one blue block per card; the old inline line is gone),
+    result cards now full width, Walk/Drive and Custom/Live became segmented controls (one tint track,
+    raised blue segment), the report menu is a tint panel with raised option pills, and the
+    selected-card state (map pin link) is a 2px accent ring - it was a border colour that had silently
+    stopped showing once cards lost their borders in Phase 2. Checked in the browser against mocked
+    API data, Hebrew/RTL, dark and light, 440px: no overflow, plate on the correct side, colours as
+    tokens. Not covered: a real phone, English cards, the map pin selection by eye.
   - **Not done yet (Phase 3+)**: the distance sign-plate card, segmented control, start screen
     (which must be fitted into one view - found during review), drawer header, static-page chrome,
     motion, PWA icons (still the old palette) and the privacy-page font wording is unchanged

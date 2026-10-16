@@ -336,10 +336,15 @@ header h1 svg {
   cursor: pointer;
 }
 
+/* Segmented control: one track, the chosen option is the raised blue segment.
+   Reads as "pick one of these", not as two separate buttons. */
 .mode-toggle {
   display: flex;
-  gap: 0.5rem;
+  gap: 2px;
   margin-top: 0.7rem;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--tint);
 }
 
 .mode-toggle button {
@@ -348,10 +353,11 @@ header h1 svg {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0.5rem 0.7rem;
+  min-height: 40px;
+  padding: 0.4rem 0.7rem;
   border-radius: 999px;
-  border: 1.5px solid var(--border);
-  background: var(--card-bg);
+  border: none;
+  background: transparent;
   color: var(--muted);
   font-weight: 700;
   font-size: 0.85rem;
@@ -359,7 +365,6 @@ header h1 svg {
   transition:
     background 0.15s ease,
     color 0.15s ease,
-    border-color 0.15s ease,
     transform 0.1s ease;
 }
 
@@ -376,12 +381,11 @@ header h1 svg {
 
 .mode-toggle button.active {
   background: var(--accent);
-  border-color: var(--accent);
   color: var(--accent-fg);
+  box-shadow: var(--shadow-sm);
 }
 
 .mode-toggle button:not(.active):hover {
-  border-color: var(--accent);
   color: var(--fg);
 }
 
@@ -459,7 +463,7 @@ header h1 svg {
   flex-direction: column;
   gap: 0.6rem;
   align-self: flex-start;
-  max-width: 85%;
+  max-width: 100%;
   width: 100%;
 }
 
@@ -471,11 +475,60 @@ header h1 svg {
   animation: rise-in 0.25s ease both;
 }
 
+.place-card .card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
 .place-card .name {
+  flex: 1;
+  min-width: 0;
   font-weight: 700;
   font-size: 1.125rem;
   line-height: 1.25;
-  margin-bottom: 0.4rem;
+  overflow-wrap: anywhere;
+}
+
+/* The enamel street sign: distance over travel time, blue plate with a thin
+   white rule inside, like the signs on Tel Aviv's corners. It is the one
+   blue block on a card, so the answer to "how far" is the first thing seen. */
+.place-card .sign-plate {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  min-width: 4.4rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  outline: 1.5px solid color-mix(in srgb, var(--accent-fg) 65%, transparent);
+  outline-offset: -4px;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.place-card .plate-distance {
+  font-size: 1.05rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.place-card .plate-eta {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.place-card .sign-plate .eta-placeholder {
+  background: currentColor;
+  width: 2.2em;
+  height: 0.7em;
 }
 
 .place-card .meta {
@@ -522,12 +575,6 @@ header h1 svg {
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-}
-
-.place-card .distance-eta {
-  font-size: 0.95rem;
-  color: var(--fg);
-  font-weight: 700;
 }
 
 .place-card .links {
@@ -940,7 +987,7 @@ header h1 svg {
 }
 
 .place-card.is-active {
-  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), var(--shadow-sm);
 }
 
 .place-card .name .place-number {
@@ -1427,9 +1474,10 @@ header h1 svg {
 }
 
 .place-card .report-panel {
-  margin-top: 0.6rem;
-  padding-top: 0.6rem;
-  border-top: 1.5px solid var(--border);
+  margin-top: 0.7rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: 14px;
+  background: var(--tint);
 }
 
 .place-card .report-prompt {
@@ -1448,8 +1496,9 @@ header h1 svg {
   min-height: 44px;
   padding: 0.4rem 0.9rem;
   border-radius: 999px;
-  border: 1.5px solid var(--border);
-  background: transparent;
+  border: none;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
   color: var(--fg);
   font-family: inherit;
   font-weight: 700;
@@ -1458,7 +1507,6 @@ header h1 svg {
 }
 
 .place-card .report-options button:hover:not(:disabled) {
-  border-color: var(--accent);
   color: var(--accent);
 }
 
@@ -1468,7 +1516,8 @@ header h1 svg {
 }
 
 .place-card .report-options .report-cancel {
-  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
   color: var(--muted);
 }
 
@@ -1495,6 +1544,12 @@ header h1 svg {
   }
   .place-card .favorite-button.is-favorite svg {
     fill: Highlight;
+  }
+  .place-card .sign-plate,
+  .mode-toggle,
+  .mode-toggle button.active,
+  .place-card .report-panel {
+    border: 1px solid CanvasText;
   }
 }
 
