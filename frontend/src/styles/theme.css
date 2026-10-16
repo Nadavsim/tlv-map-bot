@@ -1,83 +1,104 @@
+/* "Enamel" palette (2026-10): plaster walls, enamel-blue street signs, two small
+   spots of watermelon and lemon; night is a deep sea blue, not near-black.
+   Original variable names are kept so the colour swap is one diff; the role
+   tokens below them (--tint, --secondary, --hl ...) are what new styling uses.
+   Three blocks, same precedence as before: light by default, dark for a dark OS
+   unless the visitor picked light, and always dark when they picked dark. Every
+   token goes in all three blocks. Contrast checked: ink/page 14.3 (day) and
+   15.4 (night); muted/page 5.8 and 8.2; on-primary/primary 7.2 and 7.3. */
 :root {
-  color-scheme: light dark;
-  --bg: #fff8f2;
-  --fg: #2a1b12;
-  /* Darkened from #a97c64 (2026-09-10, Impeccable critique P1): the lighter
-     value only hit ~3.5:1 against --bg, below WCAG AA's 4.5:1 for normal
-     text - and this token drives the location status line and every
-     place-card's distance/ETA text, i.e. exactly the info that makes the
-     app useful. */
-  --muted: #8a5c42;
+  color-scheme: light;
+  --bg: #edf2f0;
+  --fg: #0c2237;
+  --muted: #486074;
   --bubble-bot: #ffffff;
-  /* Darkened from #ff5a36 (2026-09-10, Impeccable critique P1) to the same
-     shade already used as --chip-fg elsewhere in this palette, rather than
-     an unrelated color - the lighter value failed AA both as text-on-cream
-     (~3:1) and as a button fill under white text (~3.1:1); this shade
-     clears 4.5:1 in both directions. */
-  --bubble-user: #c23f19;
+  --bubble-user: #0b57a4;
   --bubble-user-fg: #ffffff;
   --card-bg: #ffffff;
-  --border: #f0dccb;
-  --accent: #c23f19;
+  /* A divider (rules between drawer sections), not a surface outline. */
+  --border: #d2ddd9;
+  --accent: #0b57a4;
   --accent-fg: #ffffff;
-  --chip-bg: #ffede3;
-  --chip-fg: #c23f19;
+  --chip-bg: #dce9f7;
+  --chip-fg: #0a3f78;
+  /* Roles. Enamel blue = act / the answer; watermelon = "mine" (saved heart,
+     delete); lemon = a rare fill, never text on the page and never a button. */
+  --tint: #dfe8e5;
+  --overlay: #ffffff;
+  --secondary: #b91f47;
+  --hl: #ffcb3d;
+  --on-hl: #0c2237;
+  /* A real edge for fields: 3.3:1 against the page (a shadow is not a boundary). */
+  --edge: color-mix(in srgb, #0c2237 55%, #ffffff);
+  --scrim: rgb(12 34 55 / 0.55);
+  --toast-bg: #0c2237;
+  --toast-fg: #ffffff;
+  --toast-act: #ffcb3d;
   /* Map tiles are always OSM's light style; dark mode inverts them via CSS
      (no second tile provider, no extra host in the CSP). */
   --map-tile-filter: none;
-  /* Tinted to the warm palette rather than flat black - a pure-black shadow
-     on a cream background reads as generic/AI-default. */
-  --shadow-sm: 0 1px 2px rgba(42, 27, 18, 0.06), 0 4px 10px rgba(255, 90, 54, 0.08);
-  --shadow-md: 0 2px 4px rgba(42, 27, 18, 0.07), 0 8px 20px rgba(255, 90, 54, 0.12);
+  --shadow-sm: 0 1px 2px rgb(12 34 55 / 0.06), 0 8px 20px -6px rgb(12 34 55 / 0.12);
+  --shadow-md: 0 12px 40px -8px rgb(12 34 55 / 0.28);
 }
 
-/* Dark mode intentionally isn't just a dark tint of the light palette - it's
-   the separate "dark, moody, premium" direction (electric lime on near-black)
-   from the style comparison, paired with the warm/vibrant light mode.
-
-   Applied two ways: automatically for a system dark-mode preference (unless
-   the user has explicitly picked light via the header toggle), and always
-   when the user has explicitly picked dark - the toggle's choice, once
-   made, needs to override the system preference in both directions. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #15161a;
-    --fg: #f2f2ed;
-    --muted: #9a9ca6;
-    --bubble-bot: #1c1d22;
-    --bubble-user: #c9ff3d;
-    --bubble-user-fg: #15161a;
-    --card-bg: #1c1d22;
-    --border: #2c2e36;
-    --accent: #c9ff3d;
-    --accent-fg: #15161a;
-    --chip-bg: #23281a;
-    --chip-fg: #c9ff3d;
+    color-scheme: dark;
+    --bg: #091a2b;
+    --fg: #e9f1f8;
+    --muted: #9fb4c8;
+    --bubble-bot: #10263d;
+    --bubble-user: #7fb2f5;
+    --bubble-user-fg: #07223f;
+    --card-bg: #16314d;
+    --border: #24496e;
+    --accent: #7fb2f5;
+    --accent-fg: #07223f;
+    --chip-bg: #1e4268;
+    --chip-fg: #c3daf9;
+    --tint: #10263d;
+    --overlay: #1c3a5a;
+    --secondary: #ff7c9c;
+    --hl: #ffd04a;
+    --on-hl: #0a1a2a;
+    --edge: color-mix(in srgb, #e9f1f8 45%, #16314d);
+    --scrim: rgb(2 8 16 / 0.55);
+    --toast-bg: #1c3a5a;
+    --toast-fg: #e9f1f8;
+    --toast-act: #ffd04a;
     --map-tile-filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
-    /* A dark card is still slightly lighter than the near-black page bg, so
-       a dark shadow against that page bg still reads as real elevation -
-       paired with a faint top highlight for a premium glass-like edge. */
-    --shadow-sm: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 12px rgba(0, 0, 0, 0.35);
-    --shadow-md: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.45);
+    --shadow-sm: 0 10px 24px -12px rgb(0 0 0 / 0.6);
+    --shadow-md: 0 16px 48px -8px rgb(0 0 0 / 0.65);
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #15161a;
-  --fg: #f2f2ed;
-  --muted: #9a9ca6;
-  --bubble-bot: #1c1d22;
-  --bubble-user: #c9ff3d;
-  --bubble-user-fg: #15161a;
-  --card-bg: #1c1d22;
-  --border: #2c2e36;
-  --accent: #c9ff3d;
-  --accent-fg: #15161a;
-  --chip-bg: #23281a;
-  --chip-fg: #c9ff3d;
+  color-scheme: dark;
+  --bg: #091a2b;
+  --fg: #e9f1f8;
+  --muted: #9fb4c8;
+  --bubble-bot: #10263d;
+  --bubble-user: #7fb2f5;
+  --bubble-user-fg: #07223f;
+  --card-bg: #16314d;
+  --border: #24496e;
+  --accent: #7fb2f5;
+  --accent-fg: #07223f;
+  --chip-bg: #1e4268;
+  --chip-fg: #c3daf9;
+  --tint: #10263d;
+  --overlay: #1c3a5a;
+  --secondary: #ff7c9c;
+  --hl: #ffd04a;
+  --on-hl: #0a1a2a;
+  --edge: color-mix(in srgb, #e9f1f8 45%, #16314d);
+  --scrim: rgb(2 8 16 / 0.55);
+  --toast-bg: #1c3a5a;
+  --toast-fg: #e9f1f8;
+  --toast-act: #ffd04a;
   --map-tile-filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
-  --shadow-sm: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 12px rgba(0, 0, 0, 0.35);
-  --shadow-md: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 10px 24px -12px rgb(0 0 0 / 0.6);
+  --shadow-md: 0 16px 48px -8px rgb(0 0 0 / 0.65);
 }
 
 * {
@@ -88,5 +109,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* Rubik covers Latin and Hebrew in one family, so Hebrew gets the same
+     voice as English (Nunito had no Hebrew and fell back to the system face). */
+  font-family: 'Rubik', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Hebrew', sans-serif;
 }

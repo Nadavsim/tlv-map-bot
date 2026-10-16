@@ -9,29 +9,29 @@
    own theme.css. */
 :root {
   color-scheme: light dark;
-  --page-bg: #fff8f2;
-  --page-fg: #2a1b12;
-  --page-accent: #c23f19;
+  --page-bg: #edf2f0;
+  --page-fg: #0c2237;
+  --page-accent: #0b57a4;
   --page-accent-fg: #ffffff;
-  --page-border: #f0dccb;
+  --page-border: #d2ddd9;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --page-bg: #15161a;
-    --page-fg: #f2f2ed;
-    --page-accent: #c9ff3d;
-    --page-accent-fg: #15161a;
-    --page-border: #2c2e36;
+    --page-bg: #091a2b;
+    --page-fg: #e9f1f8;
+    --page-accent: #7fb2f5;
+    --page-accent-fg: #07223f;
+    --page-border: #24496e;
   }
 }
 
 :root[data-theme='dark'] {
-  --page-bg: #15161a;
-  --page-fg: #f2f2ed;
-  --page-accent: #c9ff3d;
-  --page-accent-fg: #15161a;
-  --page-border: #2c2e36;
+  --page-bg: #091a2b;
+  --page-fg: #e9f1f8;
+  --page-accent: #7fb2f5;
+  --page-accent-fg: #07223f;
+  --page-border: #24496e;
 }
 
 body {
@@ -41,7 +41,7 @@ body {
   flex-direction: column;
   align-items: center;
   padding: 2.5rem 1.25rem;
-  font-family: 'Nunito', system-ui, sans-serif;
+  font-family: 'Rubik', system-ui, 'Noto Sans Hebrew', sans-serif;
   background: var(--page-bg);
   color: var(--page-fg);
 }
