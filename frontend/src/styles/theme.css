@@ -37,8 +37,8 @@
   /* Map tiles are always OSM's light style; dark mode inverts them via CSS
      (no second tile provider, no extra host in the CSP). */
   --map-tile-filter: none;
-  --shadow-sm: 0 1px 2px rgb(12 34 55 / 0.06), 0 8px 20px -6px rgb(12 34 55 / 0.12);
-  --shadow-md: 0 12px 40px -8px rgb(12 34 55 / 0.28);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 20px -6px rgb(0 0 0 / 0.12);
+  --shadow-md: 0 12px 40px -8px rgb(0 0 0 / 0.28);
 }
 
 @media (prefers-color-scheme: dark) {
