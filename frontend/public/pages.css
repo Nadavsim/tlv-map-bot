@@ -14,6 +14,8 @@
   --page-accent: #0b57a4;
   --page-accent-fg: #ffffff;
   --page-border: #d2ddd9;
+  --page-paper: #ffffff;
+  --page-tint: #dfe8e5;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +25,8 @@
     --page-accent: #7fb2f5;
     --page-accent-fg: #07223f;
     --page-border: #24496e;
+    --page-paper: #16314d;
+    --page-tint: #10263d;
   }
 }
 
@@ -32,6 +36,8 @@
   --page-accent: #7fb2f5;
   --page-accent-fg: #07223f;
   --page-border: #24496e;
+  --page-paper: #16314d;
+  --page-tint: #10263d;
 }
 
 body {
@@ -40,20 +46,75 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 2.5rem 1.25rem;
+  padding: 0 0 2.5rem;
   font-family: 'Rubik', system-ui, 'Noto Sans Hebrew', sans-serif;
   background: var(--page-bg);
   color: var(--page-fg);
 }
 
+/* Sticky bar: the wordmark as a small enamel plate, and (on About/Privacy)
+   a 44px Back pill, so the way home never scrolls away. */
+.page-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 1.25rem;
+  background: var(--page-bg);
+}
+
+.wordmark {
+  padding: 0.25rem 0.75rem;
+  border-radius: 8px;
+  background: var(--page-accent);
+  color: var(--page-accent-fg);
+  font-weight: 800;
+}
+
+.back-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  background: var(--page-tint);
+  color: var(--page-fg);
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+/* The prose sits on one raised sheet; the 404 is itself a sign plate. */
 .page {
-  max-width: 600px;
-  width: 100%;
+  box-sizing: border-box;
+  width: min(600px, calc(100% - 2.5rem));
+  margin-top: 0.75rem;
+  padding: 1.5rem 1.35rem 1.75rem;
+  border-radius: 20px;
+  background: var(--page-paper);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 20px -6px rgb(0 0 0 / 0.12);
 }
 
 .page.centered {
   text-align: center;
   margin: auto 0;
+  background: var(--page-accent);
+  color: var(--page-accent-fg);
+  outline: 1.5px solid color-mix(in srgb, var(--page-accent-fg) 60%, transparent);
+  outline-offset: -6px;
+}
+
+.page.centered a:not(.button) {
+  color: inherit;
+}
+
+.page.centered .button {
+  background: var(--page-accent-fg);
+  color: var(--page-accent);
 }
 
 /* A real size ladder rather than three near-equal steps: body 1rem, section
@@ -108,4 +169,12 @@ hr {
 
 [dir='rtl'] {
   text-align: right;
+}
+
+@media (forced-colors: active) {
+  .page,
+  .wordmark,
+  .back-pill {
+    border: 1px solid CanvasText;
+  }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { t } from '../i18n'
 import type { ChatEntry } from '../chatTypes'
 import { ChatBubble } from './ChatBubble'
 import { PlaceCards } from './PlaceCards'
@@ -7,7 +8,6 @@ import { LocationForm } from './LocationForm'
 import type { Coordinates, Lang, Place, SavedAddress } from '../types'
 
 interface ChatLogProps {
-  greeting: string
   entries: ChatEntry[]
   isWaitingForReply: boolean
   showLocationForm: boolean
@@ -18,7 +18,9 @@ interface ChatLogProps {
   showLiveRetry: boolean
   onShowMore: (entryId: string) => void
   loadingMoreId: string | null
-  onPickStarter: (prompt: string) => void
+  onPickCraving: (prompt: string) => void
+  queuedCraving: string | null
+  onClearQueuedCraving: () => void
   savedAddresses: SavedAddress[]
   favoriteIds: ReadonlySet<string>
   onToggleFavorite: (place: Place) => void
@@ -26,7 +28,6 @@ interface ChatLogProps {
 }
 
 export function ChatLog({
-  greeting,
   entries,
   isWaitingForReply,
   showLocationForm,
@@ -37,7 +38,9 @@ export function ChatLog({
   showLiveRetry,
   onShowMore,
   loadingMoreId,
-  onPickStarter,
+  onPickCraving,
+  queuedCraving,
+  onClearQueuedCraving,
   savedAddresses,
   favoriteIds,
   onToggleFavorite,
@@ -47,39 +50,58 @@ export function ChatLog({
 
   useEffect(() => {
     const el = logRef.current
-    if (el) el.scrollTop = el.scrollHeight
+    // The start screen reads from its top; a conversation follows its end.
+    if (el) el.scrollTop = entries.length === 0 ? 0 : el.scrollHeight
   }, [entries, isWaitingForReply, showLocationForm])
 
   return (
     <main className="chat-log" aria-live="polite" ref={logRef}>
-      {/* Pinned "instructions" bubble, not conversation history - always
-          shows in the current language, unlike everything below it. */}
-      <ChatBubble role="bot" text={greeting} />
+      {entries.length === 0 && (
+        // The start screen: replaces the old pinned greeting bubble. The
+        // chips work before a location exists (a tap queues the craving).
+        <section className="hero" aria-label="TLV Bot">
+          <h2 className="hero-title">{t(lang, 'heroTitle')}</h2>
+          <p className="hero-lede">{t(lang, 'heroLede')}</p>
+          <div className="hero-chips">
+            {[t(lang, 'introPrompt1'), t(lang, 'introPrompt2'), t(lang, 'introPrompt3')].map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                className={`starter-chip${queuedCraving === prompt ? ' is-queued' : ''}`}
+                aria-pressed={queuedCraving === prompt}
+                disabled={isWaitingForReply}
+                onClick={() => onPickCraving(prompt)}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+          {queuedCraving ? (
+            <p className="hero-hint hero-queued" role="status">
+              {t(lang, 'craving_queued').replace('{craving}', queuedCraving)}{' '}
+              <button type="button" className="hero-clear" onClick={onClearQueuedCraving}>
+                {t(lang, 'cancel')}
+              </button>
+            </p>
+          ) : (
+            <p className="hero-hint">{t(lang, 'heroHint')}</p>
+          )}
+          <nav className="hero-links" aria-label="About and privacy">
+            <a href="/about" target="_blank" rel="noopener noreferrer">
+              {t(lang, 'aboutLink')}
+            </a>
+            <a href="/privacy" target="_blank" rel="noopener noreferrer">
+              {t(lang, 'privacyLink')}
+            </a>
+          </nav>
+        </section>
+      )}
       {entries.map((entry) => {
         switch (entry.kind) {
           case 'bot-text':
             return <ChatBubble key={entry.id} role="bot" text={entry.text} />
           case 'user-text':
             return <ChatBubble key={entry.id} role="user" text={entry.text} />
-          case 'starter':
-            return (
-              <div key={entry.id} className="starter">
-                <ChatBubble role="bot" text={entry.text} />
-                <div className="starter-chips">
-                  {entry.prompts.map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      className="starter-chip"
-                      disabled={isWaitingForReply}
-                      onClick={() => onPickStarter(prompt)}
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )
           case 'places':
             return (
               <PlaceCards

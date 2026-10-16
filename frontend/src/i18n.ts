@@ -7,8 +7,6 @@ import type { Lang } from './types'
 // string> below with the same key set for both).
 const STRINGS = {
   en: {
-    greeting:
-      "Hi! I'll find the closest spot from my own Tel Aviv list - places I've been hunting down since my teens, not crowd reviews. Tell me your location below, or tap Live up top to share where you are. 📍",
     locationNotSet: 'Insert a location below, or switch to Live.',
     locationRequesting: 'Requesting your location...',
     locationSet: 'Location set. Ask away!',
@@ -38,8 +36,11 @@ const STRINGS = {
     chatSend: 'Send',
     chatRateLimited: "You're sending messages a bit fast - give it a moment and try again.",
     chatNetworkError: "Couldn't reach the server - check your connection.",
-    introText:
-      'Location set - ask away! Tap one to try it, or type your own.\n\nAfter any result, "something else" or "cheaper" refines it.',
+    heroTitle: 'Your next bite, nearby.',
+    heroLede: "I'll find the closest spot from my own Tel Aviv list - places I've been hunting down since my teens, not crowd reviews.",
+    heroHint: 'Tap one to try it, or type your own. After any result, "something else" or "cheaper" refines it.',
+    craving_queued: '"{craving}" is lined up - set a location, then I\'ll search.',
+    drawerCurator: "One person's real Tel Aviv list - not crowd reviews.",
     // These double as the message that gets sent when tapped, so each one
     // must be something the bot genuinely handles well.
     introPrompt1: 'coffee',
@@ -129,8 +130,6 @@ const STRINGS = {
     signOut: 'Sign out',
   },
   he: {
-    greeting:
-      'היי! אני אמצא לך את המקום הכי קרוב מהרשימה שלי - מקומות אוכל וקפה בתל אביב שאני אוסף כבר שנים, לא ביקורות מהקהל. ספר לי איפה אתה, או הקש למעלה על "נוכחי". 📍',
     locationNotSet: 'הזן מיקום למטה, או עבור למצב נוכחי.',
     locationRequesting: 'מבקש את המיקום שלך...',
     locationSet: 'המיקום נקבע. שאל בבקשה!',
@@ -159,8 +158,11 @@ const STRINGS = {
     chatSend: 'שלח',
     chatRateLimited: 'אתה שולח הודעות מהר מדי - חכה רגע ונסה שוב.',
     chatNetworkError: 'לא הצלחתי להתחבר לשרת - בדוק את החיבור שלך.',
-    introText:
-      'המיקום נקבע - שאל בכיף! הקש על אחת הדוגמאות, או הקלד משלך.\n\nאחרי כל תוצאה אפשר לכתוב "משהו אחר" או "יותר זול" כדי לדייק.',
+    heroTitle: 'הביס הבא שלך, קרוב אליך.',
+    heroLede: 'אמצא את המקום הקרוב ביותר מהרשימה שלי בתל אביב - מקומות שאני אוסף כבר מגיל צעיר, לא ביקורות של קהל.',
+    heroHint: 'לחץ על אחד כדי לנסות, או כתוב משלך. אחרי כל תוצאה, "משהו אחר" או "יותר זול" מדייקים אותה.',
+    craving_queued: '"{craving}" ממתין - קבע מיקום ואחפש.',
+    drawerCurator: 'הרשימה האמיתית של אדם אחד מתל אביב - לא ביקורות של קהל.',
     introPrompt1: 'קפה',
     introPrompt2: 'משהו זול',
     introPrompt3: 'תפתיע אותי',

@@ -1,4 +1,4 @@
-import { CircleHelp, Languages, Moon, RotateCcw, Sun, X } from 'lucide-react'
+import { CircleHelp, Info, Languages, Moon, RotateCcw, ShieldCheck, Sun, X } from 'lucide-react'
 import { useEffect } from 'react'
 import { AccountSection } from './AccountSection'
 import { t } from '../i18n'
@@ -73,10 +73,12 @@ export function SideMenu({
       <div className={`side-menu-backdrop ${isOpen ? 'open' : ''}`} onClick={onClose} aria-hidden="true" />
       <div className={`side-menu ${isOpen ? 'open' : ''}`} role="dialog" aria-modal="true" aria-label={t(lang, 'menuLabel')} inert={!isOpen}>
         <div className="side-menu-top">
+          <span className="side-menu-wordmark">TLV Bot</span>
           <button type="button" className="side-menu-close" onClick={onClose} aria-label={t(lang, 'closeMenu')}>
             <X size={22} aria-hidden="true" />
           </button>
         </div>
+        <p className="side-menu-curator">{t(lang, 'drawerCurator')}</p>
         <div className="side-menu-items">
           <button
             type="button"
@@ -102,6 +104,14 @@ export function SideMenu({
             <CircleHelp size={18} aria-hidden="true" />
             {t(lang, 'help')}
           </button>
+          <a className="side-menu-item" href="/about" target="_blank" rel="noopener noreferrer">
+            <Info size={18} aria-hidden="true" />
+            {t(lang, 'aboutLink')}
+          </a>
+          <a className="side-menu-item" href="/privacy" target="_blank" rel="noopener noreferrer">
+            <ShieldCheck size={18} aria-hidden="true" />
+            {t(lang, 'privacyLink')}
+          </a>
         </div>
         <AccountSection
           isOpen={isOpen}

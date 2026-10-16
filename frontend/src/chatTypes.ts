@@ -6,7 +6,6 @@ export type ChatEntry =
   // The one-time first-visit prompt: a bot bubble plus tappable example
   // messages. Removed from the log the moment the conversation starts - it's
   // an invitation, not history, and stale tappable chips mid-chat are clutter.
-  | { id: string; kind: 'starter'; text: string; prompts: string[] }
   | {
       id: string
       kind: 'places'

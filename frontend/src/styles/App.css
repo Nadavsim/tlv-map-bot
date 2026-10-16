@@ -182,7 +182,26 @@ header h1 svg {
 
 .side-menu-top {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.side-menu-wordmark {
+  padding: 0.2rem 0.7rem;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.side-menu-curator {
+  margin: 0.4rem 0 0.2rem;
+  padding-inline: 0.2rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .side-menu-close {
@@ -224,6 +243,10 @@ header h1 svg {
   font-weight: 700;
   text-align: start;
   cursor: pointer;
+}
+
+a.side-menu-item {
+  text-decoration: none;
 }
 
 .side-menu-item:hover {
@@ -775,23 +798,6 @@ header h1 svg {
   filter: brightness(1.08);
 }
 
-.app-footer {
-  text-align: center;
-  padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom));
-}
-
-.app-footer a {
-  color: var(--muted);
-  font-size: 0.78rem;
-  text-decoration: underline;
-}
-
-.app-footer-sep {
-  color: var(--muted);
-  font-size: 0.78rem;
-  margin: 0 0.5rem;
-}
-
 .undo-toast {
   display: flex;
   align-items: center;
@@ -1013,16 +1019,44 @@ header h1 svg {
   color: var(--accent-fg);
 }
 
-/* First-visit prompt: a bot bubble followed by tappable example messages. */
-.starter {
+/* Start screen: an enamel sign plate in place of the old pinned greeting.
+   Inverse colours (--accent-fg on --accent) so every pair is one already
+   covered by the contrast test; lemon marks the one queued craving. */
+.hero {
+  align-self: stretch;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  align-self: flex-start;
-  max-width: 100%;
+  gap: 0.6rem;
+  padding: 0.95rem 1.1rem 0.5rem;
+  border-radius: 20px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  outline: 1.5px solid color-mix(in srgb, var(--accent-fg) 60%, transparent);
+  outline-offset: -6px;
+  box-shadow: var(--shadow-sm);
 }
 
-.starter-chips {
+.hero-title {
+  margin: 0;
+  font-size: clamp(1.55rem, 7vw, 2rem);
+  font-weight: 800;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+.hero-lede,
+.hero-hint {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.hero-hint {
+  font-size: 0.85rem;
+}
+
+.hero-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -1030,20 +1064,16 @@ header h1 svg {
 
 .starter-chip {
   min-height: 44px;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 1.05rem;
   border-radius: 999px;
-  border: 1.5px solid var(--accent);
-  background: transparent;
+  border: none;
+  background: var(--accent-fg);
   color: var(--accent);
   font-family: inherit;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   cursor: pointer;
   transition: transform 0.1s ease;
-}
-
-.starter-chip:hover:not(:disabled) {
-  background: var(--chip-bg);
 }
 
 .starter-chip:active {
@@ -1053,6 +1083,44 @@ header h1 svg {
 .starter-chip:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.starter-chip.is-queued {
+  background: var(--hl);
+  color: var(--on-hl);
+}
+
+.hero .starter-chip:focus-visible,
+.hero a:focus-visible,
+.hero-clear:focus-visible {
+  outline-color: var(--accent-fg);
+}
+
+.hero-clear {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.hero-links {
+  display: flex;
+  gap: 1.25rem;
+  margin-top: -0.2rem;
+}
+
+.hero-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: underline;
 }
 
 /* Saved addresses: tap-to-use chips in the location form, a Save/Saved note

@@ -2018,7 +2018,22 @@ see the note on that last one in the shipped entry).
     stopped showing once cards lost their borders in Phase 2. Checked in the browser against mocked
     API data, Hebrew/RTL, dark and light, 440px: no overflow, plate on the correct side, colours as
     tokens. Not covered: a real phone, English cards, the map pin selection by eye.
-  - **Not done yet (Phase 3+)**: the distance sign-plate card, segmented control, start screen
+- **Phase 4** (2026-10-16, committed on `staging`): the start screen is an enamel sign plate (headline,
+    lede, three craving chips, hint) that replaces the pinned greeting bubble and shows whenever the
+    log is empty, so "New conversation" returns it. **Queue the craving**: a chip tapped before any
+    location is held (lemon chip + a "lined up" line with Cancel), the address field takes focus, and the
+    search goes out the moment a location is set - typed or Live (`sendQueuedCraving`, via a ref because the
+    geolocation callback is a stale closure; `handleSend` gained a location override). The old one-time
+    first-visit prompt is gone (starter entry kind, `tlv-bot-intro-seen`, `introText`); **`privacy.html`
+    no longer mentions that flag** (both languages). The footer is gone: About/Privacy live at the
+    bottom of the start screen and in the drawer. Drawer header: wordmark plate plus the curator line
+    (new Hebrew line written by me, **not reviewed by the curator**; likewise the Hebrew hero copy). About/
+    Privacy/404: sticky wordmark bar, 44px "Back / חזרה" pill, prose on one raised sheet, 404 as a sign
+    plate. Checked at 375x667 (hero + form + composer fit with ~10px of scroll; start screen scrolls
+    from its top), queue-to-send end to end, Hebrew/RTL, drawer, About in both themes. Not covered: a real
+    phone, 360x640 and shorter, the 404 and Privacy pages by eye. Note: running `prettier` here reformats
+    whole files (no config in the repo) - `PlaceCard.tsx` picked that up in Phase 3; don't run it again.
+    - **Not done yet (Phase 3+)**: the distance sign-plate card, segmented control, start screen
     (which must be fitted into one view - found during review), drawer header, static-page chrome,
     motion, PWA icons (still the old palette) and the privacy-page font wording is unchanged
     (still names the hosts, not the typeface). Known minor: `page-theme.js` has one lint warning.

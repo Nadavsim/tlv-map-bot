@@ -130,6 +130,7 @@ export function LocationForm({
       )}
       <form className="location-form-row" onSubmit={handleSubmit}>
         <input
+          id="location-input"
           type="text"
           placeholder={t(lang, 'locationInputPlaceholder')}
           value={value}
