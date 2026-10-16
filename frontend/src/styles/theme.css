@@ -23,6 +23,8 @@
      text in both themes. The light --accent is for text and rings on dark. */
   --fill: #0b57a4;
   --fill-fg: #ffffff;
+  --fill-chip: #ffffff;
+  --fill-chip-fg: #0b57a4;
   --chip-bg: #dce9f7;
   --chip-fg: #0a3f78;
   /* Roles. Enamel blue = act / the answer; watermelon = "mine" (saved heart,
@@ -49,17 +51,19 @@
   :root:not([data-theme='light']) {
     color-scheme: dark;
     --bg: #091a2b;
-    --fg: #e9f1f8;
-    --muted: #9fb4c8;
+    --fg: #d6e2ee;
+    --muted: #94a9be;
     --bubble-bot: #10263d;
-    --bubble-user: #2f6fcf;
-    --bubble-user-fg: #ffffff;
+    --bubble-user: #2a64bd;
+    --bubble-user-fg: #e6eef8;
     --card-bg: #16314d;
     --border: #24496e;
-    --accent: #7fb2f5;
+    --accent: #6fa3ec;
     --accent-fg: #07223f;
-    --fill: #2f6fcf;
-    --fill-fg: #ffffff;
+    --fill: #2a64bd;
+    --fill-fg: #e6eef8;
+    --fill-chip: #0c2744;
+    --fill-chip-fg: #cfe0f5;
     --chip-bg: #1e4268;
     --chip-fg: #c3daf9;
     --tint: #10263d;
@@ -67,10 +71,10 @@
     --secondary: #ff7c9c;
     --hl: #ffd04a;
     --on-hl: #0a1a2a;
-    --edge: color-mix(in srgb, #e9f1f8 45%, #16314d);
+    --edge: color-mix(in srgb, #d6e2ee 45%, #16314d);
     --scrim: rgb(2 8 16 / 0.55);
     --toast-bg: #1c3a5a;
-    --toast-fg: #e9f1f8;
+    --toast-fg: #d6e2ee;
     --toast-act: #ffd04a;
     --map-tile-filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
     --shadow-sm: 0 10px 24px -12px rgb(0 0 0 / 0.6);
@@ -81,17 +85,19 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
   --bg: #091a2b;
-  --fg: #e9f1f8;
-  --muted: #9fb4c8;
+  --fg: #d6e2ee;
+  --muted: #94a9be;
   --bubble-bot: #10263d;
-  --bubble-user: #2f6fcf;
-  --bubble-user-fg: #ffffff;
+  --bubble-user: #2a64bd;
+  --bubble-user-fg: #e6eef8;
   --card-bg: #16314d;
   --border: #24496e;
-  --accent: #7fb2f5;
+  --accent: #6fa3ec;
   --accent-fg: #07223f;
-  --fill: #2f6fcf;
-  --fill-fg: #ffffff;
+  --fill: #2a64bd;
+  --fill-fg: #e6eef8;
+  --fill-chip: #0c2744;
+  --fill-chip-fg: #cfe0f5;
   --chip-bg: #1e4268;
   --chip-fg: #c3daf9;
   --tint: #10263d;
@@ -99,10 +105,10 @@
   --secondary: #ff7c9c;
   --hl: #ffd04a;
   --on-hl: #0a1a2a;
-  --edge: color-mix(in srgb, #e9f1f8 45%, #16314d);
+  --edge: color-mix(in srgb, #d6e2ee 45%, #16314d);
   --scrim: rgb(2 8 16 / 0.55);
   --toast-bg: #1c3a5a;
-  --toast-fg: #e9f1f8;
+  --toast-fg: #d6e2ee;
   --toast-act: #ffd04a;
   --map-tile-filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
   --shadow-sm: 0 10px 24px -12px rgb(0 0 0 / 0.6);

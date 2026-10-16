@@ -15,6 +15,8 @@
   --page-accent-fg: #ffffff;
   --page-fill: #0b57a4;
   --page-fill-fg: #ffffff;
+  --page-chip: #ffffff;
+  --page-chip-fg: #0b57a4;
   --page-border: #d2ddd9;
   --page-paper: #ffffff;
   --page-tint: #dfe8e5;
@@ -23,11 +25,13 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --page-bg: #091a2b;
-    --page-fg: #e9f1f8;
-    --page-accent: #7fb2f5;
+    --page-fg: #d6e2ee;
+    --page-accent: #6fa3ec;
     --page-accent-fg: #07223f;
-    --page-fill: #2f6fcf;
-    --page-fill-fg: #ffffff;
+    --page-fill: #2a64bd;
+    --page-fill-fg: #e6eef8;
+    --page-chip: #0c2744;
+    --page-chip-fg: #cfe0f5;
     --page-border: #24496e;
     --page-paper: #16314d;
     --page-tint: #10263d;
@@ -36,11 +40,13 @@
 
 :root[data-theme='dark'] {
   --page-bg: #091a2b;
-  --page-fg: #e9f1f8;
-  --page-accent: #7fb2f5;
+  --page-fg: #d6e2ee;
+  --page-accent: #6fa3ec;
   --page-accent-fg: #07223f;
-  --page-fill: #2f6fcf;
-  --page-fill-fg: #ffffff;
+  --page-fill: #2a64bd;
+  --page-fill-fg: #e6eef8;
+  --page-chip: #0c2744;
+  --page-chip-fg: #cfe0f5;
   --page-border: #24496e;
   --page-paper: #16314d;
   --page-tint: #10263d;
@@ -119,8 +125,8 @@ body {
 }
 
 .page.centered .button {
-  background: var(--page-fill-fg);
-  color: var(--page-fill);
+  background: var(--page-chip);
+  color: var(--page-chip-fg);
 }
 
 /* A real size ladder rather than three near-equal steps: body 1rem, section
