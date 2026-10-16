@@ -137,7 +137,7 @@ header h1 svg {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--scrim);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease;
@@ -160,7 +160,7 @@ header h1 svg {
   padding: 1rem;
   padding-top: calc(1rem + env(safe-area-inset-top));
   padding-bottom: calc(1rem + env(safe-area-inset-bottom));
-  background: var(--bg);
+  background: var(--overlay);
   box-shadow: var(--shadow-md);
   /* The saved-address list can make the account section tall; on a short
      phone it has to scroll rather than push its own controls off-screen. */
@@ -406,7 +406,7 @@ header h1 svg {
   padding: 0.65rem 0.95rem;
   border-radius: 18px;
   line-height: 1.45;
-  font-size: 0.95rem;
+  font-size: 1rem;
   white-space: pre-wrap;
   text-wrap: pretty;
   animation: rise-in 0.25s ease both;
@@ -415,8 +415,6 @@ header h1 svg {
 .bubble.bot {
   align-self: flex-start;
   background: var(--bubble-bot);
-  border: 1.5px solid var(--border);
-  box-shadow: var(--shadow-sm);
   /* Logical (not physical) corner - the "tail" needs to stay on the side
      the bubble is actually aligned to, which flips under dir="rtl". */
   border-end-start-radius: 4px;
@@ -427,7 +425,6 @@ header h1 svg {
   background: var(--bubble-user);
   color: var(--bubble-user-fg);
   font-weight: 600;
-  box-shadow: var(--shadow-sm);
   border-end-end-radius: 4px;
 }
 
@@ -468,21 +465,17 @@ header h1 svg {
 
 .place-card {
   background: var(--card-bg);
-  border: 1.5px solid var(--border);
-  border-radius: 16px;
-  padding: 0.8rem 1rem;
+  border-radius: 20px;
+  padding: 0.9rem 1rem;
   box-shadow: var(--shadow-sm);
   animation: rise-in 0.25s ease both;
-  transition: box-shadow 0.2s ease;
-}
-
-.place-card:hover {
-  box-shadow: var(--shadow-md);
 }
 
 .place-card .name {
-  font-weight: 800;
-  margin-bottom: 0.35rem;
+  font-weight: 700;
+  font-size: 1.125rem;
+  line-height: 1.25;
+  margin-bottom: 0.4rem;
 }
 
 .place-card .meta {
@@ -499,23 +492,28 @@ header h1 svg {
   gap: 0.25rem;
   background: var(--chip-bg);
   color: var(--chip-fg);
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 0.8125rem;
+  font-weight: 600;
   padding: 0.2rem 0.6rem;
-  border-radius: 999px;
+  border-radius: 8px;
 }
 
 .place-card .tag-chip,
 .place-card .price-chip,
 .place-card .hours-chip,
 .place-card .outdoor-chip {
-  background: transparent;
+  background: var(--tint);
   color: var(--muted);
-  border: 1.5px solid var(--border);
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 0.8125rem;
+  font-weight: 600;
   padding: 0.2rem 0.6rem;
-  border-radius: 999px;
+  border-radius: 8px;
+}
+
+/* Lemon is a fill only, at most one per card: the Outdoor tag. */
+.place-card .outdoor-chip {
+  background: var(--hl);
+  color: var(--on-hl);
 }
 
 .place-card .price-chip,
@@ -527,9 +525,9 @@ header h1 svg {
 }
 
 .place-card .distance-eta {
-  font-size: 0.8rem;
-  color: var(--muted);
-  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--fg);
+  font-weight: 700;
 }
 
 .place-card .links {
@@ -668,7 +666,7 @@ header h1 svg {
   min-width: 0;
   padding: 0.7rem 1rem;
   border-radius: 999px;
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--edge);
   background: var(--card-bg);
   color: var(--fg);
   font-family: inherit;
@@ -753,10 +751,9 @@ header h1 svg {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.65rem 1.1rem;
-  background: var(--chip-bg);
-  border-top: 1.5px solid var(--border);
+  background: var(--toast-bg);
   font-size: 0.85rem;
-  color: var(--fg);
+  color: var(--toast-fg);
   animation: rise-in 0.2s ease both;
 }
 
@@ -765,7 +762,7 @@ header h1 svg {
   padding: 0.3rem 0.7rem;
   border: none;
   background: transparent;
-  color: var(--accent);
+  color: var(--toast-act);
   font-family: inherit;
   font-weight: 800;
   font-size: 0.85rem;
@@ -774,7 +771,11 @@ header h1 svg {
 }
 
 .undo-toast button:hover {
-  background: var(--card-bg);
+  background: rgb(255 255 255 / 0.12);
+}
+
+.app .undo-toast button:focus-visible {
+  outline-color: var(--toast-act);
 }
 
 .chat-form {
@@ -789,7 +790,7 @@ header h1 svg {
   min-width: 0;
   padding: 0.7rem 1rem;
   border-radius: 999px;
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--edge);
   background: var(--card-bg);
   color: var(--fg);
   font-family: inherit;
@@ -1224,8 +1225,8 @@ header h1 svg {
 }
 
 .delete-account-actions .delete-account-danger {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--secondary);
+  color: var(--secondary);
 }
 
 .delete-account-actions button:disabled {
@@ -1337,8 +1338,8 @@ header h1 svg {
 }
 
 .place-card .favorite-button.is-favorite {
-  background: var(--accent);
-  color: var(--accent-fg);
+  background: var(--tint);
+  color: var(--secondary);
 }
 
 /* Favorites in the menu: each row is a navigation link with its category as a
@@ -1476,4 +1477,41 @@ header h1 svg {
   margin: 0.5rem 0 0;
   font-size: 0.8rem;
   color: var(--muted);
+}
+
+/* Windows forced-colors drops shadows and fills, which are now what separates
+   cards, bubbles and fields - real borders come back there. */
+@media (forced-colors: active) {
+  .place-card,
+  .bubble,
+  .side-menu,
+  .undo-toast,
+  .place-card .tag-chip,
+  .place-card .price-chip,
+  .place-card .hours-chip,
+  .place-card .outdoor-chip,
+  .place-card .category-chip {
+    border: 1px solid CanvasText;
+  }
+  .place-card .favorite-button.is-favorite svg {
+    fill: Highlight;
+  }
+}
+
+/* prefers-contrast: more - flat fills get a full-ink edge, muted text goes to ink. */
+@media (prefers-contrast: more) {
+  .place-card,
+  .bubble.bot,
+  .place-card .tag-chip,
+  .place-card .price-chip,
+  .place-card .hours-chip {
+    outline: 1px solid var(--fg);
+    outline-offset: -1px;
+  }
+  .location-status,
+  .place-card .tag-chip,
+  .place-card .price-chip,
+  .place-card .hours-chip {
+    color: var(--fg);
+  }
 }

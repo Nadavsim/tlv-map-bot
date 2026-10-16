@@ -1991,6 +1991,33 @@ see the note on that last one in the shipped entry).
     the About page in both languages at 420px with no horizontal overflow.
     **Not covered**: light theme for the icons, Hebrew chips, a real phone.
 
+- **Visual upgrade, Phases 1-2** (2026-10-16, committed on `staging`, not pushed). Curator chose
+  **Enamel** (over Shuk), **full-width result cards** (Phase 3), queue-the-craving, and Google Fonts
+  for now. A team of agents (engineer, researcher, UX auditor, UI + motion designers, then an
+  a11y/RTL/perf reviewer and a tech lead) produced a proposal, prototype and a six-phase plan
+  (52-78 h; session folder `visual-upgrade/`, published as a private artifact). Why: both old themes
+  were the two looks every AI-design checklist flags (cream + terracotta, near-black + lime).
+  - **Phase 1** (`279460d`): palette swapped *under the existing variable names* (one small diff),
+    role tokens added (`--tint --secondary --hl --overlay --edge --scrim --toast-*`), **Rubik**
+    replaces Nunito on the app and the three static pages (same Google hosts: no CSP or privacy
+    change), solid 2px focus ring (the old tint ring was 1.7:1 light / 2.9:1 dark), 16px inputs (no
+    iOS zoom), `color-scheme` follows the explicit theme, `theme-color`/manifest follow the palette.
+    `tests/test_theme_contrast.py` guards every text/UI pair in both themes and that the two dark
+    blocks never drift.
+  - **Phase 2**: flush bubbles (fill only), borderless 20px cards with the shadow as the only
+    separation and no hover lift, 8px rectangular tags ("a rectangle you cannot press, a pill you
+    can"), 18px/700 place names, distance + time now bold ink (they were the quietest text), real
+    edge on fields, saved heart and delete in watermelon, Outdoor tag in lemon, drawer on the
+    overlay surface with a token scrim, ink undo toast with its own action colour, plus
+    `forced-colors` and `prefers-contrast: more` fallbacks.
+  - **Not done yet (Phase 3+)**: the distance sign-plate card, segmented control, start screen
+    (which must be fitted into one view - found during review), drawer header, static-page chrome,
+    motion, PWA icons (still the old palette) and the privacy-page font wording is unchanged
+    (still names the hosts, not the typeface). Known minor: `page-theme.js` has one lint warning.
+  - **Verified**: 519 tests; in the real app on staging data, light/dark x EN/HE at 420px: Rubik
+    loaded, no overflow, tokens as designed. Not covered: a real phone, and the map's dark tile
+    filter against the navy night frame.
+
 ### Deferred (explicitly, revisit later)
 - Public transit ETA — needs Google Distance Matrix (real cost/setup
   tradeoff vs. the free OSRM walk/drive ETAs already in place)

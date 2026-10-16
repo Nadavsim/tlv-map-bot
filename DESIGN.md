@@ -100,6 +100,17 @@ components:
     padding: "0.7rem 1rem"
 ---
 
+> **Update 2026-10 (visual upgrade, Phases 1-2 shipped to `staging`).** The palette, type and
+> roles below describe the *previous* look and are superseded by "Enamel": plaster `#EDF2F0`,
+> enamel blue `#0B57A4` (night `#7FB2F5`), watermelon `#B91F47` for "mine" (heart, delete),
+> lemon `#FFCB3D` as a rare fill (Outdoor tag), deep-sea night `#091A2B`; font **Rubik**
+> (Latin + Hebrew). **The One Accent Rule is replaced by the Three Roles Rule**: blue = act /
+> the answer; watermelon = "mine"; lemon = a fill only, never text or a button. Cards and
+> bubbles are separated by fill and shadow, not hairlines; fields keep a real edge. The source of
+> truth is `frontend/src/styles/theme.css` (guarded by `tests/test_theme_contrast.py`). The
+> proposal, prototype and review live in the session's `visual-upgrade/` folder; this file is
+> regenerated after Phase 3 (the new result card and segmented control).
+
 # Design System: TLV Bot
 
 ## Overview
