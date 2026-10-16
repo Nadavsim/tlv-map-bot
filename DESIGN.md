@@ -20,29 +20,29 @@ colors:
   chip-bg-night: "#23281a"
 typography:
   display:
-    fontFamily: "Nunito, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"
+    fontFamily: "Rubik, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"
     fontSize: "2.1rem"
     fontWeight: 800
     lineHeight: 1.15
     letterSpacing: "-0.015em"
   headline:
-    fontFamily: "Nunito, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"
+    fontFamily: "Rubik, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"
     fontSize: "1.5rem"
     fontWeight: 800
     lineHeight: 1.2
     letterSpacing: "-0.02em"
   title:
-    fontFamily: "Nunito, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"
+    fontFamily: "Rubik, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"
     fontSize: "1rem"
     fontWeight: 800
     lineHeight: 1.4
   body:
-    fontFamily: "Nunito, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"
+    fontFamily: "Rubik, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"
     fontSize: "0.95rem"
     fontWeight: 400
     lineHeight: 1.45
   label:
-    fontFamily: "Nunito, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"
+    fontFamily: "Rubik, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif"
     fontSize: "0.75rem"
     fontWeight: 700
     letterSpacing: "0.04em"
@@ -159,11 +159,11 @@ A warm cream-and-rust day palette and a near-black-and-lime night palette, each 
 
 ## Typography
 
-**Display Font:** Nunito (with the system UI stack as fallback)
-**Body Font:** Nunito (same family)
-**Label/Mono Font:** none - labels are Nunito at small sizes and heavier weights
+**Display Font:** Rubik (with the system UI stack as fallback)
+**Body Font:** Rubik (same family)
+**Label/Mono Font:** none - labels are Rubik at small sizes and heavier weights
 
-**Character:** A single rounded humanist sans, used in a few confident weights. Its friendly, slightly rounded terminals are what make the interface read as a person talking rather than a tool. Nunito has no Hebrew glyphs, so Hebrew falls through to the system font; the layout is built so that doesn't matter.
+**Character:** A single rounded geometric sans, used in a few confident weights. Its friendly, slightly rounded terminals are what make the interface read as a person talking rather than a tool. Rubik covers Latin and Hebrew in one family, so Hebrew gets the same voice as English.
 
 ### Hierarchy
 - **Display** (800, 2.1rem, 1.15): page titles on the standalone About, Privacy and 404 pages.
