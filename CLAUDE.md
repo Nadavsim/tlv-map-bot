@@ -2048,6 +2048,7 @@ see the note on that last one in the shipped entry).
     batch stagger after Show more, thumb offset LTR and RTL, drawer closed/open states (read with
     transitions disabled - the browser pane throttles transitions while hidden, which once looked like a
     bug). Not covered: how it *feels* (frame cost, taste) on a real phone, reduced motion by eye.
+  - **`DESIGN.md` regenerated** (2026-10-16, after Phase 5): rewritten from the shipped code (Enamel palette with the day/night fill split, Three Roles / Soft White / Fill-Not-Line / Press rules, sign plate, segmented control, start plate, motion). North Star kept as "The Friend's List". The sidecar `.impeccable/design.json` (untracked) was regenerated with it. Re-run when `theme.css` or the component styles change.
     - **Not done yet (Phase 3+)**: the distance sign-plate card, segmented control, start screen
     (which must be fitted into one view - found during review), drawer header, static-page chrome,
     motion, PWA icons (still the old palette) and the privacy-page font wording is unchanged
