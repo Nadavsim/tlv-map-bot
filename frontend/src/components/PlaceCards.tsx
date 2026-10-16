@@ -1,5 +1,5 @@
 import { ChevronDown, Map as MapIcon } from 'lucide-react'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { t } from '../i18n'
 import type { Coordinates, Lang, Place } from '../types'
 import { MapErrorBoundary } from './MapErrorBoundary'
@@ -38,6 +38,13 @@ export function PlaceCards({
   const cardRefs = useRef<(HTMLDivElement | null)[]>([])
   const mapRef = useRef<HTMLDivElement>(null)
 
+  // Cards already on screen don't re-arrive; a new batch ("Show more") staggers
+  // in from its own first card. (State adjusted during render, React's pattern
+  // for "previous value" without reading a ref.)
+  const [batch, setBatch] = useState({ count: 0, start: 0 })
+  if (batch.count !== places.length) setBatch({ count: places.length, start: batch.count })
+  const batchStart = batch.start
+
   // Bring the map into view when it opens - it renders below the cards, and
   // the toggle that opened it can be a screen away from where it lands.
   useEffect(() => {
@@ -54,7 +61,12 @@ export function PlaceCards({
   return (
     <div className="places">
       {places.map((place, i) => (
-        <div key={`${place.name}-${place.maps_url}`} ref={(el) => void (cardRefs.current[i] = el)}>
+        <div
+          key={`${place.name}-${place.maps_url}`}
+          ref={(el) => void (cardRefs.current[i] = el)}
+          className={`card-slot${i >= batchStart && i < batchStart + 3 ? ' is-arriving' : ''}`}
+          style={{ '--i': i - batchStart } as CSSProperties}
+        >
           <PlaceCard
             place={place}
             lang={lang}

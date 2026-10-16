@@ -2033,6 +2033,21 @@ see the note on that last one in the shipped entry).
     from its top), queue-to-send end to end, Hebrew/RTL, drawer, About in both themes. Not covered: a real
     phone, 360x640 and shorter, the 404 and Privacy pages by eye. Note: running `prettier` here reformats
     whole files (no config in the repo) - `PlaceCard.tsx` picked that up in Phase 3; don't run it again.
+  - **Phase 5, motion** (2026-10-16, committed on `staging`): the arrive-in-order system from the motion
+    doc, scoped down. Tokens at the top of `App.css` (`--travel-*`, `--dur-*`, `--ease-*`, `--press-scale`,
+    `--dir`); distances and scales are never literals, so `prefers-reduced-motion` is a block of token
+    overrides (travel/scale to 0, press becomes a .78 dim, glider snaps, drawer fades in place, typing
+    dots stop moving and keep a slow pulse). Shipped: results arrive as a bubble then the first 3 cards of
+    a batch (batch-relative, so "Show more" staggers its own cards; long lists like favorites mount
+    static), buttons fade after, travel times settle in; user/bot bubbles grow from their tail corner; the
+    Walk/Drive and Custom/Live thumb glides (`data-i` on the track, RTL via `--dir`); drawer is asymmetric
+    (340ms out-expo in, 180ms ease-in out, hidden when closed); report panel/undo toast/map mount with a
+    short rise or fade; heart dips on press; `overscroll-behavior-y: contain` on the chat and drawer.
+    **Not built from the doc**: pin icon memoising and the pin pop, the chevron on lists, scroll-to-start
+    of a tall reply, hover gating behind `(hover:hover)`. Checked in the browser: arrival names/delays,
+    batch stagger after Show more, thumb offset LTR and RTL, drawer closed/open states (read with
+    transitions disabled - the browser pane throttles transitions while hidden, which once looked like a
+    bug). Not covered: how it *feels* (frame cost, taste) on a real phone, reduced motion by eye.
     - **Not done yet (Phase 3+)**: the distance sign-plate card, segmented control, start screen
     (which must be fitted into one view - found during review), drawer header, static-page chrome,
     motion, PWA icons (still the old palette) and the privacy-page font wording is unchanged

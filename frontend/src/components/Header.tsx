@@ -127,7 +127,12 @@ export function Header({
           </span>
         )}
       </div>
-      <div className="mode-toggle" role="group" aria-label={t(lang, 'locationModeGroupLabel')}>
+      <div
+        className="mode-toggle"
+        role="group"
+        aria-label={t(lang, 'locationModeGroupLabel')}
+        data-i={locationMode === 'live' ? 1 : 0}
+      >
         <button
           type="button"
           className={locationMode === 'manual' ? 'active' : ''}
@@ -145,7 +150,12 @@ export function Header({
           {t(lang, 'locationModeLive')}
         </button>
       </div>
-      <div className="mode-toggle" role="group" aria-label={t(lang, 'transportMode')}>
+      <div
+        className="mode-toggle"
+        role="group"
+        aria-label={t(lang, 'transportMode')}
+        data-i={mode === 'driving' ? 1 : 0}
+      >
         <button
           type="button"
           className={mode === 'walking' ? 'active' : ''}
