@@ -19,6 +19,10 @@
   --border: #d2ddd9;
   --accent: #0b57a4;
   --accent-fg: #ffffff;
+  /* Filled blocks (plate, hero, selected segment, send): a deep blue with white
+     text in both themes. The light --accent is for text and rings on dark. */
+  --fill: #0b57a4;
+  --fill-fg: #ffffff;
   --chip-bg: #dce9f7;
   --chip-fg: #0a3f78;
   /* Roles. Enamel blue = act / the answer; watermelon = "mine" (saved heart,
@@ -48,12 +52,14 @@
     --fg: #e9f1f8;
     --muted: #9fb4c8;
     --bubble-bot: #10263d;
-    --bubble-user: #7fb2f5;
-    --bubble-user-fg: #07223f;
+    --bubble-user: #2f6fcf;
+    --bubble-user-fg: #ffffff;
     --card-bg: #16314d;
     --border: #24496e;
     --accent: #7fb2f5;
     --accent-fg: #07223f;
+    --fill: #2f6fcf;
+    --fill-fg: #ffffff;
     --chip-bg: #1e4268;
     --chip-fg: #c3daf9;
     --tint: #10263d;
@@ -78,12 +84,14 @@
   --fg: #e9f1f8;
   --muted: #9fb4c8;
   --bubble-bot: #10263d;
-  --bubble-user: #7fb2f5;
-  --bubble-user-fg: #07223f;
+  --bubble-user: #2f6fcf;
+  --bubble-user-fg: #ffffff;
   --card-bg: #16314d;
   --border: #24496e;
   --accent: #7fb2f5;
   --accent-fg: #07223f;
+  --fill: #2f6fcf;
+  --fill-fg: #ffffff;
   --chip-bg: #1e4268;
   --chip-fg: #c3daf9;
   --tint: #10263d;
