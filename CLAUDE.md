@@ -104,6 +104,115 @@ code. The old items 1-7 below are superseded by this structure; everything
 in them that shipped is still true and is summarized in "Already shipped"
 below.
 
+### Roadmap v2 (2026-10-17) - supersedes the Now/Next/Later lists below where they differ
+
+Second review, run the same way as the first and then some: six independent
+reviewers (Customer, R&D, Marketing, **Data analyst, Security and privacy,
+Ops and cost**), a **Skeptic** pass that checked their claims against the code
+and triaged every recommendation, and a product reconciliation (the
+`product-management` plugin's roadmap workflow). Inputs were a shared
+state-of-product brief and **real production aggregates** (read-only, counts
+only). Living board: the "Next Stops" artifact (v22, same URL as before);
+raw material is session scratchpad `roadmap-v2/` (files 00-16), not committed.
+**Why it looks the way it does:** the reports proposed ~60-80 h; the real limit
+is one maintainer's spare hours, so Now is ~12 h, Next items each name what they
+wait for, and a checkpoint ~4 weeks after the friend outreach re-ranks Next.
+
+**Facts the review established** (production, 2026-10-16; ~105 chat requests
+ever, undated, includes the curator's and the assistant's own tests and
+double-counted follow-ups): coffee 61% of requests on 26% of pins; italian,
+thai and mexican (29 pins) have 0 requests; unmatched ~8%; 1 account, 0
+favorites, 0 saved addresses, **0 place reports of any kind**; 133 of 167 pins
+have an Instagram link; **no pin carries dietary/#until/#outdoor tags**, so the
+hours/outdoor/occasion machinery is dormant. Confirmed in code by the Skeptic:
+`llm.py:193` swallows every API error and `app.py:449` then logs it as an
+"unmatched" query; sync loses a place's `_id` and Instagram link if a pin is
+moved >30 m and its truncation guard passes a 29% loss; hours deprioritisation
+reorders only each page of 3 while paging uses `$skip`; `#until`/`#outdoor`
+leak into `dietary_tags`; `/api/resolve-location` is unrate-limited and fetches
+any URL with redirects (blind SSRF, low impact); `privacy.html` is wrong on
+three points (Open-Meteo is undisclosed though `weather.py` sends exact
+coordinates to it; the page says "Google Maps link" but any link is opened;
+favorites coordinates appear in access-log query strings). **Unresolved:**
+whether the per-IP limit is one shared bucket behind Azure (Ops' "$170/month
+abuse" and Security's "one bucket" cannot both be true) - one log line of the
+client IP settles it. Cost: B1 is the whole bill; ~$0.0014/chat (estimate);
+headroom under $15 is ~$0.55; **no Anthropic spend limit is set**.
+
+**Curator decisions, 2026-10-17** (settled): **user-suggested spots stay, with
+sign-in required** (anti-spam) **and server-side input sanitisation** (no stored
+XSS: strip HTML/control/bidi characters, length caps, Google-Maps-links-only,
+stored as plain text, never rendered as HTML, only read by a curator script);
+the feature candidates below were added to Next; **UptimeRobot is already set up
+on production** (not staging, which does not need it).
+
+**Now (~12 h, in cut order)**
+1. **Safety net** (~45 min, no code): $5 Anthropic spend limit; one log line of
+   the real client IP; gitignore the agent folders (public repo).
+2. **Make the promises true** (~2.5 h): rate-limit + Google-hosts-only
+   `resolve-location`; bound request fields (`previous_category` max length,
+   lat/lon/offset ranges); correct `privacy.html` (Open-Meteo, "any link", logs;
+   round weather coordinates to ~1 km).
+3. **Loud failures, gated deploys** (~2.5 h): log a warning + a separate
+   counter when the Claude call fails instead of counting "unmatched"; run
+   pytest in the production deploy (check it passes in CI with a dummy
+   `JWT_SECRET`).
+4. **Honest filter replies** (~2-3 h): when a requested qualifier (vegan,
+   kosher, "open now") cannot be honoured, say so deterministically instead of
+   "Surprise!" with unrelated places.
+5. **Ask people** (curator, ~2 h): message 5-8 named friends one to one + one
+   follow-up; **read the 8 unmatched queries before the 90-day TTL deletes
+   them**; start a weekly counter snapshot; keep the "I added the place you
+   asked about" habit. Optional 30 min: swap a coffee start chip for a
+   non-coffee one.
+
+**Next (each names its trigger; re-ranked at the checkpoint)**
+- **Suggest a spot** (6-9 h; sign-in required; sanitised; private queue; a
+  `show_suggestions`-style script; per-user daily cap; privacy page updated in
+  the same release; the curator adds good ones to My Maps and thanks the friend
+  personally). Trigger: outreach shows friends want to contribute.
+- **Curator notes - "what to order"** (3 h + the curator's writing): one line
+  from a pin's My Maps description on its card.
+- **"New on the list" strip** (3-4 h): record when a pin first appears, show
+  the newest 2-3 on the start screen.
+- **"I've been" marks** (4-5 h): private, account-only, built like favorites;
+  replaces "don't suggest what I already navigated to".
+- **Tappable follow-ups** on clarifying replies (3-4 h), if unmatched texts show
+  dead ends.
+- **Sync hardening** (~1.5 h): print counts and >30 m moves, alert on a sharp
+  drop, heartbeat ping.
+- **Housekeeping bundle** (~1.5 h): dev/prod requirements, `/docs` off,
+  workflow `permissions:`, pin Action versions.
+- **Curator's desk (chores):** Instagram links for the 34 pins without one
+  (1-1.5 h); split the 29 "miscellaneous" pins (1-2 h); *if hours/outdoor tags
+  are wanted*, tag coffee first (~1 h) **together with** R&D's three fixes
+  (re-order before paging, strip structured tags from `dietary_tags`, skip the
+  weather call when no pin needs it) - not before.
+
+**Later:** two-person search (when 3+ friends ask); browse by neighbourhood;
+"on my way" route search; map as home page (self-hosted tiles feasible, 20-30
+h); semantic search (after curator notes - places have no description text);
+weekly LLM pass over unmatched (when rows reach a few dozen); bigger tap
+targets and a labelled feedback control (the report button is ~30x25 px; zero
+reports may only mean few people tried it); install-prompt timing + iOS hint;
+backups (when 5+ accounts exist; never via public-repo artifacts); daily report
+nudge email (needs a credential only the curator can create); Live-location
+prompt after the first typed address; daily counters; AI fallback for the
+address box.
+
+**Not building:** Sentry, prompt caching, Redis, pre-built self-hosted tiles,
+App.tsx split on its own, per-person analytics, public ratings or social-proof
+counts, referral/group blasts, a sign-in gate on the base chat, auto-hiding
+reported places. **Deferred (unchanged):** transit ETA; multi-curator uploads;
+exact pins from name-only Maps links; self-hosting the font.
+
+**Crosswalk from the older lists (nothing dropped):** all earlier Now/Next items
+are done; "I added the place you asked about" -> Now 5; weekly LLM pass -> Later;
+two-person search, map home page, semantic search, report nudge -> Later;
+"don't suggest what I already navigated to" -> replaced by "I've been" marks;
+user-suggested places -> kept, promoted to Next with the sign-in/sanitiser
+design; sign-out semantics and account deletion -> settled.
+
 **Prioritization principle:** ordered by leverage-per-hour, not feature
 size or a release calendar - the real constraint is one maintainer's spare
 time, not money or a deadline, so cheap-and-certain beats big-and-
@@ -1036,7 +1145,8 @@ see the note on that last one in the shipped entry).
     - **Signing up for free uptime/error-alert services** (e.g.
       UptimeRobot, Sentry) and pointing them at `/health` - creating
       accounts on the user's behalf is outside what this session does
-      regardless of tooling access.
+      regardless of tooling access. **Update 2026-10-17:** the curator set up
+      UptimeRobot on production (not staging, which does not need it).
     - **Hand-tagging real places** with `#until<hour>`/`#outdoor` in My
       Maps - the app-side implementation is ready and synced the same way
       price tiers were, but no real place has either tag yet.
