@@ -1,14 +1,80 @@
 # TLV Bot - how it fits together
 
-Two diagrams, both written in Mermaid (GitHub renders them on this page).
-Regenerate or edit them in any Mermaid editor; keep them in step with
-`CLAUDE.md` when the architecture changes.
+Three diagrams, written in Mermaid (GitHub renders them on this page). Edit
+them in any Mermaid editor, and keep them in step with `CLAUDE.md` when the
+architecture changes.
 
-## System overview
+## What runs
 
-Who touches what: the visitor's phone, the FastAPI app on Azure, the MongoDB
-collections, the outside services, the curator's tooling and the build and
-deploy pipeline. Dotted lines are optional, read-only or occasional.
+The visitor's phone, the FastAPI app on Azure and its services, the MongoDB
+collections, and the outside services it calls. Dotted lines are optional or
+occasional.
+
+```mermaid
+flowchart LR
+  subgraph Phone["Visitor's phone: React PWA"]
+    Start["Start screen and chat"]
+    Cards["Result cards with sign plate"]
+    MapView["Results map"]
+    Drawer["Menu: account,<br/>favorites, suggest a spot,<br/>saved addresses, settings"]
+  end
+
+  API["FastAPI app on Azure<br/>rate limits and text sanitiser<br/>chat, etas, favorites,<br/>suggestions, reports, auth"]
+
+  subgraph Services["Backend services"]
+    LLMsvc["LLM<br/>Claude Haiku 4.5"]
+    LocSvc["Location<br/>Google-only links,<br/>address lookup, typo check"]
+    RouteSvc["Routing"]
+    WxSvc["Weather"]
+  end
+
+  subgraph Mongo["MongoDB Atlas"]
+    Places[("places")]
+    Users[("users, saved addresses")]
+    Favs[("favorites")]
+    Suggs[("place_suggestions<br/>deleted after 180 days")]
+    Reports[("place_reports")]
+    Stats[("usage stats,<br/>unmatched queries")]
+  end
+
+  subgraph Ext["Outside services"]
+    Claude["Anthropic Claude API"]
+    Nominatim["OpenStreetMap Nominatim"]
+    GoogleMaps["Google Maps links"]
+    OSRM["OSRM routing"]
+    Meteo["Open-Meteo"]
+    GoogleSignIn["Google Sign-In"]
+    Tiles["OpenStreetMap tiles"]
+  end
+
+  Start --> API
+  Cards --> API
+  Drawer --> API
+  Drawer -. sign in .-> GoogleSignIn
+  MapView -. map images .-> Tiles
+
+  API --> LLMsvc
+  API --> LocSvc
+  API --> RouteSvc
+  API --> WxSvc
+  LLMsvc --> Claude
+  LocSvc --> Nominatim
+  LocSvc --> GoogleMaps
+  RouteSvc --> OSRM
+  WxSvc --> Meteo
+
+  API --> Places
+  API --> Users
+  API --> Favs
+  API --> Suggs
+  API --> Reports
+  API --> Stats
+```
+
+## Who looks after it
+
+The curator's list and scripts, the build and deploy pipeline, and the running
+app they feed. Dotted lines are read-only or occasional.
 
 ```mermaid
 flowchart TB
@@ -19,85 +85,29 @@ flowchart TB
 
   subgraph Pipeline["Build and deploy"]
     Git["git push<br/>staging or main"]
-    CI["GitHub Actions<br/>build, run tests"]
+    CI["GitHub Actions<br/>build and run tests"]
     Sync["Daily sync job<br/>4am UTC"]
+  end
+
+  subgraph Live["Running app"]
+    Azure["Azure App Service<br/>staging and production"]
+    Mongo[("MongoDB Atlas")]
     Monitor["UptimeRobot<br/>checks health on production"]
   end
 
-  subgraph Phone["Visitor's phone: React app, installable PWA"]
-    Start["Start screen and chat"]
-    Cards["Result cards with sign plate<br/>distance, travel time"]
-    MapView["Results map<br/>Leaflet"]
-    Drawer["Menu: account, favorites,<br/>suggest a spot, saved addresses,<br/>settings, About, Privacy"]
-  end
-
-  subgraph Azure["Azure App Service: FastAPI backend"]
-    Guards["Rate limits, input limits,<br/>text sanitiser, client-IP diagnostic"]
-    Routes["API routes<br/>chat, more-places, etas, resolve-location,<br/>favorites, suggestions, reports, auth, health"]
-    LLMsvc["LLM service<br/>Claude Haiku 4.5"]
-    LocSvc["Location service<br/>Google-only link expansion,<br/>address lookup, street typo check"]
-    RouteSvc["Routing service"]
-    WxSvc["Weather service"]
-  end
-
-  subgraph Mongo["MongoDB Atlas, free tier"]
-    Places[("places")]
-    Users[("users and saved addresses")]
-    Favs[("favorites")]
-    Suggs[("place_suggestions<br/>deleted after 180 days")]
-    Reports[("place_reports")]
-    Stats[("category_stats and<br/>unmatched_queries")]
-  end
-
-  subgraph Ext["Outside services"]
-    Claude["Anthropic Claude API"]
-    OSRM["OSRM routing"]
-    Nominatim["OpenStreetMap Nominatim"]
-    Meteo["Open-Meteo weather"]
-    GoogleMaps["Google Maps links"]
-    GoogleSignIn["Google Sign-In"]
-    Tiles["OpenStreetMap tiles"]
-  end
-
-  Start --> Guards
-  Cards --> Guards
-  Drawer --> Guards
-  Guards --> Routes
-  Routes --> LLMsvc
-  Routes --> LocSvc
-  Routes --> RouteSvc
-  Routes --> WxSvc
-  LLMsvc --> Claude
-  LocSvc --> Nominatim
-  LocSvc --> GoogleMaps
-  RouteSvc --> OSRM
-  WxSvc --> Meteo
-  Drawer -. sign in .-> GoogleSignIn
-  MapView -. map images .-> Tiles
-
-  Routes --> Places
-  Routes --> Users
-  Routes --> Favs
-  Routes --> Suggs
-  Routes --> Reports
-  Routes --> Stats
-
-  MyMaps --> Sync
-  Sync --> Places
-  Scripts -. read only .-> Reports
-  Scripts -. read only .-> Suggs
-  Scripts -. flags near duplicates .-> Places
-  Scripts --> MyMaps
-
   Git --> CI
   CI -->|tests pass| Azure
-  Monitor -. health check .-> Routes
+  MyMaps --> Sync
+  Sync -->|places| Mongo
+  Scripts -. reads reports and suggestions .-> Mongo
+  Scripts -. add good ones by hand .-> MyMaps
+  Monitor -. health check .-> Azure
 ```
 
 ## What happens when someone asks for food
 
-One chat message, from the craving to the travel time landing in the card.
-The decisions in the middle are the honest-reply rules: a failed model call, a
+One chat message, from the craving to the travel time landing in the card. The
+decisions in the middle are the honest-reply rules: a failed model call, a
 request that is not about food, a requirement the list cannot honour, and a
 place named in the message are each said out loud instead of hidden.
 
