@@ -9,29 +9,47 @@ lightweight web app that runs for roughly $15/month.
 
 ## ✨ Features
 
-* **Free-text cravings:** "ramen", "something with meat", "coffee near here" -
-  Claude (Haiku 4.5) matches your message to a category from your map.
-* **Nearest-match search:** MongoDB's geospatial `$geoNear` finds the 3 closest
-  places in that category to wherever your browser says you are.
-* **One-tap navigation:** every result includes a Google Maps directions link
-  (no Google Maps API key or billing needed - it's a plain deep link).
-* **Auto-updating database:** re-run one script to pull the latest pins straight
-  from your public Google My Maps map - no manual export/import step. Edits to
-  `instagram_url` (or anything else you add by hand in MongoDB Atlas) are
-  preserved across syncs.
-* **Google Sign-In:** optional account system on top of a fully anonymous
-  base app - nobody needs to sign in to use the chatbot itself, but signing
-  in (via Google, no separate passwords) is the foundation for upcoming
-  account-scoped features like favorites and ratings.
+* **Free-text cravings:** "ramen", "something cheap", "coffee near here" -
+  Claude (Haiku 4.5) matches your message to a category from your map, plus an
+  optional price tier and dietary tag. English and Hebrew.
+* **Honest replies:** when it can't honour a request ("open now", "vegan" with
+  no vegan pins, a night club) it says so instead of returning unrelated
+  places, and logs the request so the curator can see what the list lacks.
+* **Nearest-match search:** MongoDB's geospatial `$geoNear` finds the closest
+  places in that category to your set location, 3 at a time with "Show more"
+  and follow-ups like "something else" or "cheaper". Places likely to be closed
+  right now, or outdoor spots in the rain, sort after the rest.
+* **Results first, travel times after:** cards appear at once with the
+  distance (in metres under 1 km); walking or driving times from OSRM fill in
+  a moment later, so a slow routing service never delays the answer.
+* **One-tap navigation:** a Google Maps directions link on every card (a plain
+  deep link, no API key or billing), an Instagram link where available, a
+  WhatsApp share button, and an optional results map (Leaflet + OpenStreetMap).
+* **Your own location:** live geolocation, or a typed address, coordinates or
+  Google Maps link in Tel Aviv-Yafo, Ramat Gan and Givatayim, with a "Did you
+  mean ...?" suggestion for misspelt streets.
+* **Auto-updating database:** one script pulls the latest pins straight from
+  your public Google My Maps map, on a daily schedule in production. Values
+  added by hand in MongoDB Atlas (`instagram_url`) survive syncs.
+* **Optional accounts (Google Sign-In):** nobody has to sign in to use the
+  chatbot. Signed-in users get favorites, up to 5 saved addresses and a
+  "Suggest a spot" form (private to the curator, sanitised, rate limited), and
+  can delete their account and everything stored for it.
+* **Private curator signals:** visitors can flag a place as closed, in the
+  wrong category, or "I'd go back". These are anonymous, never shown to other
+  visitors, and read with a script.
+* **Installable PWA** with a light/dark theme, full RTL support, and
+  `/privacy`, `/about` and 404 pages.
 
 ## 🏗️ Architecture
 
 * **Frontend:** React + TypeScript (`frontend/`), built with Vite straight into
   `static/` (content-hashed filenames, cached forever; `index.html` itself is
-  always revalidated so it picks up the latest build). Uses the browser
-  Geolocation API, with a manual lat/lon or Google Maps link fallback.
-* **Backend:** FastAPI (Python 3.11), serving both the built page and a
-  `/api/chat` JSON endpoint.
+  always revalidated so it picks up the latest build). The results map lives
+  in its own lazy-loaded chunk.
+* **Backend:** FastAPI (Python 3.11), serving both the built page and a JSON
+  API (`/api/chat`, `/api/etas`, `/api/favorites`, `/api/suggestions`, ...),
+  with per-IP rate limits and server-side input sanitising.
 * **Database:** MongoDB Atlas, free-forever M0 tier (512MB). A `2dsphere` index
   on each place's location powers the nearest-match queries.
 * **NLU:** Anthropic API, `claude-haiku-4-5` - one small tool-call per chat
@@ -41,11 +59,11 @@ lightweight web app that runs for roughly $15/month.
   plus this app's own short-lived JWT access tokens (in-memory only) and
   longer-lived refresh tokens (httpOnly cookie, scoped to `/api/auth`). No
   self-managed passwords - see `CLAUDE.md` for the full design writeup.
-  Signed-in users can keep up to 5 saved manual addresses (address text +
-  coordinates rounded to ~11 m, no user-chosen names) and delete their account
-  from the menu, which removes everything stored for it. What's stored is
+  What is stored per account (saved addresses, favorites, suggestions) is
   described in plain language in `frontend/public/privacy.html` - update it in
   the same change as anything that alters what's stored.
+* **Free public services:** OSRM for travel times, Nominatim for address
+  lookup, Open-Meteo for a rain check, OpenStreetMap tiles for the map. No keys.
 * **Hosting:** Azure App Service, split into a production and a staging
   environment (see `CLAUDE.md` for the full story and setup gotchas).
   Production runs on a dedicated Basic (B1) plan (~$14.45/month - the
@@ -56,6 +74,10 @@ lightweight web app that runs for roughly $15/month.
   `staging` -> staging) via `.github/workflows/`.
 * **Data source:** a Google My Maps custom map, shared publicly, exported as
   KML on demand via its stable `mid=` URL.
+
+For diagrams of how it all fits together (what runs where, the module map, the
+code path of one chat message, and tap-to-database traces), see
+[`docs/architecture.md`](docs/architecture.md).
 
 Total running cost at personal-project scale: ~$14-15/month - production's
 Basic-tier App Service plan is the one real line item; everything else
@@ -194,35 +216,52 @@ python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000
 
 ```
 backend/                                FastAPI app package.
-  app.py                                  Routes - stays thin, delegates to
-                                           db.py and services/
+  app.py                                  Routes, middleware, rate limits and
+                                           reply text - delegates to db.py
+                                           and services/
   db.py                                   MongoDB access (the data layer)
   models.py                               Schema (Pydantic) - single source
                                            of truth for a place document
   parser.py                               KML -> place dicts
-  services/                               One module per external
-    llm.py                                  integration: Claude NLU,
-    routing.py                              OSRM ETAs, Google Maps link
-    location.py                             resolution, and Google
-    auth.py                                 Sign-In verification + this
-                                             app's own JWT issuing
-    weather.py                              (Open-Meteo rain check, used
-                                             to reorder results)
-    resilience.py                           (shared cache + back-off for
-                                             the free public services)
+  data/streets.json                       Street names for typo suggestions
+  services/                               One module per concern:
+    llm.py                                  Claude NLU (category, tag, price,
+                                             follow-up, unsupported request)
+    location.py                             Google Maps link + address lookup
+    streets.py                              "Did you mean" street matching
+    routing.py                              OSRM travel times
+    weather.py                              Open-Meteo rain check
+    auth.py                                 Google token check + JWTs
+    suggestions.py                          Sanitising for suggested spots
+    clientip.py                             Rate-limit key diagnostic (no IPs)
+    resilience.py                           Shared cache + back-off
 scripts/                                Maintenance CLI scripts, run as
-  sync_places.py                          python -m scripts.sync_places
-  seed_instagram_from_csv.py              python -m scripts.seed_instagram_from_csv
-  show_reports.py                         python -m scripts.show_reports
-                                            (what visitors reported as
-                                            closed / wrong category)
+  sync_places.py                          python -m scripts.<name>
+  seed_instagram_from_csv.py              (one-off Instagram backfill)
+  show_reports.py                         what visitors flagged (closed,
+                                           wrong category, would go back)
+  show_suggestions.py                     places signed-in visitors suggested
+  build_street_index.py                   regenerate backend/data/streets.json
+  build_icons.py                          regenerate the PWA icons
 data/                                   Local data files (gitignored - your
   map.kml, cleaned_places.csv             curated list stays private)
-frontend/                               React + TypeScript chat UI (source)
+docs/architecture.md                    Mermaid diagrams of the system
+frontend/                               React + TypeScript app (source);
+  src/App.tsx                             all state and handlers
+  src/components/                         presentational components
+  src/api.ts, i18n.ts, types.ts           API client, EN/HE strings, types
+  public/                                 static pages (privacy, about, 404),
+                                           manifest, service worker
 static/                                 Generated by frontend's build -
                                          gitignored, don't edit by hand
 tests/                                  pytest suite - conftest.py at the
-                                         root adds it to sys.path
+                                         root adds it to sys.path and blocks
+                                         any test from reaching a real DB
+.github/workflows/                      deploy-production, deploy-staging
+                                         (both run the tests first) and the
+                                         daily sync_places job
+CLAUDE.md                               Project history, decisions, roadmap
+DESIGN.md                               Visual design system
 ```
 
 `backend/` (not `app/`) is deliberate - `app.py` lives inside it, and a
@@ -233,6 +272,27 @@ sibling `app/` package would collide with that filename.
 ```bash
 pytest
 ```
+
+The frontend must be built once first (`static/` has to exist for the app to
+import). A few auth tests need a `JWT_SECRET`; CI uses a dummy one:
+
+```bash
+JWT_SECRET=anything pytest
+```
+
+Tests never touch a real database - `conftest.py` blanks `MONGODB_URI`, so a
+test that reaches an unstubbed collection fails loudly. The deploy workflows
+run the suite before deploying, so a failing test stops the release.
+
+## Curating
+
+```bash
+python -m scripts.show_suggestions        # places visitors suggested
+python -m scripts.show_reports            # closed / wrong category / would go back
+```
+
+Both read the database named by `MONGODB_DB_NAME` (production by default in a
+typical `.env`; prefix `MONGODB_DB_NAME=tlvbot_staging` to look at staging).
 
 ## Street-name data (typo suggestions)
 
