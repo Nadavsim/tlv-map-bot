@@ -334,12 +334,28 @@ a.side-menu-item {
 }
 
 .account-section {
-  /* Pinned to the bottom of the drawer - the whole reason for this
-     redesign was giving account-scoped features (this, and eventually
-     favorites/saved spots) a permanent, spacious home instead of
-     fighting the header's icon row for space. */
+  /* The top of the drawer: account-scoped features (favorites, suggest a spot,
+     saved addresses) have a permanent, spacious home instead of fighting the
+     header's icon row for space. Settings and the links sit below it. */
+  padding-top: 0.75rem;
+  padding-bottom: 1rem;
+}
+
+/* Settings, About and Privacy: pinned to the bottom of the drawer (and below
+   the account section when the drawer is tall enough to scroll). */
+.side-menu-bottom {
   margin-top: auto;
   padding-top: 1rem;
+  border-top: 1.5px solid var(--border);
+}
+
+.side-menu-bottom > .side-menu-items {
+  margin-top: 0;
+}
+
+.side-menu-links {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
   border-top: 1.5px solid var(--border);
 }
 

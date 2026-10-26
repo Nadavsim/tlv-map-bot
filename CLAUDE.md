@@ -284,6 +284,12 @@ on production** (not staging, which does not need it).
   same at startup) but unintended. `conftest.py` now has a catch-all fixture
   that blanks `MONGODB_URI` so no test can reach a real database again - a test
   that touches an unstubbed collection fails loudly.
+  **Drawer reordered (2026-10-26, `staging`):** account first (name and sign
+  out, favorites, suggest a spot, saved addresses, delete account), then a
+  pinned-to-the-bottom block with a "Settings" heading (language, theme, new
+  conversation, help) and, below a rule, About and Privacy. Checked in the
+  real app signed in at 400x850: order as described, no scroll, no overflow;
+  "Settings" in Hebrew is new and unreviewed.
 - **Curator notes - "what to order"** (3 h + the curator's writing): one line
   from a pin's My Maps description on its card.
 - **"New on the list" strip** (3-4 h): record when a pin first appears, show

@@ -81,40 +81,6 @@ export function SideMenu({
           </button>
         </div>
         <p className="side-menu-curator">{t(lang, 'drawerCurator')}</p>
-        <div className="side-menu-items">
-          <button
-            type="button"
-            className="side-menu-item"
-            onClick={() => selectAndClose(() => onLangChange(lang === 'en' ? 'he' : 'en'))}
-          >
-            <Languages size={18} aria-hidden="true" />
-            {t(lang, 'languageToggle')}
-          </button>
-          <button
-            type="button"
-            className="side-menu-item"
-            onClick={() => selectAndClose(() => onThemeChange(theme === 'light' ? 'dark' : 'light'))}
-          >
-            {theme === 'light' ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}
-            {theme === 'light' ? t(lang, 'themeToggleToDark') : t(lang, 'themeToggleToLight')}
-          </button>
-          <button type="button" className="side-menu-item" onClick={() => selectAndClose(onNewConversation)}>
-            <RotateCcw size={18} aria-hidden="true" />
-            {t(lang, 'newConversation')}
-          </button>
-          <button type="button" className="side-menu-item" onClick={() => selectAndClose(onHelp)}>
-            <CircleHelp size={18} aria-hidden="true" />
-            {t(lang, 'help')}
-          </button>
-          <a className="side-menu-item" href="/about" target="_blank" rel="noopener noreferrer">
-            <Info size={18} aria-hidden="true" />
-            {t(lang, 'aboutLink')}
-          </a>
-          <a className="side-menu-item" href="/privacy" target="_blank" rel="noopener noreferrer">
-            <ShieldCheck size={18} aria-hidden="true" />
-            {t(lang, 'privacyLink')}
-          </a>
-        </div>
         <AccountSection
           isOpen={isOpen}
           user={authUser}
@@ -136,6 +102,45 @@ export function SideMenu({
             return ok
           }}
         />
+        <div className="side-menu-bottom">
+          <p className="account-section-heading">{t(lang, 'settingsHeading')}</p>
+          <div className="side-menu-items">
+            <button
+              type="button"
+              className="side-menu-item"
+              onClick={() => selectAndClose(() => onLangChange(lang === 'en' ? 'he' : 'en'))}
+            >
+              <Languages size={18} aria-hidden="true" />
+              {t(lang, 'languageToggle')}
+            </button>
+            <button
+              type="button"
+              className="side-menu-item"
+              onClick={() => selectAndClose(() => onThemeChange(theme === 'light' ? 'dark' : 'light'))}
+            >
+              {theme === 'light' ? <Moon size={18} aria-hidden="true" /> : <Sun size={18} aria-hidden="true" />}
+              {theme === 'light' ? t(lang, 'themeToggleToDark') : t(lang, 'themeToggleToLight')}
+            </button>
+            <button type="button" className="side-menu-item" onClick={() => selectAndClose(onNewConversation)}>
+              <RotateCcw size={18} aria-hidden="true" />
+              {t(lang, 'newConversation')}
+            </button>
+            <button type="button" className="side-menu-item" onClick={() => selectAndClose(onHelp)}>
+              <CircleHelp size={18} aria-hidden="true" />
+              {t(lang, 'help')}
+            </button>
+          </div>
+          <div className="side-menu-items side-menu-links">
+            <a className="side-menu-item" href="/about" target="_blank" rel="noopener noreferrer">
+              <Info size={18} aria-hidden="true" />
+              {t(lang, 'aboutLink')}
+            </a>
+            <a className="side-menu-item" href="/privacy" target="_blank" rel="noopener noreferrer">
+              <ShieldCheck size={18} aria-hidden="true" />
+              {t(lang, 'privacyLink')}
+            </a>
+          </div>
+        </div>
       </div>
     </>
   )
