@@ -35,6 +35,7 @@ async def test_returns_matched_category(monkeypatch):
         "clarifying_question": None,
         "any_category": False,
         "is_followup": False,
+        "unsupported": None,
     }
 
 
@@ -78,6 +79,7 @@ async def test_any_category_true_ignores_matched_category(monkeypatch):
         "clarifying_question": None,
         "any_category": True,
         "is_followup": False,
+        "unsupported": None,
     }
 
 
@@ -230,6 +232,7 @@ async def test_is_followup_forced_false_when_model_names_a_different_category(mo
         "clarifying_question": None,
         "any_category": False,
         "is_followup": False,
+        "unsupported": None,
     }
 
 
@@ -619,3 +622,78 @@ async def test_no_filter_and_no_category_still_asks_a_question(monkeypatch):
 
     assert result["any_category"] is False
     assert result["clarifying_question"] == "What are you craving?"
+
+
+def _client_for(**tool_input):
+    base = {"any_category": False, "matched_category": "", "clarifying_question": ""}
+    return make_fake_client({**base, **tool_input})
+
+
+@pytest.mark.asyncio
+async def test_a_requirement_with_no_category_becomes_an_honest_any_category_search(monkeypatch):
+    monkeypatch.setattr(
+        llm, "_get_client", lambda: _client_for(unsupported_requirement="vegan", clarifying_question="What cuisine?")
+    )
+
+    result = await llm.parse_food_request("something vegan", ["coffee", "burger"])
+
+    assert result["unsupported"] == "vegan"
+    assert result["any_category"] is True
+    assert result["category"] is None
+    assert result["clarifying_question"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_requirement_alongside_a_category_keeps_the_category(monkeypatch):
+    monkeypatch.setattr(
+        llm, "_get_client", lambda: _client_for(matched_category="coffee", unsupported_requirement="outdoor seating")
+    )
+
+    result = await llm.parse_food_request("coffee with outdoor seating", ["coffee", "burger"])
+
+    assert result["category"] == "coffee"
+    assert result["any_category"] is False
+    assert result["unsupported"] == "outdoor seating"
+
+
+@pytest.mark.asyncio
+async def test_no_requirement_means_no_note(monkeypatch):
+    monkeypatch.setattr(llm, "_get_client", lambda: _client_for(matched_category="coffee"))
+
+    assert (await llm.parse_food_request("coffee", ["coffee"]))["unsupported"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_known_tag_or_category_is_never_reported_as_unsupported(monkeypatch):
+    monkeypatch.setattr(llm, "_get_client", lambda: _client_for(unsupported_requirement="Kosher"))
+    assert (await llm.parse_food_request("kosher", ["coffee"], dietary_tags=["kosher"]))["unsupported"] is None
+
+    monkeypatch.setattr(llm, "_get_client", lambda: _client_for(unsupported_requirement="coffee"))
+    assert (await llm.parse_food_request("coffee", ["coffee"]))["unsupported"] is None
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("<b>vegan</b>", "b vegan /b"),
+        ("open {now}", "open now"),
+        ('say "hi"', "say hi"),
+        ("a\x00b\x1fc", "a b c"),
+        ("vegan\u202e\u200b", "vegan"),
+        ("  spaced   out  ", "spaced out"),
+        ("x" * 100, "x" * 40),
+        ("", None),
+        ("   ", None),
+        (None, None),
+        (42, None),
+        ({"a": 1}, None),
+    ],
+)
+def test_the_reported_requirement_is_reduced_to_plain_short_text(raw, expected):
+    assert llm._clean_requirement(raw, [], []) == expected
+
+
+def test_the_tool_schema_asks_for_the_requirement():
+    schema = llm._TOOLS[0]["input_schema"]
+    assert "unsupported_requirement" in schema["properties"]
+    assert "unsupported_requirement" in schema["required"]

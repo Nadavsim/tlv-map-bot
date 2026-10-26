@@ -2069,3 +2069,90 @@ def test_both_deploy_workflows_run_the_tests_before_anything_is_uploaded():
         text = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / name).read_text(encoding="utf-8")
         assert "pytest" in text, name
         assert text.index("pytest") < text.index("actions/upload-artifact"), name
+
+
+def _extraction(**overrides):
+    base = {
+        "category": None,
+        "dietary_tag": None,
+        "price_tier": None,
+        "clarifying_question": None,
+        "any_category": True,
+        "is_followup": False,
+        "unsupported": None,
+    }
+    return {**base, **overrides}
+
+
+def _chat_with(monkeypatch, extraction, lang="en", message="something vegan", log_error=None):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee", "burger"]))
+    monkeypatch.setattr(llm, "parse_food_request", AsyncMock(return_value=extraction))
+    log_unmatched = AsyncMock(side_effect=log_error)
+    monkeypatch.setattr(db, "log_unmatched_query", log_unmatched)
+    record_stat = AsyncMock()
+    monkeypatch.setattr(db, "record_category_request", record_stat)
+    monkeypatch.setattr(db, "find_nearest", AsyncMock(return_value=[SAMPLE_PLACE]))
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/chat", json={"message": message, "lat": 32.08, "lon": 34.78, "lang": lang})
+    return resp, log_unmatched, record_stat
+
+
+def test_an_unsupported_requirement_is_named_instead_of_answering_surprise(monkeypatch):
+    resp, log_unmatched, record_stat = _chat_with(monkeypatch, _extraction(unsupported="vegan"))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["reply"] == "I don't have \"vegan\" marked on my list yet. Here are the closest spots overall:"
+    assert "Surprise" not in body["reply"]
+    assert len(body["places"]) == 1
+    log_unmatched.assert_awaited_once_with("something vegan")
+    record_stat.assert_awaited_once_with(db.ANY_CATEGORY_KEY)
+
+
+def test_an_unsupported_requirement_with_a_category_keeps_the_category_reply(monkeypatch):
+    resp, log_unmatched, record_stat = _chat_with(
+        monkeypatch, _extraction(category="coffee", any_category=False, unsupported="outdoor seating")
+    )
+
+    assert resp.json()["reply"] == "I don't have \"outdoor seating\" marked on my list yet. Here are the closest coffee spots:"
+    log_unmatched.assert_awaited_once()
+    record_stat.assert_awaited_once_with("coffee")
+
+
+def test_the_hebrew_note_and_reply(monkeypatch):
+    resp, _, _ = _chat_with(monkeypatch, _extraction(unsupported="טבעוני"), lang="he", message="משהו טבעוני")
+
+    assert resp.json()["reply"] == 'עדיין אין לי סימון של "טבעוני" ברשימה. הנה המקומות הכי קרובים בסך הכל:'
+
+
+def test_surprise_me_without_a_requirement_is_unchanged(monkeypatch):
+    resp, log_unmatched, _ = _chat_with(monkeypatch, _extraction(), message="surprise me")
+
+    assert resp.json()["reply"] == "Surprise! Here are the closest spots overall:"
+    log_unmatched.assert_not_awaited()
+
+
+def test_a_known_tag_with_a_requirement_reads_naturally(monkeypatch):
+    resp, _, _ = _chat_with(monkeypatch, _extraction(dietary_tag="kosher", unsupported="open now"))
+
+    assert resp.json()["reply"] == "I don't have \"open now\" marked on my list yet. Here are the closest kosher spots overall:"
+
+
+def test_a_logging_failure_never_costs_the_visitor_their_answer(monkeypatch):
+    resp, log_unmatched, _ = _chat_with(
+        monkeypatch, _extraction(unsupported="vegan"), log_error=RuntimeError("db down")
+    )
+
+    assert resp.status_code == 200
+    assert len(resp.json()["places"]) == 1
+    log_unmatched.assert_awaited_once()
+
+
+def test_privacy_page_says_requests_it_could_not_fully_match_are_kept():
+    from pathlib import Path
+
+    page = (Path(__file__).resolve().parent.parent / "frontend" / "public" / "privacy.html").read_text(encoding="utf-8")
+    english, hebrew = page.split('<section lang="he"')
+    assert "couldn't fully match" in english
+    assert "לא הצלחתי להתאים במלואן" in hebrew

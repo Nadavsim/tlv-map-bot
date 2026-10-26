@@ -181,7 +181,23 @@ on production** (not staging, which does not need it).
    `JWT_SECRET`; **the first real GitHub Actions run is the real check**).
 4. **Honest filter replies** (~2-3 h): when a requested qualifier (vegan,
    kosher, "open now") cannot be honoured, say so deterministically instead of
-   "Surprise!" with unrelated places.
+   "Surprise!" with unrelated places. **Built 2026-10-26 on `staging`, not
+   pushed:** the Claude tool gained `unsupported_requirement` (a 1-3 word
+   requirement that is not a category, a known tag or a price - "vegan", "open
+   now", "outdoor seating", "a date spot"); `llm.py` cleans it (plain text only,
+   40 chars, no markup/placeholders/control or bidi characters, never a known
+   category or tag) and treats a requirement with no category as an any-category
+   search (like a tag or price already was - so those requests no longer end in
+   a cuisine question). `/api/chat` prefixes the reply with `I don't have "X"
+   marked on my list yet.` (Hebrew: new, unreviewed) and uses "Here are the
+   closest spots overall:" instead of "Surprise!"; the visitor's text is also
+   written to `unmatched_queries` (best-effort) so the curator sees what the
+   list lacks - **`privacy.html` now says requests it "couldn't fully match" are
+   kept too**. Checked on the real model with no tags known: vegan, kosher,
+   open now, a date spot, brunch and Hebrew equivalents all report the
+   requirement; coffee, surprise me and cheap pizza report none. 574 tests.
+   Behaviour change to know: "a date spot" used to ask a clarifying question and
+   now returns the closest places with the note.
 5. **Ask people** (curator, ~2 h): message 5-8 named friends one to one + one
    follow-up; **read the 8 unmatched queries before the 90-day TTL deletes
    them**; start a weekly counter snapshot; keep the "I added the place you

@@ -73,7 +73,8 @@
           To help decide what to add to the underlying map, TLV Bot keeps two
           anonymous things: a count of how often each category (coffee, pizza,
           etc.) is asked for, and the raw text of requests it couldn't match to
-          anything. Neither is linked to who sent it. Unmatched-request text is
+          anything or couldn't fully match (for example a request for
+          something the list doesn't mark yet, like "vegan"). Neither is linked to who sent it. Unmatched-request text is
           automatically deleted after 90 days. It also counts, as a bare
           number, how often a typed address couldn't be found - the address
           itself is never stored.
@@ -225,7 +226,8 @@
         <p>
           כדי לעזור להחליט מה להוסיף למפה, TLV Bot שומר שני דברים אנונימיים
           בלבד: ספירה של כמה פעמים כל קטגוריה (קפה, פיצה וכו') התבקשה, והטקסט
-          הגולמי של בקשות שלא הצלחתי להתאים לשום דבר. אף אחד מהם לא מקושר
+          הגולמי של בקשות שלא הצלחתי להתאים לשום דבר, או לא הצלחתי להתאים במלואן
+          (למשל בקשה למשהו שהרשימה עדיין לא מסמנת, כמו "טבעוני"). אף אחד מהם לא מקושר
           למי ששלח אותו. טקסט של בקשות לא-מותאמות נמחק אוטומטית אחרי 90 יום.
           בנוסף נספר, כמספר בלבד, כמה פעמים כתובת שהוקלדה לא נמצאה - הכתובת
           עצמה לא נשמרת לעולם.

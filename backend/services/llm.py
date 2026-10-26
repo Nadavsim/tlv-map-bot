@@ -1,4 +1,5 @@
 import logging
+import re
 
 import anthropic
 
@@ -26,7 +27,8 @@ _TOOLS = [
                         "KNOWN tags with no food type, e.g. 'something cheap', 'anything "
                         "kosher'. False otherwise - in particular False when the user asks "
                         "for an occasion or quality that is not in the known tags (e.g. 'a "
-                        "date spot' when no such tag exists): ask a clarifying question."
+                        "date spot' when no such tag exists): put that in "
+                        "unsupported_requirement instead."
                     ),
                 },
                 "matched_category": {
@@ -74,6 +76,18 @@ _TOOLS = [
                         "distinct request, not a continuation, regardless of how it's phrased."
                     ),
                 },
+                "unsupported_requirement": {
+                    "type": "string",
+                    "description": (
+                        "A specific requirement the user stated that is NOT one of the "
+                        "known categories, NOT one of the known tags and NOT a price level - "
+                        "e.g. 'vegan', 'kosher', 'open now', 'outdoor seating', 'a date spot', "
+                        "'good for kids' when those are not in the known tags. One to three "
+                        "words, in the user's own language, copied from their message. Empty "
+                        "string if there is no such requirement. Never put a category, a "
+                        "known tag or a price word here."
+                    ),
+                },
                 "clarifying_question": {
                     "type": "string",
                     "description": (
@@ -89,6 +103,7 @@ _TOOLS = [
                 "matched_dietary_tag",
                 "matched_price_tier",
                 "is_followup",
+                "unsupported_requirement",
                 "clarifying_question",
             ],
         },
@@ -96,6 +111,24 @@ _TOOLS = [
 ]
 
 _PRICE_TIERS = ("$", "$$", "$$$")
+
+_MAX_UNSUPPORTED_CHARS = 40
+# Anything that could be markup, a format placeholder or invisible/control
+# text: the requirement is echoed back to the visitor inside a reply sentence
+# and is written to the curator's unmatched log.
+_UNSAFE_REQUIREMENT_CHARS = re.compile(r"[<>{}\\\"`\u0000-\u001f\u007f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060\ufeff\u2066-\u2069]")
+
+
+def _clean_requirement(raw, categories: list[str], dietary_tags: list[str]) -> str | None:
+    """The model's `unsupported_requirement`, made safe to show: a short plain
+    string, never a known category or tag (those are handled elsewhere)."""
+    if not isinstance(raw, str):
+        return None
+    text = " ".join(_UNSAFE_REQUIREMENT_CHARS.sub(" ", raw).split())[:_MAX_UNSUPPORTED_CHARS].strip()
+    if not text:
+        return None
+    known = {name.lower() for name in categories} | {tag.lower() for tag in dietary_tags}
+    return None if text.lower() in known else text
 
 _FALLBACK_QUESTIONS = {
     "en": "I'm having trouble understanding right now - could you try again in a moment?",
@@ -184,7 +217,10 @@ async def parse_food_request(
                 "You help match a user's food craving to one category from this "
                 f"list of known categories: {', '.join(categories)}."
                 f"{dietary_tags_sentence} "
-                f"Write any clarifying_question in {language_name}."
+                f"Write any clarifying_question in {language_name}. "
+                "If the user states a requirement that is not a category, a known tag or "
+                "a price level (for example vegan, kosher, open now, outdoor seating), put "
+                "it in unsupported_requirement and do not turn it into a tag."
                 f"{context_sentence} "
                 "Always call the extract_food_request tool."
             ),
@@ -228,6 +264,7 @@ async def parse_food_request(
     if price_tier not in _PRICE_TIERS:
         price_tier = None
     question = result.get("clarifying_question") or None
+    unsupported = _clean_requirement(result.get("unsupported_requirement"), categories, dietary_tags)
     is_followup = bool(result.get("is_followup")) and has_previous_context
     # Deterministic safety net: matched_category/matched_dietary_tag only
     # ever come from the known lists (never freeform), so if the model
@@ -243,7 +280,7 @@ async def parse_food_request(
     # complete search, not a question to bounce back - the model often asks
     # "what cuisine?" anyway, so settle it here rather than in the prompt.
     # Skipped for a followup, which already carries its own category.
-    if not is_followup and category is None and (dietary_tag or price_tier):
+    if not is_followup and category is None and (dietary_tag or price_tier or unsupported):
         any_category = True
         question = None
     return {
@@ -253,4 +290,7 @@ async def parse_food_request(
         "clarifying_question": question,
         "any_category": any_category,
         "is_followup": is_followup,
+        # Something the visitor asked for that the list can't honour (e.g.
+        # "vegan" with no vegan tags yet). The caller says so in its reply.
+        "unsupported": unsupported,
     }

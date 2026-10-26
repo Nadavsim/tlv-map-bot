@@ -188,11 +188,15 @@ REPLIES = {
         "price_words": {"$": "cheap", "$$": "mid-range", "$$$": "high-end"},
         "qualifier_sep": " ",
         "assistant_unavailable": "Sorry, I couldn't work that out just now - please try again in a moment.",
+        "unsupported_note": 'I don\'t have "{what}" marked on my list yet.',
+        "closest_overall": "Here are the closest spots overall:",
     },
     "he": {
         "empty_db": "מסד הנתונים של המקומות ריק. הרץ `python -m scripts.sync_places` כדי לטעון מקומות קודם.",
         "no_category_fallback": "לא ברור לי מה מתחשק לך - תוכל לספר לי איזה סוג אוכל?",
         "assistant_unavailable": "סליחה, לא הצלחתי להבין את זה כרגע - נסה שוב בעוד רגע.",
+        "unsupported_note": 'עדיין אין לי סימון של "{what}" ברשימה.',
+        "closest_overall": "הנה המקומות הכי קרובים בסך הכל:",
         "no_matches": "עדיין אין לי מקומות מסוג {label} שמורים.",
         "no_matches_with_tag": "עדיין אין לי מקומות מסוג {label} ({tag}) שמורים.",
         "no_more_matches": "אלה כל המקומות מסוג {label} ששמורים אצלי כרגע.",
@@ -238,14 +242,23 @@ def _places_reply(
     matches: list,
     offset: int,
     replies: dict,
+    unsupported: str | None = None,
 ) -> dict:
     qualifier = _qualifier(dietary_tag, price_tier, replies)
     if any_category:
-        reply = replies["surprise_with_tag"].format(tag=qualifier) if qualifier else replies["surprise"]
+        if qualifier:
+            reply = replies["surprise_with_tag"].format(tag=qualifier)
+        else:
+            # "Surprise!" is for "surprise me"; after an honest "I can't filter
+            # by that" it would read as a gimmick.
+            reply = replies["closest_overall"] if unsupported else replies["surprise"]
     elif qualifier:
         reply = replies["matched_with_tag"].format(tag=qualifier, category=category)
     else:
         reply = replies["matched"].format(category=category)
+    if unsupported:
+        # Said plainly instead of silently ignoring what was asked for.
+        reply = f"{replies['unsupported_note'].format(what=unsupported)} {reply}"
     return {
         "reply": reply,
         # Distance only: the ETA needs a call to a public routing service that
@@ -426,6 +439,17 @@ async def chat(request: Request, req: ChatRequest):
         await _count_location_outcome(db.LLM_FAILED_KEY)
         return {"reply": replies["assistant_unavailable"], "places": []}
 
+    # Something the visitor asked for that the list can't honour ("vegan" with
+    # no vegan pins, "open now"): never silently dropped. The reply says so,
+    # and the text goes to the curator's unmatched log - it is exactly "what
+    # people want that the map doesn't have yet".
+    unsupported = extraction.get("unsupported")
+    if unsupported:
+        try:
+            await db.log_unmatched_query(req.message)
+        except Exception:
+            logging.getLogger(__name__).warning("couldn't log an unsupported request")
+
     # A refinement of the previous turn ("something else", "another one",
     # "cheaper") - keep the same category/tag (or "any", if that's what the
     # previous turn was) and continue past what was already shown, rather
@@ -455,7 +479,7 @@ async def chat(request: Request, req: ChatRequest):
                 "offset": offset,
             }
         return _places_reply(
-            category, dietary_tag, price_tier, category is None, matches, offset + len(matches), replies
+            category, dietary_tag, price_tier, category is None, matches, offset + len(matches), replies, unsupported
         )
 
     if not extraction["any_category"] and not extraction["category"]:
@@ -481,7 +505,7 @@ async def chat(request: Request, req: ChatRequest):
         }
 
     return _places_reply(
-        category, dietary_tag, price_tier, extraction["any_category"], matches, len(matches), replies
+        category, dietary_tag, price_tier, extraction["any_category"], matches, len(matches), replies, unsupported
     )
 
 
