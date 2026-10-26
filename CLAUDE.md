@@ -159,8 +159,9 @@ on production** (not staging, which does not need it).
    visitor; `peer=link-local/private` means all visitors share one bucket (then
    fix the limiter's key). `.gitignore` now covers the local tooling folders
    (`.agents/`, `.claude/agents|skills`, `.codex/`, `.github/agents|hooks|skills`,
-   `.impeccable/`, `skills-lock.json`, `.claude/settings.local.json`). **Still
-   the curator's:** the $5 Anthropic spend limit (in the Anthropic console).
+   `.impeccable/`, `skills-lock.json`, `.claude/settings.local.json`). **All of
+   Now 1 is done and in production (2026-10-26):** the curator set the $5
+   Anthropic spend limit too.
 2. **Make the promises true** (~2.5 h): rate-limit + Google-hosts-only
    `resolve-location`; bound request fields (`previous_category` max length,
    lat/lon/offset ranges); correct `privacy.html` (Open-Meteo, "any link", logs;
@@ -214,7 +215,18 @@ on production** (not staging, which does not need it).
    follow-up; **read the 8 unmatched queries before the 90-day TTL deletes
    them**; start a weekly counter snapshot; keep the "I added the place you
    asked about" habit. Optional 30 min: swap a coffee start chip for a
-   non-coffee one.
+   non-coffee one. **Unmatched queries read 2026-10-26** (production, 10 rows,
+   2026-09-08 to 2026-10-18; raw texts deliberately not recorded here - this
+   repo is public): 3 noise/test, 2 attempts at a night club (out of scope for a
+   food list), 2 meal-type requests a few seconds apart on 2026-10-18
+   ("breakfast" then a follow-up like "hearty" - the only recent real use), 1
+   broad cuisine ("Asian" - umbrella over japanese + thai), 1 request that put a
+   place in the message ("tasty food near <a light-rail/street area>"), 1
+   truncated typo. Gaps found: out-of-scope requests (a club) get food results
+   with the "not marked" note, which misleads; a place named in the message is
+   ignored (results come from the set location, silently); breakfast has real
+   demand but no tag. n is tiny - treat as anecdote. The oldest row expires
+   ~2026-12-07 (90-day TTL).
 
 **Next (each names its trigger; re-ranked at the checkpoint)**
 - **Suggest a spot** (6-9 h; sign-in required; sanitised; private queue; a
