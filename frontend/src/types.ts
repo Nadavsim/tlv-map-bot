@@ -143,3 +143,6 @@ export interface AuthResponse {
 export interface AuthConfigResponse {
   google_client_id: string
 }
+
+// What happened when a visitor suggested a spot (see SuggestSpot).
+export type SuggestOutcome = 'added' | 'exists' | 'daily_limit' | 'pending_limit' | 'too_fast' | 'only_google_links' | 'failed'

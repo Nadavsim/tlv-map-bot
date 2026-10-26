@@ -1,8 +1,9 @@
 import { ChevronDown, ChevronUp, HeartOff, MapPin, Navigation } from 'lucide-react'
 import { useState } from 'react'
 import { GoogleSignInButton } from './GoogleSignInButton'
+import { SuggestSpot } from './SuggestSpot'
 import { t } from '../i18n'
-import type { AuthUser, Lang, Place, SavedAddress, Theme } from '../types'
+import type { AuthUser, Lang, Place, SavedAddress, SuggestOutcome, Theme } from '../types'
 
 interface AccountSectionProps {
   isOpen: boolean
@@ -22,6 +23,8 @@ interface AccountSectionProps {
   // Shows them as result cards in the chat, nearest first.
   onShowFavorites: () => void
   onRemoveFavorite: (place: Place) => void
+  // A private suggestion to the curator; resolves to what happened.
+  onSuggestSpot: (place: string, category: string) => Promise<SuggestOutcome>
 }
 
 // Pure content, no trigger/popover of its own - lives pinned to the bottom
@@ -46,6 +49,7 @@ export function AccountSection({
   favorites,
   onShowFavorites,
   onRemoveFavorite,
+  onSuggestSpot,
 }: AccountSectionProps) {
   // Deleting is two deliberate steps (button -> explicit confirmation), and
   // never one tap away from the sign-out button sitting right above it.
@@ -154,6 +158,8 @@ export function AccountSection({
             )}
           </div>
 
+          <SuggestSpot lang={lang} onSubmit={onSuggestSpot} />
+
           <div className="saved-addresses">
             {savedAddresses.length === 0 ? (
               <>
@@ -257,7 +263,10 @@ export function AccountSection({
         </>
       ) : (
         isOpen && googleClientId && (
-          <GoogleSignInButton clientId={googleClientId} theme={theme} lang={lang} onCredential={onCredential} />
+          <>
+            <p className="saved-addresses-note">{t(lang, 'suggestSignedOut')}</p>
+            <GoogleSignInButton clientId={googleClientId} theme={theme} lang={lang} onCredential={onCredential} />
+          </>
         )
       )}
     </div>

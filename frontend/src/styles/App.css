@@ -1791,3 +1791,79 @@ a.side-menu-item {
     opacity: 1;
   }
 }
+
+/* Suggest a spot: a collapsed drawer row that opens a two-field form. Fields
+   follow the app's one field style (a real edge, pill, 16px text). */
+.suggest-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-top: 0.4rem;
+}
+
+.suggest-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.suggest-field input,
+.suggest-field select {
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--edge);
+  background: var(--card-bg);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+  width: 100%;
+  min-width: 0;
+}
+
+.suggest-field input:focus-visible,
+.suggest-field select:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.suggest-send {
+  min-height: 44px;
+  padding: 0.55rem 1.1rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--fill-fg);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform var(--dur-press) var(--ease-out);
+}
+
+.suggest-send:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+  opacity: var(--press-dim);
+}
+
+.suggest-send:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.suggest-message {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--fg);
+}
+
+.suggest-message.is-error {
+  color: var(--secondary);
+}

@@ -1,7 +1,7 @@
 import { BookmarkPlus, Car, Check, Footprints, LocateFixed, MapPin, Menu } from 'lucide-react'
 import { SideMenu } from './SideMenu'
 import { t } from '../i18n'
-import type { AuthUser, Lang, LocationMode, Place, SavedAddress, Theme, TransportMode } from '../types'
+import type { AuthUser, Lang, LocationMode, Place, SavedAddress, SuggestOutcome, Theme, TransportMode } from '../types'
 
 interface HeaderProps {
   locationStatus: string
@@ -36,6 +36,7 @@ interface HeaderProps {
   favorites: Place[]
   onShowFavorites: () => void
   onRemoveFavorite: (place: Place) => void
+  onSuggestSpot: (place: string, category: string) => Promise<SuggestOutcome>
 }
 
 export function Header({
@@ -67,6 +68,7 @@ export function Header({
   favorites,
   onShowFavorites,
   onRemoveFavorite,
+  onSuggestSpot,
 }: HeaderProps) {
   return (
     <header>
@@ -106,6 +108,7 @@ export function Header({
         favorites={favorites}
         onShowFavorites={onShowFavorites}
         onRemoveFavorite={onRemoveFavorite}
+        onSuggestSpot={onSuggestSpot}
       />
       <div className="location-status-row">
         <p className="location-status">{locationStatus}</p>

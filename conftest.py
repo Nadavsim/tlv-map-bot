@@ -35,3 +35,16 @@ def _disable_rate_limiting():
     limiter.enabled = False
     yield
     limiter.enabled = True
+
+
+@pytest.fixture(autouse=True)
+def _no_test_may_reach_a_real_database(monkeypatch):
+    """A catch-all behind the stubs above: with no connection string, any test
+    that touches a collection it did not stub fails loudly ("MONGODB_URI is not
+    set") instead of quietly running against the developer's .env database -
+    production, by default. This already happened once: adding a collection
+    made an old test create it (and its indexes) in production."""
+    from backend import db
+
+    monkeypatch.setattr(db, "MONGODB_URI", "")
+    monkeypatch.setattr(db, "_client", None)

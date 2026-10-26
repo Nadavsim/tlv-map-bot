@@ -248,6 +248,42 @@ on production** (not staging, which does not need it).
   `show_suggestions`-style script; per-user daily cap; privacy page updated in
   the same release; the curator adds good ones to My Maps and thanks the friend
   personally). Trigger: outreach shows friends want to contribute.
+  **Built 2026-10-26 on `staging`, not pushed (curator chose to build it before
+  the outreach):** drawer row "Suggest a spot" (signed-in only; signed-out sees
+  "Sign in to suggest a spot." above the Google button) with two **mandatory**
+  fields - the place (a Google Maps link or a name) and its **category**, a
+  select of the map's live categories plus "Other / not sure" (it tells the
+  curator which My Maps layer to use; this replaced the optional "why" note -
+  an optional note is an easy add). `POST /api/suggestions`: bearer auth,
+  5/minute and 30/day per IP, **5 per person per day, 20 waiting per person**,
+  same place twice = "exists"; `services/suggestions.py` reduces input to plain
+  text (strips HTML tags incl. nested, control/escape and bidi/zero-width
+  characters, caps lengths), only Google links are accepted and resolved (name +
+  coordinates rounded to 4 decimals), the category must be a known one
+  (stored in the map's own spelling) or `other`. `place_suggestions` collection
+  (unique `(user_id, place_key)`, TTL **180 days**, validator), cascaded by
+  `delete_user` (checked for real). **No endpoint lists or returns suggestions.**
+  Curator: `python -m scripts.show_suggestions` (new ones; `--all`, `--count`,
+  `--contact` for the email, `--mark added|declined|duplicate <id>`; flags a
+  suggestion within 60 m of an existing pin as "ALREADY ON THE MAP"; output is
+  cleaned of control characters again). `privacy.html` (both languages) has a
+  new "Suggesting a spot" section and the deletion/hosting sentences name
+  suggestions (Hebrew new and unreviewed). Verified end to end on the staging
+  database with a throwaway signed-in user in a real browser (English and
+  Hebrew): real short link resolved to name + coordinates, markup stripped,
+  an `evil.example` link refused, duplicate and limits, the script, and account
+  deletion removed the suggestions. 682 tests. **How the curator learns of new
+  ones:** only by running the script for now; a daily GitHub Actions nudge that
+  opens/updates an issue with just the *count* (never names or text - the repo
+  is public) would reach the curator by GitHub's own email with no new
+  credential, and could cover place reports too - not built, offered.
+  **Incident while building (2026-10-26):** an old `ensure_indexes` test had no
+  stub for the new collection and, run against the developer's `.env`
+  database, **created an empty `place_suggestions` collection with its three
+  indexes (no validator) in production**; harmless (the deployed app creates the
+  same at startup) but unintended. `conftest.py` now has a catch-all fixture
+  that blanks `MONGODB_URI` so no test can reach a real database again - a test
+  that touches an unstubbed collection fails loudly.
 - **Curator notes - "what to order"** (3 h + the curator's writing): one line
   from a pin's My Maps description on its card.
 - **"New on the list" strip** (3-4 h): record when a pin first appears, show

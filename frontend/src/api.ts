@@ -155,3 +155,27 @@ export async function postFavorite(token: string, placeId: string): Promise<void
 export async function deleteFavorite(token: string, placeId: string): Promise<void> {
   await authedJSON<{ ok: boolean }>('DELETE', `/api/favorites/${encodeURIComponent(placeId)}`, token)
 }
+
+// A suggestion goes to the curator only. The server answers with a status, or
+// with a short machine-readable reason ("daily_limit", "only_google_links" ...)
+// in `detail`, which becomes the ApiError's message.
+export async function postSuggestion(
+  token: string,
+  body: { place: string; category: string },
+): Promise<{ status: 'added' | 'exists' }> {
+  const res = await fetch('/api/suggestions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    let detail = ''
+    try {
+      detail = String((await res.json()).detail ?? '')
+    } catch {
+      // not JSON - the status alone is enough
+    }
+    throw new ApiError(res.status, detail || `Request to /api/suggestions failed with status ${res.status}`)
+  }
+  return res.json() as Promise<{ status: 'added' | 'exists' }>
+}

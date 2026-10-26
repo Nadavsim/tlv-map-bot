@@ -17,7 +17,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import db
 from .models import PlaceResult
-from .services import auth, clientip, llm, location, routing, streets
+from .services import auth, clientip, llm, location, routing, streets, suggestions
 
 load_dotenv()
 
@@ -799,6 +799,67 @@ async def delete_saved_address(address_id: str, authorization: str | None = Head
 
 class FavoriteRequest(BaseModel):
     place_id: str = Field(min_length=1, max_length=64)
+
+
+class SuggestionRequest(BaseModel):
+    # Generous raw caps - the server cleans the text and trims it to its real
+    # limits itself (services/suggestions.py).
+    place: str = Field(min_length=1, max_length=suggestions.MAX_PLACE_CHARS * 2)
+    category: str = Field(min_length=1, max_length=suggestions.MAX_CATEGORY_CHARS * 2)
+
+
+@app.post("/api/suggestions")
+@limiter.limit("5/minute;30/day")
+async def suggest_spot(
+    request: Request,
+    req: SuggestionRequest,
+    response: Response,
+    authorization: str | None = Header(None),
+):
+    """A signed-in visitor suggests a place. Private: stored for the curator and
+    never returned to anyone. Everything is reduced to plain text first, links
+    must be Google Maps links, and the category must be one the map has (or
+    "other")."""
+    user_id = await get_current_user_id(authorization)
+
+    text = suggestions.clean_text(req.place)
+    if not text:
+        raise HTTPException(status_code=422, detail="empty_place")
+
+    wanted = suggestions.clean_text(req.category, suggestions.MAX_CATEGORY_CHARS).casefold()
+    by_fold = {name.casefold(): name for name in await db.get_categories()}
+    if wanted == suggestions.OTHER_CATEGORY:
+        category = suggestions.OTHER_CATEGORY
+    elif wanted in by_fold:
+        category = by_fold[wanted]
+    else:
+        raise HTTPException(status_code=422, detail="unknown_category")
+
+    link = suggestions.extract_link(text)
+    place_text: str | None = text
+    lat = lon = None
+    if link:
+        if not suggestions.is_google_link(link):
+            raise HTTPException(status_code=422, detail="only_google_links")
+        coords, found_name = await asyncio.to_thread(location.resolve_maps_link_detail, link)
+        # A name found in the link wins; otherwise whatever text came with it.
+        rest = suggestions.clean_text(text.replace(link, " "))
+        place_text = suggestions.clean_text(found_name) or rest or None
+        if coords:
+            lat, lon = round(coords[0], 4), round(coords[1], 4)
+    key = suggestions.place_key(place_text, (lat, lon) if lat is not None else None) or link or ""
+
+    status = await db.add_suggestion(
+        user_id, place_key=key, place_text=place_text, link=link, lat=lat, lon=lon, category=category
+    )
+    if status == "no_user":
+        raise HTTPException(status_code=401, detail="User no longer exists")
+    if status == "daily_limit":
+        raise HTTPException(status_code=429, detail="daily_limit")
+    if status == "pending_limit":
+        raise HTTPException(status_code=409, detail="pending_limit")
+    response.status_code = 201 if status == "added" else 200
+    return {"status": status}
 
 
 @app.get("/api/favorites")

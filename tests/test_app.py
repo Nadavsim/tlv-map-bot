@@ -2228,3 +2228,182 @@ def test_the_hebrew_location_note(monkeypatch):
     resp, _, _ = _chat_with(monkeypatch, _extraction(mentioned_place="אלנבי"), lang="he", message="אוכל ליד אלנבי")
 
     assert resp.json()["reply"].startswith('אני מחפש מהמיקום שהגדרת ולא מ"אלנבי" - שנה את המיקום למעלה כדי לחפש שם.')
+
+
+# --- suggest a spot ---------------------------------------------------------
+
+_SUGGEST = {"place": "Cafe Xoho", "category": "coffee"}
+
+
+def _suggest(monkeypatch, body=None, *, add_status="added", categories=("coffee", "burger", "wine bar"), headers=None):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=list(categories)))
+    monkeypatch.setattr(auth, "decode_access_token", lambda token: "507f1f77bcf86cd799439011")
+    add = AsyncMock(return_value=add_status)
+    monkeypatch.setattr(db, "add_suggestion", add)
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/suggestions", json=body or _SUGGEST, headers=_AUTH if headers is None else headers)
+    return resp, add
+
+
+def test_a_suggestion_requires_signing_in(monkeypatch):
+    resp, add = _suggest(monkeypatch, headers={})
+
+    assert resp.status_code == 401
+    add.assert_not_awaited()
+
+
+def test_a_name_suggestion_is_stored_as_plain_text(monkeypatch):
+    resp, add = _suggest(monkeypatch)
+
+    assert resp.status_code == 201
+    assert resp.json() == {"status": "added"}
+    kwargs = add.await_args.kwargs
+    assert kwargs["place_text"] == "Cafe Xoho"
+    assert kwargs["link"] is None
+    assert kwargs["category"] == "coffee"
+    assert kwargs["place_key"] == "cafe xoho"
+    assert kwargs["lat"] is None and kwargs["lon"] is None
+
+
+def test_markup_in_a_suggestion_never_reaches_the_database(monkeypatch):
+    resp, add = _suggest(
+        monkeypatch, {"place": '<script>alert(1)</script><b>Cafe</b> ' + chr(27) + '[31m', "category": "coffee"}
+    )
+
+    assert resp.status_code == 201
+    stored = add.await_args.kwargs["place_text"]
+    assert "<" not in stored and ">" not in stored and chr(27) not in stored
+    assert stored == "alert(1) Cafe [31m"
+
+
+def test_the_category_must_be_one_the_map_has_or_other(monkeypatch):
+    resp, add = _suggest(monkeypatch, {"place": "X", "category": "sushi"})
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "unknown_category"
+    add.assert_not_awaited()
+
+    resp, add = _suggest(monkeypatch, {"place": "X", "category": "OTHER"})
+    assert resp.status_code == 201
+    assert add.await_args.kwargs["category"] == "other"
+
+
+def test_the_category_is_stored_in_the_maps_own_spelling(monkeypatch):
+    resp, add = _suggest(monkeypatch, {"place": "X", "category": "  WINE   BAR "})
+
+    assert resp.status_code == 201
+    assert add.await_args.kwargs["category"] == "wine bar"
+
+
+def test_a_category_cannot_smuggle_markup_or_operators(monkeypatch):
+    for bad in ("<b>coffee</b>x", '{"$ne": 1}', "$where", "coffee; drop"):
+        resp, add = _suggest(monkeypatch, {"place": "X", "category": bad})
+        assert resp.status_code == 422, bad
+        add.assert_not_awaited()
+
+    # Markup around a real category is stripped, and only the known value is stored.
+    resp, add = _suggest(monkeypatch, {"place": "X", "category": "coffee<script>"})
+    assert resp.status_code == 201
+    assert add.await_args.kwargs["category"] == "coffee"
+
+
+@pytest.mark.parametrize("body", [{"place": "", "category": "coffee"}, {"place": "X", "category": ""}, {"place": "X"}, {"category": "coffee"}])
+def test_both_fields_are_required(monkeypatch, body):
+    resp, add = _suggest(monkeypatch, body)
+
+    assert resp.status_code == 422
+    add.assert_not_awaited()
+
+
+def test_a_place_that_is_only_markup_is_rejected(monkeypatch):
+    resp, add = _suggest(monkeypatch, {"place": "<b></b>   <i></i>", "category": "coffee"})
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "empty_place"
+    add.assert_not_awaited()
+
+
+def test_only_google_links_are_accepted(monkeypatch):
+    called = []
+    monkeypatch.setattr(location, "resolve_maps_link_detail", lambda text: called.append(text) or (None, None))
+
+    for link in ("https://evil.example/maps", "http://169.254.169.254/latest/meta-data/", "https://google.com.evil.example/x"):
+        resp, add = _suggest(monkeypatch, {"place": link, "category": "coffee"})
+        assert resp.status_code == 422, link
+        assert resp.json()["detail"] == "only_google_links"
+        add.assert_not_awaited()
+
+    assert called == []
+
+
+def test_a_google_link_is_resolved_to_a_name_and_rounded_coordinates(monkeypatch):
+    monkeypatch.setattr(
+        location,
+        "resolve_maps_link_detail",
+        lambda text: ((32.0779583, 34.7742048), "Dizengoff Square"),
+    )
+
+    resp, add = _suggest(monkeypatch, {"place": "https://maps.app.goo.gl/abc123", "category": "coffee"})
+
+    assert resp.status_code == 201
+    kwargs = add.await_args.kwargs
+    assert kwargs["link"] == "https://maps.app.goo.gl/abc123"
+    assert kwargs["place_text"] == "Dizengoff Square"
+    assert (kwargs["lat"], kwargs["lon"]) == (32.078, 34.7742)
+    assert kwargs["place_key"] == "32.0780,34.7742"
+
+
+def test_a_link_that_resolves_to_nothing_is_still_kept_for_the_curator(monkeypatch):
+    monkeypatch.setattr(location, "resolve_maps_link_detail", lambda text: (None, None))
+
+    resp, add = _suggest(monkeypatch, {"place": "https://maps.app.goo.gl/abc123", "category": "coffee"})
+
+    assert resp.status_code == 201
+    kwargs = add.await_args.kwargs
+    assert kwargs["place_text"] is None
+    assert kwargs["link"] == "https://maps.app.goo.gl/abc123"
+    assert kwargs["place_key"] == "https://maps.app.goo.gl/abc123"
+
+
+def test_the_words_around_a_link_are_kept_when_the_link_has_no_name(monkeypatch):
+    monkeypatch.setattr(location, "resolve_maps_link_detail", lambda text: ((32.07, 34.77), None))
+
+    resp, add = _suggest(monkeypatch, {"place": "Best falafel https://maps.app.goo.gl/abc123", "category": "coffee"})
+
+    assert add.await_args.kwargs["place_text"] == "Best falafel"
+
+
+@pytest.mark.parametrize(
+    "status,code,detail",
+    [("exists", 200, None), ("daily_limit", 429, "daily_limit"), ("pending_limit", 409, "pending_limit"), ("no_user", 401, "User no longer exists")],
+)
+def test_suggestion_statuses_map_to_http_codes(monkeypatch, status, code, detail):
+    resp, _ = _suggest(monkeypatch, add_status=status)
+
+    assert resp.status_code == code
+    if detail:
+        assert resp.json()["detail"] == detail
+    else:
+        assert resp.json() == {"status": "exists"}
+
+
+def test_no_endpoint_returns_a_suggestion_to_anyone():
+    """Suggestions are private: nothing lists, reads or exports them over HTTP."""
+    paths = {getattr(r, "path", "") for r in app_module.app.routes}
+    assert "/api/suggestions" in paths
+    assert not any(p.startswith("/api/suggestions/") for p in paths)
+    methods = {m for r in app_module.app.routes if getattr(r, "path", "") == "/api/suggestions" for m in r.methods}
+    assert methods == {"POST"}
+
+
+def test_privacy_page_describes_place_suggestions_in_both_languages():
+    from pathlib import Path
+
+    page = (Path(__file__).resolve().parent.parent / "frontend" / "public" / "privacy.html").read_text(encoding="utf-8")
+    english, hebrew = page.split('<section lang="he"')
+    assert "<h2>Suggesting a spot</h2>" in english
+    assert "180 days" in english
+    assert "any places you suggested" in english
+    assert "<h2>הצעת מקום</h2>" in hebrew
+    assert "180 יום" in hebrew
+    assert "ומקומות שהצעת" in hebrew

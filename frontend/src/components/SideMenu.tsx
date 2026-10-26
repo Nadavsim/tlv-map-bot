@@ -2,7 +2,7 @@ import { CircleHelp, Info, Languages, Moon, RotateCcw, ShieldCheck, Sun, X } fro
 import { useEffect } from 'react'
 import { AccountSection } from './AccountSection'
 import { t } from '../i18n'
-import type { AuthUser, Lang, Place, SavedAddress, Theme } from '../types'
+import type { AuthUser, Lang, Place, SavedAddress, SuggestOutcome, Theme } from '../types'
 
 interface SideMenuProps {
   isOpen: boolean
@@ -24,6 +24,7 @@ interface SideMenuProps {
   favorites: Place[]
   onShowFavorites: () => void
   onRemoveFavorite: (place: Place) => void
+  onSuggestSpot: (place: string, category: string) => Promise<SuggestOutcome>
 }
 
 // The header's old icon row (language/theme/reset/help, plus the account
@@ -53,6 +54,7 @@ export function SideMenu({
   favorites,
   onShowFavorites,
   onRemoveFavorite,
+  onSuggestSpot,
 }: SideMenuProps) {
   useEffect(() => {
     if (!isOpen) return
@@ -127,6 +129,7 @@ export function SideMenu({
           favorites={favorites}
           onShowFavorites={() => selectAndClose(onShowFavorites)}
           onRemoveFavorite={onRemoveFavorite}
+          onSuggestSpot={onSuggestSpot}
           onDeleteAccount={async () => {
             const ok = await onDeleteAccount()
             if (ok) onClose()

@@ -16,6 +16,7 @@ import {
   postMorePlaces,
   postRefresh,
   postSavedAddress,
+  postSuggestion,
 } from './api'
 import { type ChatEntry, makeEntryId } from './chatTypes'
 import { ChatInput } from './components/ChatInput'
@@ -23,7 +24,18 @@ import { ChatLog } from './components/ChatLog'
 import { Header } from './components/Header'
 import { t, type StringKey } from './i18n'
 import { loadLang, loadTheme, saveLang, saveTheme } from './preferences'
-import type { AuthUser, Coordinates, Lang, LocationMode, Place, PriceTier, SavedAddress, Theme, TransportMode } from './types'
+import type {
+  AuthUser,
+  Coordinates,
+  Lang,
+  LocationMode,
+  Place,
+  PriceTier,
+  SavedAddress,
+  SuggestOutcome,
+  Theme,
+  TransportMode,
+} from './types'
 import { PAGE_SIZE } from './types'
 import './styles/theme.css'
 import './styles/App.css'
@@ -285,6 +297,25 @@ export default function App() {
   // The favorites as ordinary result cards in the chat, nearest to the active
   // location first - so distance, travel time, the map and share all work on
   // them exactly as on any other result.
+  // A private suggestion to the curator. Never throws: every failure is mapped
+  // to an outcome the form can word for the visitor.
+  async function handleSuggestSpot(place: string, category: string): Promise<SuggestOutcome> {
+    const token = accessTokenRef.current
+    if (!token) return 'failed'
+    try {
+      return (await postSuggestion(token, { place, category })).status
+    } catch (error) {
+      if (error instanceof ApiError) {
+        // Two different 429s: our own daily cap names itself, anything else is the
+        // per-minute rate limit.
+        if (error.status === 429) return error.message === 'daily_limit' ? 'daily_limit' : 'too_fast'
+        if (error.status === 409) return 'pending_limit'
+        if (error.status === 422 && error.message === 'only_google_links') return 'only_google_links'
+      }
+      return 'failed'
+    }
+  }
+
   async function handleShowFavorites() {
     dismissUndo()
     const token = accessTokenRef.current
@@ -794,6 +825,7 @@ export default function App() {
         favorites={favorites}
         onShowFavorites={handleShowFavorites}
         onRemoveFavorite={handleToggleFavorite}
+        onSuggestSpot={handleSuggestSpot}
       />
       <ChatLog
         entries={entries}

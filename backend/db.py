@@ -1,7 +1,7 @@
 import os
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from bson import ObjectId
@@ -168,6 +168,35 @@ PLACE_REPORTS_JSON_SCHEMA = {
     },
 }
 
+# A place a signed-in visitor suggests for the list. Never shown to anyone else
+# and never published: the curator reads them with scripts/show_suggestions.py
+# and adds the good ones to My Maps by hand. Sign-in is required (it is the
+# anti-spam measure) so a suggestion is tied to an account, which is why the
+# privacy page says so and why deleting an account deletes these too (see
+# delete_user). Capped per person per day and in total, and deleted by a TTL
+# after SUGGESTION_TTL_SECONDS whatever their status, so none pile up unseen.
+MAX_SUGGESTIONS_PER_DAY = 5
+MAX_PENDING_SUGGESTIONS = 20
+SUGGESTION_TTL_SECONDS = 180 * 24 * 60 * 60
+SUGGESTION_STATUSES = ("new", "added", "declined", "duplicate")
+PLACE_SUGGESTIONS_JSON_SCHEMA = {
+    "bsonType": "object",
+    "required": ["user_id", "place_key", "category", "status", "created_at"],
+    "properties": {
+        "user_id": {"bsonType": "objectId"},
+        # What makes two suggestions the same place for one person (rounded
+        # coordinates when a link gave them, otherwise the case-folded name).
+        "place_key": {"bsonType": "string"},
+        "place_text": {"bsonType": ["string", "null"]},
+        "link": {"bsonType": ["string", "null"]},
+        "lat": {"bsonType": ["double", "null"]},
+        "lon": {"bsonType": ["double", "null"]},
+        "category": {"bsonType": "string"},
+        "status": {"enum": list(SUGGESTION_STATUSES)},
+        "created_at": {"bsonType": "date"},
+    },
+}
+
 _client: AsyncIOMotorClient | None = None
 _categories_cache: list[str] | None = None
 _categories_cache_expires_at: float = 0.0
@@ -218,6 +247,10 @@ def get_favorites_collection():
     return _get_collection("favorites")
 
 
+def get_place_suggestions_collection():
+    return _get_collection("place_suggestions")
+
+
 def get_place_reports_collection():
     return _get_collection("place_reports")
 
@@ -258,6 +291,14 @@ async def ensure_indexes() -> None:
     place_reports = get_place_reports_collection()
     await place_reports.create_index([("place_id", 1), ("kind", 1)], unique=True)
     await _ensure_schema_validator(place_reports, "place_reports", PLACE_REPORTS_JSON_SCHEMA)
+
+    suggestions = get_place_suggestions_collection()
+    # One suggestion per person per place; user_id leads, so it also serves
+    # "this person's suggestions" counts.
+    await suggestions.create_index([("user_id", 1), ("place_key", 1)], unique=True)
+    await suggestions.create_index("created_at", expireAfterSeconds=SUGGESTION_TTL_SECONDS)
+    await suggestions.create_index([("status", 1), ("created_at", -1)])
+    await _ensure_schema_validator(suggestions, "place_suggestions", PLACE_SUGGESTIONS_JSON_SCHEMA)
 
 
 async def _ensure_schema_validator(collection, name: str, schema: dict) -> None:
@@ -650,6 +691,100 @@ async def remove_favorite(user_id: str, place_id: str) -> bool:
     return result.deleted_count > 0
 
 
+async def add_suggestion(
+    user_id: str,
+    *,
+    place_key: str,
+    place_text: str | None,
+    link: str | None,
+    lat: float | None,
+    lon: float | None,
+    category: str,
+) -> str:
+    """"added", "exists" (this person already suggested it - idempotent),
+    "daily_limit", "pending_limit" or "no_user". Everything is already
+    sanitised by the caller (services/suggestions.py); this only stores."""
+    try:
+        user_oid = ObjectId(user_id)
+    except InvalidId:
+        return "no_user"
+    if await get_user_by_id(user_id) is None:
+        return "no_user"
+    suggestions = get_place_suggestions_collection()
+    if await suggestions.find_one({"user_id": user_oid, "place_key": place_key}, {"_id": 1}) is not None:
+        return "exists"
+    now = datetime.now(timezone.utc)
+    since = now.replace(microsecond=0) - timedelta(days=1)
+    if await suggestions.count_documents({"user_id": user_oid, "created_at": {"$gte": since}}) >= MAX_SUGGESTIONS_PER_DAY:
+        return "daily_limit"
+    if await suggestions.count_documents({"user_id": user_oid, "status": "new"}) >= MAX_PENDING_SUGGESTIONS:
+        return "pending_limit"
+    try:
+        await suggestions.insert_one(
+            {
+                "user_id": user_oid,
+                "place_key": place_key,
+                "place_text": place_text,
+                "link": link,
+                "lat": lat,
+                "lon": lon,
+                "category": category,
+                "status": "new",
+                "created_at": now,
+            }
+        )
+    except DuplicateKeyError:
+        # A concurrent submit won the race - the unique index is the real guard.
+        return "exists"
+    return "added"
+
+
+async def list_suggestions(status: str | None = "new", limit: int = 200, include_email: bool = False) -> list[dict]:
+    """Suggestions newest first, each with the suggesting person's display name
+    (and, only when asked, their email) - for the curator's script only."""
+    match = {"status": status} if status else {}
+    pipeline = [
+        {"$match": match},
+        {"$sort": {"created_at": -1}},
+        {"$limit": limit},
+        {"$lookup": {"from": "users", "localField": "user_id", "foreignField": "_id", "as": "u"}},
+        {
+            "$project": {
+                "place_text": 1,
+                "link": 1,
+                "lat": 1,
+                "lon": 1,
+                "category": 1,
+                "status": 1,
+                "created_at": 1,
+                "name": {"$arrayElemAt": ["$u.name", 0]},
+                **({"email": {"$arrayElemAt": ["$u.email", 0]}} if include_email else {}),
+            }
+        },
+    ]
+    return await get_place_suggestions_collection().aggregate(pipeline).to_list(length=limit)
+
+
+async def mark_suggestion(suggestion_id: str, status: str) -> bool:
+    if status not in SUGGESTION_STATUSES:
+        return False
+    try:
+        oid = ObjectId(suggestion_id)
+    except InvalidId:
+        return False
+    result = await get_place_suggestions_collection().update_one({"_id": oid}, {"$set": {"status": status}})
+    return result.matched_count > 0
+
+
+async def nearest_place_within(lat: float, lon: float, meters: float) -> dict | None:
+    """The closest place already on the map within `meters`, or None - the
+    curator's "already on your list" check."""
+    return await get_places_collection().find_one(
+        {"location": {"$near": {"$geometry": {"type": "Point", "coordinates": [lon, lat]}, "$maxDistance": meters}}},
+        {"name": 1, "category": 1},
+    )
+
+
 async def record_place_report(place_id: str, kind: str) -> str:
     """Counts one report. "recorded", or "no_place" for an unknown or
     malformed id - checked so junk ids can't create documents. The caller
@@ -702,6 +837,7 @@ async def delete_user(user_id: str) -> bool:
     # intact and the call can simply be retried, rather than leaving orphaned
     # favorites for an account that no longer exists.
     await get_favorites_collection().delete_many({"user_id": object_id})
+    await get_place_suggestions_collection().delete_many({"user_id": object_id})
     result = await get_users_collection().delete_one({"_id": object_id})
     return result.deleted_count > 0
 

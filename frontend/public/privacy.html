@@ -115,8 +115,8 @@
         </p>
         <p>
           "Delete account" in the menu permanently deletes your account record
-          and everything saved with it - saved addresses and favorites -
-          immediately.
+          and everything saved with it - saved addresses, favorites and
+          any places you suggested - immediately.
         </p>
 
         <h2>Telling the curator about a place</h2>
@@ -131,6 +131,22 @@
           back" in particular is a private note to the curator, never a rating
           other people see. Problem reports are cleared once the map is
           updated.
+        </p>
+
+        <h2>Suggesting a spot</h2>
+        <p>
+          If you're signed in, you can suggest a place for the list. TLV Bot
+          stores what you send - the place's name or Google Maps link, the
+          category you chose, and the date - together with your account, so the
+          curator knows who to thank. Only the curator can see a suggestion: it
+          is never shown to other visitors or published, and the curator adds a
+          place to the list by hand if they like it. The curator sees the name on
+          your account and can look up your email. Suggestions are deleted
+          automatically after 180 days at the latest, and immediately if you
+          delete your account. If you paste a Google Maps link, TLV Bot's server
+          opens it to read the place's name and position, as described under
+          "Your location"; links to other sites are not accepted. What you type
+          is cleaned to plain text before it is stored.
         </p>
 
         <h2>What's stored only in your own browser</h2>
@@ -149,8 +165,8 @@
         <h2>Where data is hosted</h2>
         <p>
           The anonymous usage stats and place reports above and, if you sign
-          in, your account details, saved addresses and favorites are stored in
-          MongoDB Atlas. The app
+          in, your account details, saved addresses, favorites and suggestions are
+          stored in MongoDB Atlas. The app
           itself runs on Microsoft Azure, which - like any web host - handles
           each request and may keep standard server logs. To limit abuse, the
           network address a request comes from is also held briefly in the
@@ -263,7 +279,7 @@
         </p>
         <p>
           "מחק חשבון" בתפריט מוחק לצמיתות ומיידית את רשומת החשבון שלך ואת כל מה
-          ששמור איתה - כתובות שמורות ומועדפים.
+          ששמור איתה - כתובות שמורות, מועדפים ומקומות שהצעת.
         </p>
 
         <h2>לספר למנהל הרשימה על מקום</h2>
@@ -275,6 +291,20 @@
           לזמן קצר בזיכרון כדי להגביל ניצול לרעה, כמתואר למטה). שום דבר מזה לא
           מוצג למבקרים אחרים - "שווה לחזור" הוא הערה פרטית למנהל הרשימה, לא
           דירוג שאחרים רואים. דיווחי בעיה נמחקים כשהמפה מתעדכנת.
+        </p>
+
+        <h2>הצעת מקום</h2>
+        <p>
+          אם אתה מחובר, אפשר להציע מקום לרשימה. TLV Bot שומר את מה ששלחת - שם
+          המקום או קישור של Google Maps, הקטגוריה שבחרת והתאריך - יחד עם החשבון
+          שלך, כדי שמנהל הרשימה ידע את מי להודות. רק מנהל הרשימה רואה הצעה: היא
+          לא מוצגת למבקרים אחרים ולא מתפרסמת, ומנהל הרשימה מוסיף מקום לרשימה
+          ידנית אם אהב אותו. מנהל הרשימה רואה את השם שבחשבון שלך ויכול לראות
+          את כתובת האימייל שלך. הצעות נמחקות אוטומטית אחרי 180 יום לכל היותר,
+          ומיד אם אתה מוחק את החשבון. אם אתה מדביק קישור של Google Maps, השרת
+          של TLV Bot פותח אותו כדי לקרוא את שם המקום ואת מיקומו, כמתואר תחת
+          "המיקום שלך"; קישורים לאתרים אחרים לא מתקבלים. מה שאתה מקליד מנוקה
+          לטקסט פשוט לפני שהוא נשמר.
         </p>
 
         <h2>מה שנשמר רק בדפדפן שלך</h2>
@@ -290,7 +320,7 @@
         <h2>היכן המידע מאוחסן</h2>
         <p>
           נתוני השימוש האנונימיים והדיווחים על מקומות שלמעלה, ואם אתה מתחבר -
-          פרטי החשבון שלך, הכתובות השמורות והמועדפים - מאוחסנים ב-MongoDB Atlas. האפליקציה עצמה רצה על
+          פרטי החשבון שלך, הכתובות השמורות, המועדפים וההצעות - מאוחסנים ב-MongoDB Atlas. האפליקציה עצמה רצה על
           Microsoft Azure, שכמו כל אחסון אתרים מטפל בכל בקשה ועשוי לשמור יומני
           שרת סטנדרטיים. כדי להגביל ניצול לרעה, הכתובת ברשת ממנה מגיעה בקשה
           נשמרת גם לזמן קצר בזיכרון השרת כדי לספור כמה פעמים היא פונה; היא לא

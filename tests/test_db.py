@@ -149,12 +149,13 @@ async def test_ensure_indexes_sets_up_favorites_with_unique_pair_index_and_valid
         collection.index_information = AsyncMock(return_value={})
         return collection
 
-    places, unmatched, users, favorites, place_reports = (fake_collection() for _ in range(5))
+    places, unmatched, users, favorites, place_reports, suggestions = (fake_collection() for _ in range(6))
     monkeypatch.setattr(db, "get_places_collection", lambda: places)
     monkeypatch.setattr(db, "get_unmatched_queries_collection", lambda: unmatched)
     monkeypatch.setattr(db, "get_users_collection", lambda: users)
     monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
     monkeypatch.setattr(db, "get_place_reports_collection", lambda: place_reports)
+    monkeypatch.setattr(db, "get_place_suggestions_collection", lambda: suggestions)
     validator_mock = AsyncMock()
     monkeypatch.setattr(db, "_ensure_schema_validator", validator_mock)
 
@@ -164,6 +165,9 @@ async def test_ensure_indexes_sets_up_favorites_with_unique_pair_index_and_valid
     validator_mock.assert_any_await(favorites, "favorites", db.FAVORITES_JSON_SCHEMA)
     place_reports.create_index.assert_awaited_once_with([("place_id", 1), ("kind", 1)], unique=True)
     validator_mock.assert_any_await(place_reports, "place_reports", db.PLACE_REPORTS_JSON_SCHEMA)
+    suggestions.create_index.assert_any_await([("user_id", 1), ("place_key", 1)], unique=True)
+    suggestions.create_index.assert_any_await("created_at", expireAfterSeconds=db.SUGGESTION_TTL_SECONDS)
+    validator_mock.assert_any_await(suggestions, "place_suggestions", db.PLACE_SUGGESTIONS_JSON_SCHEMA)
 
 
 @pytest.mark.asyncio
@@ -579,16 +583,20 @@ async def test_delete_user_removes_favorites_before_the_account(monkeypatch):
     order = []
     favorites = MagicMock()
     favorites.delete_many = AsyncMock(side_effect=lambda *_: order.append("favorites"))
+    suggestions = MagicMock()
+    suggestions.delete_many = AsyncMock(side_effect=lambda *_: order.append("suggestions"))
     users = MagicMock()
     users.delete_one = AsyncMock(
         side_effect=lambda *_: order.append("user") or MagicMock(deleted_count=1)
     )
     monkeypatch.setattr(db, "get_favorites_collection", lambda: favorites)
+    monkeypatch.setattr(db, "get_place_suggestions_collection", lambda: suggestions)
     monkeypatch.setattr(db, "get_users_collection", lambda: users)
 
     assert await db.delete_user(_SAVED_USER_ID) is True
-    assert order == ["favorites", "user"]
+    assert order == ["favorites", "suggestions", "user"]
     favorites.delete_many.assert_awaited_once()
+    suggestions.delete_many.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -888,3 +896,102 @@ def test_an_endorsement_is_not_a_problem_kind():
     assert "would_return" not in db.PROBLEM_KINDS
     # The schema validator knows about it too.
     assert "would_return" in db.PLACE_REPORTS_JSON_SCHEMA["properties"]["kind"]["enum"]
+
+
+# --- place suggestions ------------------------------------------------------
+
+
+def _suggestion_collection(*, existing=None, daily=0, pending=0, insert_error=None):
+    collection = MagicMock()
+    collection.find_one = AsyncMock(return_value=existing)
+    collection.count_documents = AsyncMock(side_effect=lambda query: daily if "created_at" in query else pending)
+    collection.insert_one = AsyncMock(side_effect=insert_error)
+    return collection
+
+
+_SUGGESTION = dict(place_key="cafe xoho", place_text="Cafe Xoho", link=None, lat=None, lon=None, category="coffee")
+
+
+@pytest.mark.asyncio
+async def test_add_suggestion_stores_a_new_one(monkeypatch):
+    collection = _suggestion_collection()
+    monkeypatch.setattr(db, "get_place_suggestions_collection", lambda: collection)
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=MagicMock()))
+
+    assert await db.add_suggestion(_SAVED_USER_ID, **_SUGGESTION) == "added"
+
+    stored = collection.insert_one.await_args.args[0]
+    assert stored["status"] == "new"
+    assert stored["category"] == "coffee"
+    assert stored["place_key"] == "cafe xoho"
+    assert set(stored) == {"user_id", "place_key", "place_text", "link", "lat", "lon", "category", "status", "created_at"}
+
+
+@pytest.mark.asyncio
+async def test_add_suggestion_is_idempotent_for_the_same_place(monkeypatch):
+    collection = _suggestion_collection(existing={"_id": 1})
+    monkeypatch.setattr(db, "get_place_suggestions_collection", lambda: collection)
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=MagicMock()))
+
+    assert await db.add_suggestion(_SAVED_USER_ID, **_SUGGESTION) == "exists"
+    collection.insert_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_add_suggestion_enforces_the_daily_and_pending_caps(monkeypatch):
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=MagicMock()))
+
+    daily = _suggestion_collection(daily=db.MAX_SUGGESTIONS_PER_DAY)
+    monkeypatch.setattr(db, "get_place_suggestions_collection", lambda: daily)
+    assert await db.add_suggestion(_SAVED_USER_ID, **_SUGGESTION) == "daily_limit"
+    daily.insert_one.assert_not_awaited()
+
+    pending = _suggestion_collection(pending=db.MAX_PENDING_SUGGESTIONS)
+    monkeypatch.setattr(db, "get_place_suggestions_collection", lambda: pending)
+    assert await db.add_suggestion(_SAVED_USER_ID, **_SUGGESTION) == "pending_limit"
+    pending.insert_one.assert_not_awaited()
+
+
+def test_the_daily_cap_is_five_and_the_ttl_is_180_days():
+    assert db.MAX_SUGGESTIONS_PER_DAY == 5
+    assert db.SUGGESTION_TTL_SECONDS == 180 * 24 * 60 * 60
+
+
+@pytest.mark.asyncio
+async def test_add_suggestion_treats_a_racing_duplicate_as_exists(monkeypatch):
+    from pymongo.errors import DuplicateKeyError
+
+    collection = _suggestion_collection(insert_error=DuplicateKeyError("dup"))
+    monkeypatch.setattr(db, "get_place_suggestions_collection", lambda: collection)
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=MagicMock()))
+
+    assert await db.add_suggestion(_SAVED_USER_ID, **_SUGGESTION) == "exists"
+
+
+@pytest.mark.asyncio
+async def test_add_suggestion_rejects_a_missing_or_malformed_user(monkeypatch):
+    collection = _suggestion_collection()
+    monkeypatch.setattr(db, "get_place_suggestions_collection", lambda: collection)
+
+    assert await db.add_suggestion("not-an-object-id", **_SUGGESTION) == "no_user"
+    monkeypatch.setattr(db, "get_user_by_id", AsyncMock(return_value=None))
+    assert await db.add_suggestion(_SAVED_USER_ID, **_SUGGESTION) == "no_user"
+    collection.insert_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_mark_suggestion_only_accepts_known_statuses(monkeypatch):
+    collection = MagicMock()
+    collection.update_one = AsyncMock(return_value=MagicMock(matched_count=1))
+    monkeypatch.setattr(db, "get_place_suggestions_collection", lambda: collection)
+
+    assert await db.mark_suggestion(_SAVED_USER_ID, "added") is True
+    assert await db.mark_suggestion(_SAVED_USER_ID, "bogus") is False
+    assert await db.mark_suggestion("not-an-object-id", "added") is False
+    collection.update_one.assert_awaited_once()
+
+
+def test_the_suggestions_schema_lists_only_the_stored_fields():
+    assert set(db.PLACE_SUGGESTIONS_JSON_SCHEMA["properties"]) == {
+        "user_id", "place_key", "place_text", "link", "lat", "lon", "category", "status", "created_at"
+    }
