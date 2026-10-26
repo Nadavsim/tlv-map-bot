@@ -293,9 +293,19 @@ def _places_reply(
     }
 
 
+def format_distance(meters: float) -> str:
+    """Under a kilometre in metres, to the nearest 10 (a street-level number is
+    easier to read than 0.24 km, and finer than that is false precision for a
+    phone's position); from a kilometre up, kilometres to one decimal."""
+    if meters < 1000:
+        rounded = max(10, round(meters / 10) * 10)
+        if rounded < 1000:
+            return f"{rounded} m"
+    return f"{meters / 1000:.1f} km"
+
+
 def format_place(place: PlaceResult, eta_seconds: float | None = None) -> dict:
-    distance_km = place.distance / 1000
-    distance_str = f"{distance_km:.2f} km" if distance_km < 1 else f"{distance_km:.1f} km"
+    distance_str = format_distance(place.distance)
 
     lon, lat = place.location.coordinates
     maps_url = f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}"

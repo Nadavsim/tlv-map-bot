@@ -68,7 +68,7 @@ def test_health_endpoint_returns_503_when_database_is_unreachable(monkeypatch):
 
 def test_format_place_shows_meters_as_km_with_two_decimals_under_1km():
     formatted = format_place(SAMPLE_PLACE, eta_seconds=None)
-    assert formatted["distance"] == "0.85 km"
+    assert formatted["distance"] == "850 m"
 
 
 def test_format_place_shows_one_decimal_over_1km():
@@ -1752,7 +1752,7 @@ def test_favorite_places_come_back_as_ordinary_cards_for_the_given_location(monk
     body = resp.json()["places"]
     assert body[0]["id"] == "64b0000000000000000000a1"
     assert body[0]["name"] == "Cafelix"
-    assert body[0]["distance"] == "0.42 km"
+    assert body[0]["distance"] == "420 m"
     assert body[0]["eta"] is None  # filled in by /api/etas like every other card
     find_mock.assert_awaited_once_with("user-id-1", 32.07, 34.77)
 
@@ -2407,3 +2407,26 @@ def test_privacy_page_describes_place_suggestions_in_both_languages():
     assert "<h2>הצעת מקום</h2>" in hebrew
     assert "180 יום" in hebrew
     assert "ומקומות שהצעת" in hebrew
+
+
+@pytest.mark.parametrize(
+    "meters,expected",
+    [
+        (0, "10 m"),
+        (3, "10 m"),
+        (14, "10 m"),
+        (15, "20 m"),
+        (237, "240 m"),
+        (850, "850 m"),
+        (994, "990 m"),
+        (995, "1.0 km"),
+        (999.6, "1.0 km"),
+        (1000, "1.0 km"),
+        (1240, "1.2 km"),
+        (12400, "12.4 km"),
+    ],
+)
+def test_distance_is_shown_in_metres_under_a_kilometre(meters, expected):
+    from backend.app import format_distance
+
+    assert format_distance(meters) == expected

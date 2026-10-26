@@ -284,6 +284,10 @@ on production** (not staging, which does not need it).
   same at startup) but unintended. `conftest.py` now has a catch-all fixture
   that blanks `MONGODB_URI` so no test can reach a real database again - a test
   that touches an unstubbed collection fails loudly.
+  **Distances under a kilometre are shown in metres (2026-10-26, `staging`):**
+  `format_distance` in `backend/app.py` - nearest 10 m ("240 m", never below
+  "10 m"), 995 m and up as "1.0 km", then kilometres to one decimal (was
+  "0.24 km"). One builder feeds the cards, favorites and the WhatsApp share text.
   **Drawer reordered (2026-10-26, `staging`):** account first (name and sign
   out, favorites, suggest a spot, saved addresses, delete account), then a
   pinned-to-the-bottom block with a "Settings" heading (language, theme, new
