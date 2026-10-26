@@ -1934,3 +1934,49 @@ def test_standalone_pages_follow_the_apps_theme_choice():
     css = (public / "pages.css").read_text(encoding="utf-8")
     assert ":root[data-theme='dark']" in css
     assert ":root:not([data-theme='light'])" in css
+
+
+@pytest.mark.parametrize(
+    "path,body",
+    [
+        ("/api/chat", {"message": "x", "lat": 999, "lon": 34.78}),
+        ("/api/chat", {"message": "x", "lat": 32.08, "lon": 34.78, "previous_category": "x" * 61}),
+        ("/api/chat", {"message": "x", "lat": 32.08, "lon": 34.78, "previous_dietary_tag": "x" * 61}),
+        ("/api/chat", {"message": "x", "lat": 32.08, "lon": 34.78, "previous_offset": -1}),
+        ("/api/chat", {"message": "x", "lat": 32.08, "lon": 34.78, "previous_offset": 1001}),
+        ("/api/more-places", {"category": "coffee", "lat": 32.08, "lon": 999, "offset": 0}),
+        ("/api/more-places", {"category": "coffee", "lat": 32.08, "lon": 34.78, "offset": -3}),
+        ("/api/more-places", {"category": "coffee", "lat": 32.08, "lon": 34.78, "offset": 10**9}),
+        ("/api/more-places", {"category": "x" * 61, "lat": 32.08, "lon": 34.78, "offset": 0}),
+        ("/api/more-places", {"tag": "x" * 61, "lat": 32.08, "lon": 34.78, "offset": 0}),
+    ],
+)
+def test_chat_and_more_places_reject_out_of_range_or_oversized_fields(monkeypatch, path, body):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(path, json=body)
+
+    assert resp.status_code == 422
+
+
+def test_resolve_location_is_rate_limited():
+    """The limiter is switched off for the whole suite, so check the decorator
+    is there: every other public POST has one, and this one used to be the
+    exception (it opens pasted links and calls the free address lookup)."""
+    route = next(r for r in app_module.app.routes if getattr(r, "path", "") == "/api/resolve-location")
+    limits = app_module.limiter._route_limits
+    assert any("resolve_location" in key for key in limits), list(limits)
+    assert route is not None
+
+
+def test_privacy_page_discloses_every_service_that_receives_a_location():
+    """The page promises to list who receives what; it was wrong before (the
+    weather lookup went undisclosed). Each language section must name them."""
+    from pathlib import Path
+
+    page = (Path(__file__).resolve().parent.parent / "frontend" / "public" / "privacy.html").read_text(encoding="utf-8")
+    english, hebrew = page.split('<section lang="he"')
+    for section in (english, hebrew):
+        for service in ("open-meteo.com", "routing.openstreetmap.de", "nominatim.openstreetmap.org", "tile.openstreetmap.org"):
+            assert service in section, service

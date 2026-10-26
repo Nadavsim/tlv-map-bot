@@ -100,3 +100,21 @@ async def test_is_raining_now_refetches_after_ttl_expires(monkeypatch):
 
     assert result is False
     assert call_count == 1
+
+
+def test_fetch_is_raining_sends_only_rounded_coordinates(monkeypatch):
+    seen = {}
+
+    def fake_get(url, params, timeout):
+        seen.update(params)
+        response = MagicMock()
+        response.json.return_value = {"current": {"precipitation": 0}}
+        response.raise_for_status.return_value = None
+        return response
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    weather._fetch_is_raining(32.087654321, 34.781234567)
+
+    assert seen["latitude"] == 32.09
+    assert seen["longitude"] == 34.78

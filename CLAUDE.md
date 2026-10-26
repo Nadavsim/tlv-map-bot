@@ -152,7 +152,19 @@ on production** (not staging, which does not need it).
 2. **Make the promises true** (~2.5 h): rate-limit + Google-hosts-only
    `resolve-location`; bound request fields (`previous_category` max length,
    lat/lon/offset ranges); correct `privacy.html` (Open-Meteo, "any link", logs;
-   round weather coordinates to ~1 km).
+   round weather coordinates to ~1 km). **Built 2026-10-26 on `staging`, not
+   pushed:** `resolve-location` now has the same 20/min + 200/day limit as chat
+   and expands a pasted link one redirect hop at a time, only through Google
+   hosts (`_expand_google_link`, max 5 hops, no body downloaded; coordinates
+   written in the text are still just read); `lat`/`lon` ranges, `offset`
+   0-1000 and 60-character category/tag fields on `/api/chat` and
+   `/api/more-places`; the weather call sends coordinates rounded to 2
+   decimals; `privacy.html` (both languages) now names Open-Meteo, says only
+   Google links are opened, and says favorites-nearest-first coordinates can
+   appear in standard server logs (**the Hebrew is new and not reviewed by the
+   curator; the log-retention claim is unverified - Azure's actual retention
+   was not checked**). Not done: the favorites lat/lon are still query
+   parameters (disclosed instead, per the Skeptic). 25 new tests (544 total).
 3. **Loud failures, gated deploys** (~2.5 h): log a warning + a separate
    counter when the Claude call fails instead of counting "unmatched"; run
    pytest in the production deploy (check it passes in CI with a dummy

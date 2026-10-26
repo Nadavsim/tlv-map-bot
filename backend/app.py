@@ -128,8 +128,8 @@ class ChatRequest(BaseModel):
     # Capped well above any real craving/follow-up message - mainly a guard
     # against someone pasting a huge blob into the (paid, per-token) LLM call.
     message: str = Field(max_length=500)
-    lat: float
-    lon: float
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
     lang: Literal["en", "he"] = "en"
     # Just enough of the previous turn for the LLM to recognize a refinement
     # ("something else", "another one") without real conversation history -
@@ -138,10 +138,12 @@ class ChatRequest(BaseModel):
     # reload). previous_category=None with has_previous_context=True means
     # the previous turn was "any category" (surprise me), not "no previous
     # turn at all" - that distinction is what has_previous_context is for.
-    previous_category: str | None = None
-    previous_dietary_tag: str | None = None
+    # Bounded because previous_category/previous_dietary_tag are echoed into the
+    # paid LLM prompt: a real value is a short category or tag name.
+    previous_category: str | None = Field(default=None, max_length=60)
+    previous_dietary_tag: str | None = Field(default=None, max_length=60)
     previous_price_tier: PriceTier | None = None
-    previous_offset: int = 0
+    previous_offset: int = Field(default=0, ge=0, le=1000)
     has_previous_context: bool = False
 
 
@@ -152,12 +154,12 @@ class LocationLinkRequest(BaseModel):
 
 
 class MorePlacesRequest(BaseModel):
-    category: str | None = None
-    tag: str | None = None
+    category: str | None = Field(default=None, max_length=60)
+    tag: str | None = Field(default=None, max_length=60)
     price: PriceTier | None = None
-    lat: float
-    lon: float
-    offset: int
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    offset: int = Field(ge=0, le=1000)
 
 
 # Matches the top-N shown per request on both the initial match and each
@@ -345,7 +347,8 @@ async def _count_location_outcome(key: str) -> None:
 
 
 @app.post("/api/resolve-location")
-async def resolve_location(req: LocationLinkRequest):
+@limiter.limit("20/minute;200/day")
+async def resolve_location(request: Request, req: LocationLinkRequest):
     text = req.text.strip()
     coords, place_text = await asyncio.to_thread(location.resolve_maps_link_detail, text)
     if not coords:

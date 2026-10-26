@@ -41,8 +41,8 @@
           you type is sent to OpenStreetMap's free address lookup
           (<a href="https://nominatim.openstreetmap.org" target="_blank" rel="noopener noreferrer">nominatim.openstreetmap.org</a>)
           to turn it into coordinates. If you paste a Google Maps link, TLV Bot's
-          server opens that link (a request to Google) to read the place's
-          position; when the link only carries a place name or address, that
+          server follows that link's redirects (requests to Google) to read the
+          place's position, and links to any other site are never opened; when the link only carries a place name or address, that
           name or address - never the link itself - is sent to the same
           OpenStreetMap address lookup. If an address you type can't be found,
           TLV Bot checks the spelling of the street against a list of street
@@ -52,7 +52,12 @@
           also loads map images straight from OpenStreetMap's tile server
           (<a href="https://tile.openstreetmap.org" target="_blank" rel="noopener noreferrer">tile.openstreetmap.org</a>);
           the tiles it asks for reveal roughly which part of the city the map
-          is showing, and your IP address, to OpenStreetMap.
+          is showing, and your IP address, to OpenStreetMap. To tell whether it is
+          raining (outdoor-only places are listed lower in the rain), TLV Bot asks
+          the free weather service Open-Meteo
+          (<a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer">open-meteo.com</a>)
+          at most once every ten minutes for the whole city, using the position of
+          whichever search triggers the check, rounded to about 1 km.
         </p>
 
         <h2>Your chat messages</h2>
@@ -149,12 +154,15 @@
           each request and may keep standard server logs. To limit abuse, the
           network address a request comes from is also held briefly in the
           server's memory to count how often it asks; it isn't written to the
-          database.
+          database. One more place location can appear: when you open your favorites
+          nearest-first, your coordinates are part of that request's address, so
+          they can show up in the host's standard server logs like any request
+          address. TLV Bot doesn't store or use them.
         </p>
         <p>
           Third parties involved in answering a request: Anthropic (Claude API),
           OSRM (routing.openstreetmap.de), and OpenStreetMap's Nominatim
-          (nominatim.openstreetmap.org); Google Fonts (the page's typeface is
+          (nominatim.openstreetmap.org); Open-Meteo (open-meteo.com, weather); Google Fonts (the page's typeface is
           loaded from fonts.googleapis.com and fonts.gstatic.com, so Google
           receives your IP address when a page loads); Google sign-in
           (accounts.google.com), only if you open the sign-in panel; and, only
@@ -188,7 +196,8 @@
           לשירות איתור הכתובות החינמי של OpenStreetMap
           (<a href="https://nominatim.openstreetmap.org" target="_blank" rel="noopener noreferrer">nominatim.openstreetmap.org</a>)
           כדי להפוך אותו לקואורדינטות. אם אתה מדביק קישור של Google Maps, השרת
-          של TLV Bot פותח את הקישור (בקשה ל-Google) כדי לקרוא את מיקום המקום;
+          של TLV Bot עוקב אחרי ההפניות של הקישור (בקשות ל-Google) כדי לקרוא את מיקום המקום,
+          וקישורים לאתרים אחרים לא נפתחים לעולם;
           כשבקישור יש רק שם או כתובת של מקום, השם או הכתובת - ולא הקישור עצמו -
           נשלחים לאותו שירות איתור כתובות של OpenStreetMap. אם כתובת שהקלדת לא נמצאה,
           TLV Bot בודק את איות הרחוב מול רשימת שמות רחובות ששמורה בשרת שלו
@@ -197,7 +206,11 @@
           טוען גם תמונות מפה ישירות משרת האריחים של OpenStreetMap
           (<a href="https://tile.openstreetmap.org" target="_blank" rel="noopener noreferrer">tile.openstreetmap.org</a>);
           האריחים שהוא מבקש חושפים ל-OpenStreetMap בערך איזה אזור בעיר המפה
-          מציגה, ואת כתובת ה-IP שלך.
+          מציגה, ואת כתובת ה-IP שלך. כדי לדעת אם יורד גשם (מקומות עם ישיבה בחוץ בלבד
+          יורדים בדירוג בזמן גשם), TLV Bot פונה לשירות מזג האוויר החינמי Open-Meteo
+          (<a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer">open-meteo.com</a>)
+          לכל היותר פעם בעשר דקות עבור כל העיר, עם מיקום החיפוש שהפעיל את הבדיקה,
+          מעוגל לכקילומטר אחד.
         </p>
 
         <h2>הודעות הצ'אט שלך</h2>
@@ -279,12 +292,15 @@
           Microsoft Azure, שכמו כל אחסון אתרים מטפל בכל בקשה ועשוי לשמור יומני
           שרת סטנדרטיים. כדי להגביל ניצול לרעה, הכתובת ברשת ממנה מגיעה בקשה
           נשמרת גם לזמן קצר בזיכרון השרת כדי לספור כמה פעמים היא פונה; היא לא
-          נכתבת למסד הנתונים.
+          נכתבת למסד הנתונים. יש עוד מקום אחד שבו מיקום יכול להופיע: כשאתה פותח את
+          המועדפים שלך מהקרוב לרחוק, הקואורדינטות שלך הן חלק מכתובת הבקשה, ולכן הן
+          יכולות להופיע ביומני השרת הסטנדרטיים של האחסון, כמו כל כתובת של בקשה.
+          TLV Bot לא שומר אותן ולא משתמש בהן.
         </p>
         <p>
           צדדים שלישיים המעורבים במענה לבקשה: Anthropic (API של Claude), OSRM
           (routing.openstreetmap.de), ו-Nominatim של OpenStreetMap
-          (nominatim.openstreetmap.org); Google Fonts (הגופן של הדף נטען מ-
+          (nominatim.openstreetmap.org); Open-Meteo (open-meteo.com, מזג אוויר); Google Fonts (הגופן של הדף נטען מ-
           fonts.googleapis.com ומ-fonts.gstatic.com, ולכן Google מקבלת את כתובת
           ה-IP שלך כשדף נטען); התחברות עם Google (accounts.google.com), רק אם אתה
           פותח את חלונית ההתחברות; ורק אם אתה פותח את תצוגת המפה, שרת האריחים של

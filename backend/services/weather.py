@@ -21,9 +21,11 @@ _cache_value = False
 
 def _fetch_is_raining(lat: float, lon: float) -> bool:
     try:
+        # Rounded to 2 decimals (~1 km): rain is a citywide yes/no here, so the
+        # caller's exact position has no use and is not sent to Open-Meteo.
         resp = requests.get(
             _FORECAST_URL,
-            params={"latitude": lat, "longitude": lon, "current": "precipitation"},
+            params={"latitude": round(lat, 2), "longitude": round(lon, 2), "current": "precipitation"},
             timeout=5,
         )
         resp.raise_for_status()

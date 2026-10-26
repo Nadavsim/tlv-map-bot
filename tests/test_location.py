@@ -37,6 +37,25 @@ def _counting_get(monkeypatch, *, json=None, error=None):
     return state
 
 
+def _redirect_chain(monkeypatch, chain):
+    """Patches requests.get so each URL answers with a redirect to the next one
+    in `chain` (a dict), or with a plain 200 when it isn't a key. Returns the
+    list of URLs actually requested."""
+    requested = []
+
+    def fake_get(url, timeout, allow_redirects, stream):
+        assert allow_redirects is False, "redirects must be followed hop by hop"
+        requested.append(url)
+        response = MagicMock()
+        target = chain.get(url)
+        response.is_redirect = target is not None
+        response.headers = {"Location": target} if target else {}
+        return response
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    return requested
+
+
 def test_extracts_coords_from_q_param():
     url = "https://www.google.com/maps?q=32.0653,34.7739"
     assert location.extract_coords_from_url(url) == (32.0653, 34.7739)
@@ -93,13 +112,61 @@ def test_resolve_maps_link_extracts_directly_without_network_call(monkeypatch):
 
 
 def test_resolve_maps_link_follows_short_link_redirect(monkeypatch):
-    fake_response = MagicMock()
-    fake_response.url = "https://www.google.com/maps/@32.0653,34.7739,15z"
-    monkeypatch.setattr(requests, "get", lambda url, timeout, allow_redirects: fake_response)
+    _redirect_chain(
+        monkeypatch,
+        {"https://maps.app.goo.gl/abc123": "https://www.google.com/maps/@32.0653,34.7739,15z"},
+    )
 
     result = location.resolve_maps_link("https://maps.app.goo.gl/abc123")
 
     assert result == (32.0653, 34.7739)
+
+
+def test_resolve_maps_link_never_requests_a_non_google_link(monkeypatch):
+    requested = _redirect_chain(monkeypatch, {})
+
+    # Coordinates written in the pasted text are just read, never fetched.
+    assert location.resolve_maps_link_detail("https://evil.example/maps/@32.07,34.77,15z") == ((32.07, 34.77), None)
+    assert location.resolve_maps_link_detail("https://evil.example/somewhere") == (None, None)
+    assert location.resolve_maps_link_detail("https://google.com.evil.example/x") == (None, None)
+    assert location.resolve_maps_link_detail("http://169.254.169.254/latest/meta-data/") == (None, None)
+    assert requested == []
+
+
+def test_resolve_maps_link_stops_when_a_redirect_leaves_google(monkeypatch):
+    requested = _redirect_chain(
+        monkeypatch,
+        {"https://maps.app.goo.gl/abc123": "http://169.254.169.254/latest/meta-data/"},
+    )
+
+    assert location.resolve_maps_link_detail("https://maps.app.goo.gl/abc123") == (None, None)
+    assert requested == ["https://maps.app.goo.gl/abc123"]
+
+
+def test_resolve_maps_link_follows_a_relative_redirect_inside_google(monkeypatch):
+    requested = _redirect_chain(
+        monkeypatch,
+        {
+            "https://maps.app.goo.gl/abc123": "https://www.google.com/maps/place/Cafe",
+            "https://www.google.com/maps/place/Cafe": "/maps/@32.0653,34.7739,15z",
+        },
+    )
+
+    assert location.resolve_maps_link("https://maps.app.goo.gl/abc123") == (32.0653, 34.7739)
+    assert requested[-1] == "https://www.google.com/maps/@32.0653,34.7739,15z"
+
+
+def test_resolve_maps_link_gives_up_on_a_redirect_loop(monkeypatch):
+    requested = _redirect_chain(
+        monkeypatch,
+        {
+            "https://www.google.com/a": "https://www.google.com/b",
+            "https://www.google.com/b": "https://www.google.com/a",
+        },
+    )
+
+    assert location.resolve_maps_link("https://www.google.com/a") is None
+    assert len(requested) == location._MAX_LINK_HOPS
 
 
 def test_resolve_maps_link_returns_none_for_plain_text():
@@ -325,9 +392,7 @@ def test_extract_place_text_returns_none_when_there_is_nothing_usable(url):
 
 
 def test_resolve_maps_link_detail_returns_place_text_when_the_expanded_url_has_no_coordinates(monkeypatch):
-    fake_response = MagicMock()
-    fake_response.url = _HEBREW_PLACE_URL
-    monkeypatch.setattr(requests, "get", lambda url, timeout, allow_redirects: fake_response)
+    _redirect_chain(monkeypatch, {"https://maps.app.goo.gl/abc123": _HEBREW_PLACE_URL})
 
     coords, place_text = location.resolve_maps_link_detail("https://maps.app.goo.gl/abc123")
 
@@ -336,9 +401,10 @@ def test_resolve_maps_link_detail_returns_place_text_when_the_expanded_url_has_n
 
 
 def test_resolve_maps_link_detail_returns_both_when_the_expanded_url_has_them(monkeypatch):
-    fake_response = MagicMock()
-    fake_response.url = "https://www.google.com/maps/place/Cafe+Xoho/@32.07,34.77,17z/data=!3m1"
-    monkeypatch.setattr(requests, "get", lambda url, timeout, allow_redirects: fake_response)
+    _redirect_chain(
+        monkeypatch,
+        {"https://maps.app.goo.gl/abc123": "https://www.google.com/maps/place/Cafe+Xoho/@32.07,34.77,17z/data=!3m1"},
+    )
 
     assert location.resolve_maps_link_detail("https://maps.app.goo.gl/abc123") == ((32.07, 34.77), "Cafe Xoho")
 

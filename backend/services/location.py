@@ -1,5 +1,5 @@
 import re
-from urllib.parse import parse_qs, unquote_plus, urlparse
+from urllib.parse import parse_qs, unquote_plus, urljoin, urlparse
 
 import requests
 
@@ -75,6 +75,36 @@ def _tidy_place_text(text: str | None) -> str | None:
     return _POSTCODE_TAIL_RE.sub("", text).strip(" ,") or None
 
 
+_MAX_LINK_HOPS = 5
+
+
+def _is_google_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return parsed.scheme in ("http", "https") and bool(_GOOGLE_HOST_RE.search((parsed.hostname or "").lower()))
+
+
+def _expand_google_link(url: str) -> str | None:
+    """Follows a pasted link's redirects one hop at a time and returns the final
+    URL, or None if the link isn't a Google one or any hop leaves Google.
+    Redirects are never followed blindly and bodies are never downloaded: this
+    endpoint is open to anyone, so it must not become a way to make the server
+    fetch arbitrary addresses. Google Maps short links (maps.app.goo.gl) answer
+    with a redirect, which is all that is needed to read where they lead."""
+    current = url
+    for _ in range(_MAX_LINK_HOPS):
+        if not _is_google_url(current):
+            return None
+        response = requests.get(current, timeout=5, allow_redirects=False, stream=True)
+        try:
+            target = response.headers.get("Location") if response.is_redirect else None
+        finally:
+            response.close()
+        if not target:
+            return current
+        current = urljoin(current, target)
+    return current if _is_google_url(current) else None
+
+
 def resolve_maps_link_detail(text: str) -> tuple[tuple[float, float] | None, str | None]:
     """(coords, place_text) for pasted text. Coordinates come straight from the
     URL when it has them, otherwise from the expanded URL after following
@@ -90,8 +120,12 @@ def resolve_maps_link_detail(text: str) -> tuple[tuple[float, float] | None, str
         return None, None
 
     try:
-        final_url = requests.get(text.strip(), timeout=5, allow_redirects=True).url
+        final_url = _expand_google_link(text.strip())
     except requests.RequestException:
+        final_url = None
+    if final_url is None:
+        # Not a Google link, a hop left Google, or the request failed: nothing
+        # was fetched beyond Google, so only the link's own text can help.
         return None, _tidy_place_text(extract_place_text_from_url(text.strip()))
     return extract_coords_from_url(final_url), _tidy_place_text(
         extract_place_text_from_url(final_url) or extract_place_text_from_url(text.strip())
