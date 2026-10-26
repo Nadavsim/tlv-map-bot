@@ -106,6 +106,30 @@ async def test_degrades_gracefully_on_api_error(monkeypatch):
     assert result["category"] is None
     assert result["any_category"] is False
     assert result["clarifying_question"]
+    assert result["llm_failed"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_failed_call_is_logged_without_the_visitors_text(monkeypatch, caplog):
+    fake_client = AsyncMock()
+    fake_client.messages.create.side_effect = anthropic.APIConnectionError(request=object())
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    with caplog.at_level("WARNING", logger=llm.logger.name):
+        await llm.parse_food_request("a very private craving", ["coffee"])
+
+    assert "llm call failed: APIConnectionError" in caplog.text
+    assert "private craving" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_successful_call_is_not_flagged_as_failed(monkeypatch):
+    fake_client = make_fake_client({"any_category": False, "matched_category": "coffee", "clarifying_question": ""})
+    monkeypatch.setattr(llm, "_get_client", lambda: fake_client)
+
+    result = await llm.parse_food_request("coffee", ["coffee", "burger"])
+
+    assert "llm_failed" not in result
 
 
 @pytest.mark.asyncio

@@ -187,10 +187,12 @@ REPLIES = {
         "any_label": "any",
         "price_words": {"$": "cheap", "$$": "mid-range", "$$$": "high-end"},
         "qualifier_sep": " ",
+        "assistant_unavailable": "Sorry, I couldn't work that out just now - please try again in a moment.",
     },
     "he": {
         "empty_db": "מסד הנתונים של המקומות ריק. הרץ `python -m scripts.sync_places` כדי לטעון מקומות קודם.",
         "no_category_fallback": "לא ברור לי מה מתחשק לך - תוכל לספר לי איזה סוג אוכל?",
+        "assistant_unavailable": "סליחה, לא הצלחתי להבין את זה כרגע - נסה שוב בעוד רגע.",
         "no_matches": "עדיין אין לי מקומות מסוג {label} שמורים.",
         "no_matches_with_tag": "עדיין אין לי מקומות מסוג {label} ({tag}) שמורים.",
         "no_more_matches": "אלה כל המקומות מסוג {label} ששמורים אצלי כרגע.",
@@ -416,6 +418,13 @@ async def chat(request: Request, req: ChatRequest):
         has_previous_context=req.has_previous_context,
         previous_price_tier=req.previous_price_tier,
     )
+
+    # The model call failed: say so, count it on its own and stop. Falling
+    # through would log the visitor's text as an "unmatched" craving and ask
+    # them a cuisine question, which is wrong and hides an outage.
+    if extraction.get("llm_failed"):
+        await _count_location_outcome(db.LLM_FAILED_KEY)
+        return {"reply": replies["assistant_unavailable"], "places": []}
 
     # A refinement of the previous turn ("something else", "another one",
     # "cheaper") - keep the same category/tag (or "any", if that's what the

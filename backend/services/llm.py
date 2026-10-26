@@ -1,4 +1,8 @@
+import logging
+
 import anthropic
+
+logger = logging.getLogger(__name__)
 
 MODEL = "claude-haiku-4-5"
 
@@ -190,7 +194,14 @@ async def parse_food_request(
         )
         tool_use = next(b for b in response.content if b.type == "tool_use")
         result = tool_use.input
-    except (anthropic.APIError, StopIteration):
+    except (anthropic.APIError, StopIteration) as error:
+        # The model call itself failed (bad key, no credit, rate limit,
+        # outage, a reply with no tool call) - not "the visitor asked for
+        # something we don't have". It is flagged so the caller can tell the
+        # two apart and so it is never counted as an unmatched craving. Only
+        # the error type and HTTP status are logged, never the message text.
+        status = getattr(error, "status_code", None)
+        logger.warning("llm call failed: %s%s", type(error).__name__, f" (status {status})" if status else "")
         fallback = _FALLBACK_QUESTIONS.get(language, _FALLBACK_QUESTIONS["en"])
         return {
             "category": None,
@@ -199,6 +210,7 @@ async def parse_food_request(
             "clarifying_question": fallback,
             "any_category": False,
             "is_followup": False,
+            "llm_failed": True,
         }
 
     any_category = bool(result.get("any_category"))

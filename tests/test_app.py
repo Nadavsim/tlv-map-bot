@@ -1980,3 +1980,92 @@ def test_privacy_page_discloses_every_service_that_receives_a_location():
     for section in (english, hebrew):
         for service in ("open-meteo.com", "routing.openstreetmap.de", "nominatim.openstreetmap.org", "tile.openstreetmap.org"):
             assert service in section, service
+
+
+@pytest.mark.parametrize(
+    "lang,expected",
+    [
+        ("en", "Sorry, I couldn't work that out just now - please try again in a moment."),
+        ("he", "סליחה, לא הצלחתי להבין את זה כרגע - נסה שוב בעוד רגע."),
+    ],
+)
+def test_chat_reports_a_failed_llm_call_instead_of_logging_an_unmatched_craving(monkeypatch, lang, expected):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee", "burger"]))
+    monkeypatch.setattr(
+        llm,
+        "parse_food_request",
+        AsyncMock(
+            return_value={
+                "category": None,
+                "clarifying_question": "What are you craving?",
+                "any_category": False,
+                "is_followup": False,
+                "llm_failed": True,
+            }
+        ),
+    )
+    log_unmatched_mock = AsyncMock()
+    monkeypatch.setattr(db, "log_unmatched_query", log_unmatched_mock)
+    record_stat_mock = AsyncMock()
+    monkeypatch.setattr(db, "record_category_request", record_stat_mock)
+    find_nearest_mock = AsyncMock()
+    monkeypatch.setattr(db, "find_nearest", find_nearest_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/chat", json={"message": "burger", "lat": 32.08, "lon": 34.78, "lang": lang})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"reply": expected, "places": []}
+    log_unmatched_mock.assert_not_awaited()
+    record_stat_mock.assert_awaited_once_with(db.LLM_FAILED_KEY)
+    find_nearest_mock.assert_not_awaited()
+
+
+def test_a_failed_llm_call_also_stops_a_followup_from_paging(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
+    monkeypatch.setattr(
+        llm,
+        "parse_food_request",
+        AsyncMock(
+            return_value={
+                "category": None,
+                "clarifying_question": "x",
+                "any_category": False,
+                "is_followup": False,
+                "llm_failed": True,
+            }
+        ),
+    )
+    monkeypatch.setattr(db, "record_category_request", AsyncMock())
+    monkeypatch.setattr(db, "log_unmatched_query", AsyncMock())
+    find_nearest_mock = AsyncMock()
+    monkeypatch.setattr(db, "find_nearest", find_nearest_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post(
+            "/api/chat",
+            json={
+                "message": "something else",
+                "lat": 32.08,
+                "lon": 34.78,
+                "previous_category": "coffee",
+                "previous_offset": 3,
+                "has_previous_context": True,
+            },
+        )
+
+    assert resp.json()["places"] == []
+    find_nearest_mock.assert_not_awaited()
+
+
+def test_both_deploy_workflows_run_the_tests_before_anything_is_uploaded():
+    """A failing test must stop a deploy: the test step has to sit in the build
+    job, ahead of the artifact upload that the deploy job downloads."""
+    from pathlib import Path
+
+    for name in ("deploy-production.yml", "deploy-staging.yml"):
+        text = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / name).read_text(encoding="utf-8")
+        assert "pytest" in text, name
+        assert text.index("pytest") < text.index("actions/upload-artifact"), name

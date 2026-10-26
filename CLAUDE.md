@@ -168,7 +168,17 @@ on production** (not staging, which does not need it).
 3. **Loud failures, gated deploys** (~2.5 h): log a warning + a separate
    counter when the Claude call fails instead of counting "unmatched"; run
    pytest in the production deploy (check it passes in CI with a dummy
-   `JWT_SECRET`).
+   `JWT_SECRET`). **Built 2026-10-26 on `staging`, not pushed:**
+   `llm.parse_food_request` flags a failed call (`llm_failed`) and logs a
+   warning with only the error type and HTTP status (never the visitor's text;
+   a bad key logs `AuthenticationError (status 401)`); `/api/chat` answers
+   "couldn't work that out just now" (EN/HE, the Hebrew is new and unreviewed),
+   counts it under `llm_failed` in `category_stats`, and no longer writes
+   `unmatched_queries` or `unmatched` for it (so an outage can't pollute the
+   curation log or look like unmet demand). Both deploy workflows run
+   `pytest` in the build job ahead of the artifact upload, so a failing test
+   stops the deploy (suite checked to pass with no `.env`, only a dummy
+   `JWT_SECRET`; **the first real GitHub Actions run is the real check**).
 4. **Honest filter replies** (~2-3 h): when a requested qualifier (vegan,
    kosher, "open now") cannot be honoured, say so deterministically instead of
    "Surprise!" with unrelated places.

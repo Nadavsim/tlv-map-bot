@@ -29,6 +29,9 @@ CATEGORIES_CACHE_TTL_SECONDS = 300
 # kept as constants so app.py and db.py agree on the exact strings.
 ANY_CATEGORY_KEY = "any_category"
 UNMATCHED_KEY = "unmatched"
+# The Claude call itself failed (key, credit, rate limit, outage): counted on its
+# own so an outage never looks like visitors asking for things the map lacks.
+LLM_FAILED_KEY = "llm_failed"
 # Same collection, same idea, for the location box: how often a typed address
 # found nothing / got a spelling suggestion. Counts only - the privacy policy
 # says typed addresses are not stored, so no text is ever logged here.
