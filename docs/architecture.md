@@ -1,6 +1,6 @@
 # TLV Bot - how it fits together
 
-Three diagrams, written in Mermaid (GitHub renders them on this page). Edit
+Six diagrams, written in Mermaid (GitHub renders them on this page). Edit
 them in any Mermaid editor, and keep them in step with `CLAUDE.md` when the
 architecture changes.
 
@@ -133,4 +133,176 @@ flowchart TD
   K --> L["App asks for travel times<br/>OSRM, cached, stalls tolerated"]
   L --> M["Times settle into each<br/>sign plate"]
   K --> N["Visitor can: show more, open the map,<br/>share, navigate, save, report"]
+```
+
+## Code map: which file talks to which
+
+For someone reading the code for the first time. Solid arrows are imports or calls; the thick arrow is the only network hop between the two halves. `App.tsx` owns all state; everything under `components/` receives props and calls back up.
+
+```mermaid
+flowchart TB
+  subgraph FE["frontend/src (React + TypeScript)"]
+    main["main.tsx<br/>ErrorBoundary + App"]
+    App["App.tsx<br/>all state and handlers"]
+    Header["Header.tsx"]
+    Side["SideMenu.tsx"]
+    Acct["AccountSection.tsx<br/>GoogleSignInButton, SuggestSpot"]
+    Log["ChatLog.tsx<br/>ChatBubble, TypingIndicator"]
+    LocForm["LocationForm.tsx"]
+    Cards["PlaceCards.tsx<br/>ShareButton, MapView (lazy)"]
+    Card["PlaceCard.tsx<br/>CategoryIcon"]
+    Input["ChatInput.tsx"]
+    API["api.ts<br/>one function per endpoint"]
+    Support["types.ts, chatTypes.ts,<br/>i18n.ts, preferences.ts, share.ts"]
+  end
+
+  subgraph BE["backend/ (FastAPI, Python)"]
+    app["app.py<br/>routes, middleware,<br/>rate limits, reply text"]
+    models["models.py<br/>Pydantic schema"]
+    db["db.py<br/>every MongoDB query"]
+    parser["parser.py<br/>KML to Place"]
+    subgraph Svc["services/"]
+      llm["llm.py"]
+      loc["location.py<br/>streets.py"]
+      route["routing.py<br/>resilience.py"]
+      wx["weather.py"]
+      auth["auth.py"]
+      sug["suggestions.py"]
+      cip["clientip.py"]
+    end
+  end
+
+  subgraph Scripts["scripts/ (run by hand or GitHub Actions)"]
+    sync["sync_places.py"]
+    rep["show_reports.py"]
+    shows["show_suggestions.py"]
+  end
+
+  main --> App
+  App --> Header --> Side --> Acct
+  App --> Log --> Cards --> Card
+  Log --> LocForm
+  App --> Input
+  App --> API
+  Card --> API
+  LocForm --> API
+  App -.-> Support
+  API == "HTTP /api/*" ==> app
+  app --> llm
+  app --> loc
+  app --> route
+  app --> wx
+  app --> auth
+  app --> sug
+  app --> cip
+  app --> db
+  db --> models
+  parser --> models
+  sync --> parser
+  sync --> db
+  rep --> db
+  shows --> db
+  sug --> loc
+```
+
+## Code path of one chat message
+
+Function-level trace of the main feature, from `handleSend` to the travel times landing. Results come back first with distance only; the times are a second request so a slow routing service never delays the cards.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor V as Visitor
+  participant App as App.tsx<br/>handleSend
+  participant API as api.ts
+  participant R as app.py<br/>chat()
+  participant L as llm.py<br/>parse_food_request
+  participant D as db.py
+  participant W as weather.py
+  participant Q as app.py<br/>etas()
+  participant O as routing.py
+
+  V->>App: types or taps a craving
+  App->>App: getPreviousContext() reads last results entry
+  App->>API: postChat(message, lat, lon, lang, previous_*)
+  API->>R: POST /api/chat
+  R->>D: get_categories(), get_dietary_tags()
+  R->>L: parse_food_request(message, known lists)
+  L-->>R: category, tag, price, is_followup, flags
+  alt LLM failed, out of scope or nothing to search
+    R->>D: record_category_request(), log_unmatched_query()
+    R-->>App: reply text only
+  else something to search
+    R->>D: find_nearest(category, lat, lon, tag, price)
+    D->>W: is_raining_now()
+    D-->>R: places sorted by distance, likely-closed last
+    R-->>App: reply + places (distance only, eta null)
+  end
+  App->>V: bubble, then cards arrive
+  App->>API: postEtas(origin, mode, destinations)
+  API->>Q: POST /api/etas
+  Q->>O: get_eta_seconds_batch()
+  O-->>Q: durations (cached, timeout 3s)
+  Q-->>App: formatted times
+  App->>V: times settle into each card
+```
+
+## From a tap to the database
+
+Eight common actions, each traced from the control the visitor touches to the handler, the route in `backend/app.py`, and the function that does the work. Every route that touches stored user data needs the bearer token.
+
+```mermaid
+flowchart LR
+  subgraph U["User action"]
+    a1["Type an address or paste a link"]
+    a2["Tap Live"]
+    a3["Tap Show more"]
+    a4["Tap the heart"]
+    a5["Report a place"]
+    a6["Sign in with Google"]
+    a7["Suggest a spot"]
+    a8["Save an address"]
+  end
+
+  subgraph H["Frontend: component and handler"]
+    h1["LocationForm<br/>resolveLocation()"]
+    h2["App.requestLocation()<br/>navigator.geolocation"]
+    h3["App.handleShowMore()"]
+    h4["App.handleToggleFavorite()"]
+    h5["PlaceCard<br/>postPlaceReport()"]
+    h6["GoogleSignInButton to<br/>App.handleGoogleCredential()"]
+    h7["SuggestSpot to<br/>App.handleSuggestSpot()"]
+    h8["App.handleSaveAddress()"]
+  end
+
+  subgraph R["Backend route in app.py"]
+    r1["POST /api/resolve-location"]
+    r2["no server call"]
+    r3["POST /api/more-places"]
+    r4["POST or DELETE<br/>/api/favorites"]
+    r5["POST /api/place-reports"]
+    r6["POST /api/auth/google"]
+    r7["POST /api/suggestions"]
+    r8["POST /api/saved-addresses"]
+  end
+
+  subgraph S["Service or db function"]
+    s1["location.resolve_maps_link_detail,<br/>geocode_address, streets.suggest_correction"]
+    s2["Coordinates go straight<br/>into App state"]
+    s3["db.find_nearest<br/>from the original origin"]
+    s4["db.add_favorite,<br/>db.remove_favorite"]
+    s5["db.record_place_report"]
+    s6["auth.verify_google_id_token,<br/>db.create_user, create_access_token"]
+    s7["suggestions.clean_text and is_google_link,<br/>db.add_suggestion"]
+    s8["db.add_saved_address"]
+  end
+
+  a1 --> h1 --> r1 --> s1
+  a2 --> h2 --> r2 --> s2
+  a3 --> h3 --> r3 --> s3
+  a4 --> h4 --> r4 --> s4
+  a5 --> h5 --> r5 --> s5
+  a6 --> h6 --> r6 --> s6
+  a7 --> h7 --> r7 --> s7
+  a8 --> h8 --> r8 --> s8
 ```
