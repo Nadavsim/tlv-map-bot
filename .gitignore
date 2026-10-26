@@ -24,3 +24,16 @@ cleaned_places.csv
 
 # Node
 frontend/node_modules/
+
+# Local tooling (design/agent skills, their hooks and locks, per-machine
+# settings): installed per developer, not part of the app.
+.agents/
+.claude/agents/
+.claude/skills/
+.claude/settings.local.json
+.codex/
+.github/agents/
+.github/hooks/
+.github/skills/
+.impeccable/
+skills-lock.json

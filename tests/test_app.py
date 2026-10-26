@@ -2156,3 +2156,16 @@ def test_privacy_page_says_requests_it_could_not_fully_match_are_kept():
     english, hebrew = page.split('<section lang="he"')
     assert "couldn't fully match" in english
     assert "לא הצלחתי להתאים במלואן" in hebrew
+
+
+def test_api_requests_feed_the_client_ip_diagnostic_but_static_pages_do_not(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(db, "get_categories", AsyncMock(return_value=["coffee"]))
+    seen = []
+    monkeypatch.setattr(app_module.clientip, "observe", lambda peer, forwarded: seen.append((peer, forwarded)))
+
+    with TestClient(app_module.app) as client:
+        client.get("/api/categories", headers={"X-Forwarded-For": "203.0.113.9"})
+        client.get("/privacy")
+
+    assert seen == [("testclient", "203.0.113.9")]

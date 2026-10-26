@@ -17,7 +17,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import db
 from .models import PlaceResult
-from .services import auth, llm, location, routing, streets
+from .services import auth, clientip, llm, location, routing, streets
 
 load_dotenv()
 
@@ -105,6 +105,15 @@ async def security_headers(request, call_next):
         "frame-ancestors 'none'"
     )
     return response
+
+
+@app.middleware("http")
+async def client_ip_diagnostic(request: Request, call_next):
+    """Logs, once per kind, what sort of address the rate limiter sees (never the
+    address itself) - see services/clientip.py for why."""
+    if request.url.path.startswith("/api/"):
+        clientip.observe(request.client.host if request.client else None, request.headers.get("x-forwarded-for"))
+    return await call_next(request)
 
 
 @app.middleware("http")

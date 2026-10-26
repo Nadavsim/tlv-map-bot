@@ -148,7 +148,19 @@ on production** (not staging, which does not need it).
 
 **Now (~12 h, in cut order)**
 1. **Safety net** (~45 min, no code): $5 Anthropic spend limit; one log line of
-   the real client IP; gitignore the agent folders (public repo).
+   the real client IP; gitignore the agent folders (public repo). **Code parts
+   built 2026-10-26 on `staging`, not pushed:** `services/clientip.py` logs, once
+   per distinct combination, what *kind* of address the rate limiter sees
+   (`peer=public|private|link-local|...`, whether X-Forwarded-For is present,
+   what kind its first hop is, and a plain verdict line) and **never an address**
+   (a test asserts it), so the privacy page's "held briefly in memory" stays
+   true. **To read it:** after deploying, open Azure's Log stream and look for
+   `client-ip shape:` - `peer=public` means the per-IP limit really is per
+   visitor; `peer=link-local/private` means all visitors share one bucket (then
+   fix the limiter's key). `.gitignore` now covers the local tooling folders
+   (`.agents/`, `.claude/agents|skills`, `.codex/`, `.github/agents|hooks|skills`,
+   `.impeccable/`, `skills-lock.json`, `.claude/settings.local.json`). **Still
+   the curator's:** the $5 Anthropic spend limit (in the Anthropic console).
 2. **Make the promises true** (~2.5 h): rate-limit + Google-hosts-only
    `resolve-location`; bound request fields (`previous_category` max length,
    lat/lon/offset ranges); correct `privacy.html` (Open-Meteo, "any link", logs;
