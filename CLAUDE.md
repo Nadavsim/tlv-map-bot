@@ -226,7 +226,22 @@ on production** (not staging, which does not need it).
    with the "not marked" note, which misleads; a place named in the message is
    ignored (results come from the set location, silently); breakfast has real
    demand but no tag. n is tiny - treat as anecdote. The oldest row expires
-   ~2026-12-07 (90-day TTL).
+   ~2026-12-07 (90-day TTL). **Gaps 1 and 2 fixed 2026-10-26 on `staging`, not
+   pushed:** the Claude tool gained `outside_food_scope` (a request that is not
+   about food, drink or a place to eat - a club, pharmacy, hotel, taxi) and
+   `mentioned_place` (a place the visitor wants to be near). An out-of-scope
+   request now answers "My list only has food and coffee spots, so I can't help
+   with that one." with no places (still logged to `unmatched_queries` and
+   counted as `unmatched`), ignored whenever a category, tag, price or follow-up
+   was matched. A named place no longer vanishes: the reply starts with `I search
+   from the location you set, not from "X" - change your location above to
+   search there.` (the search itself still always runs from the set location;
+   geocoding a place named in chat is the Later "browse by neighbourhood" idea),
+   and an any-category answer uses "Here are the closest spots overall:" rather
+   than "Surprise!". Hebrew strings new and unreviewed. Checked on the real
+   model: club/pharmacy/taxi/hotel are out of scope; tasty food near Allenby,
+   pizza near Florentin report the place; coffee near me, a bar, vegan,
+   breakfast, surprise me and cheap pizza behave as before. 609 tests.
 
 **Next (each names its trigger; re-ranked at the checkpoint)**
 - **Suggest a spot** (6-9 h; sign-in required; sanitised; private queue; a

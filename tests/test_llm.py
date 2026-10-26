@@ -36,6 +36,8 @@ async def test_returns_matched_category(monkeypatch):
         "any_category": False,
         "is_followup": False,
         "unsupported": None,
+        "out_of_scope": False,
+        "mentioned_place": None,
     }
 
 
@@ -80,6 +82,8 @@ async def test_any_category_true_ignores_matched_category(monkeypatch):
         "any_category": True,
         "is_followup": False,
         "unsupported": None,
+        "out_of_scope": False,
+        "mentioned_place": None,
     }
 
 
@@ -233,6 +237,8 @@ async def test_is_followup_forced_false_when_model_names_a_different_category(mo
         "any_category": False,
         "is_followup": False,
         "unsupported": None,
+        "out_of_scope": False,
+        "mentioned_place": None,
     }
 
 
@@ -697,3 +703,88 @@ def test_the_tool_schema_asks_for_the_requirement():
     schema = llm._TOOLS[0]["input_schema"]
     assert "unsupported_requirement" in schema["properties"]
     assert "unsupported_requirement" in schema["required"]
+
+
+@pytest.mark.asyncio
+async def test_a_request_that_is_not_about_food_is_out_of_scope_not_an_any_category_search(monkeypatch):
+    monkeypatch.setattr(
+        llm,
+        "_get_client",
+        lambda: _client_for(any_category=True, unsupported_requirement="night club", outside_food_scope=True),
+    )
+
+    result = await llm.parse_food_request("a night club", ["coffee", "burger"])
+
+    assert result["out_of_scope"] is True
+    assert result["any_category"] is False
+    assert result["clarifying_question"] is None
+    assert result["category"] is None
+
+
+@pytest.mark.asyncio
+async def test_out_of_scope_is_ignored_when_a_category_was_matched(monkeypatch):
+    monkeypatch.setattr(
+        llm, "_get_client", lambda: _client_for(matched_category="coffee", outside_food_scope=True)
+    )
+
+    result = await llm.parse_food_request("coffee then a club", ["coffee", "burger"])
+
+    assert result["out_of_scope"] is False
+    assert result["category"] == "coffee"
+
+
+@pytest.mark.asyncio
+async def test_out_of_scope_is_ignored_for_a_followup_and_when_a_tag_or_price_matched(monkeypatch):
+    monkeypatch.setattr(
+        llm, "_get_client", lambda: _client_for(is_followup=True, outside_food_scope=True)
+    )
+    followup = await llm.parse_food_request(
+        "something else", ["coffee"], has_previous_context=True, previous_category="coffee"
+    )
+    assert followup["out_of_scope"] is False
+
+    monkeypatch.setattr(
+        llm, "_get_client", lambda: _client_for(matched_price_tier="$", outside_food_scope=True)
+    )
+    priced = await llm.parse_food_request("something cheap", ["coffee"])
+    assert priced["out_of_scope"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_vague_food_request_is_never_out_of_scope(monkeypatch):
+    monkeypatch.setattr(llm, "_get_client", lambda: _client_for(any_category=True))
+
+    result = await llm.parse_food_request("tasty food", ["coffee"])
+
+    assert result["out_of_scope"] is False
+    assert result["any_category"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_named_place_is_reported_but_never_used_as_the_location(monkeypatch):
+    monkeypatch.setattr(
+        llm, "_get_client", lambda: _client_for(any_category=True, mentioned_place="Allenby")
+    )
+
+    result = await llm.parse_food_request("tasty food near Allenby", ["coffee"])
+
+    assert result["mentioned_place"] == "Allenby"
+    assert result["any_category"] is True
+    assert result["category"] is None
+
+
+@pytest.mark.parametrize("raw,expected", [("", None), (None, None), ("<b>Allenby</b>", "b Allenby /b"), ("x" * 90, "x" * 40)])
+@pytest.mark.asyncio
+async def test_the_mentioned_place_is_cleaned_like_any_other_echoed_text(monkeypatch, raw, expected):
+    monkeypatch.setattr(llm, "_get_client", lambda: _client_for(any_category=True, mentioned_place=raw))
+
+    result = await llm.parse_food_request("anything", ["coffee"])
+
+    assert result["mentioned_place"] == expected
+
+
+def test_the_schema_asks_for_scope_and_place():
+    schema = llm._TOOLS[0]["input_schema"]
+    for field in ("outside_food_scope", "mentioned_place"):
+        assert field in schema["properties"]
+        assert field in schema["required"]

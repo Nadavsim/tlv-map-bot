@@ -199,6 +199,8 @@ REPLIES = {
         "assistant_unavailable": "Sorry, I couldn't work that out just now - please try again in a moment.",
         "unsupported_note": 'I don\'t have "{what}" marked on my list yet.',
         "closest_overall": "Here are the closest spots overall:",
+        "out_of_scope": "My list only has food and coffee spots, so I can't help with that one.",
+        "location_note": 'I search from the location you set, not from "{where}" - change your location above to search there.',
     },
     "he": {
         "empty_db": "מסד הנתונים של המקומות ריק. הרץ `python -m scripts.sync_places` כדי לטעון מקומות קודם.",
@@ -206,6 +208,8 @@ REPLIES = {
         "assistant_unavailable": "סליחה, לא הצלחתי להבין את זה כרגע - נסה שוב בעוד רגע.",
         "unsupported_note": 'עדיין אין לי סימון של "{what}" ברשימה.',
         "closest_overall": "הנה המקומות הכי קרובים בסך הכל:",
+        "out_of_scope": "ברשימה שלי יש רק מקומות אוכל וקפה, אז בזה אני לא יכול לעזור.",
+        "location_note": 'אני מחפש מהמיקום שהגדרת ולא מ"{where}" - שנה את המיקום למעלה כדי לחפש שם.',
         "no_matches": "עדיין אין לי מקומות מסוג {label} שמורים.",
         "no_matches_with_tag": "עדיין אין לי מקומות מסוג {label} ({tag}) שמורים.",
         "no_more_matches": "אלה כל המקומות מסוג {label} ששמורים אצלי כרגע.",
@@ -252,6 +256,7 @@ def _places_reply(
     offset: int,
     replies: dict,
     unsupported: str | None = None,
+    mentioned_place: str | None = None,
 ) -> dict:
     qualifier = _qualifier(dietary_tag, price_tier, replies)
     if any_category:
@@ -260,7 +265,7 @@ def _places_reply(
         else:
             # "Surprise!" is for "surprise me"; after an honest "I can't filter
             # by that" it would read as a gimmick.
-            reply = replies["closest_overall"] if unsupported else replies["surprise"]
+            reply = replies["closest_overall"] if (unsupported or mentioned_place) else replies["surprise"]
     elif qualifier:
         reply = replies["matched_with_tag"].format(tag=qualifier, category=category)
     else:
@@ -268,6 +273,10 @@ def _places_reply(
     if unsupported:
         # Said plainly instead of silently ignoring what was asked for.
         reply = f"{replies['unsupported_note'].format(what=unsupported)} {reply}"
+    if mentioned_place:
+        # The search runs from the set location; a place named in the message is
+        # not used, and saying nothing would pass results off as "near there".
+        reply = f"{replies['location_note'].format(where=mentioned_place)} {reply}"
     return {
         "reply": reply,
         # Distance only: the ETA needs a call to a public routing service that
@@ -453,11 +462,19 @@ async def chat(request: Request, req: ChatRequest):
     # and the text goes to the curator's unmatched log - it is exactly "what
     # people want that the map doesn't have yet".
     unsupported = extraction.get("unsupported")
-    if unsupported:
+    out_of_scope = bool(extraction.get("out_of_scope"))
+    mentioned_place = extraction.get("mentioned_place")
+    if unsupported or out_of_scope:
         try:
             await db.log_unmatched_query(req.message)
         except Exception:
             logging.getLogger(__name__).warning("couldn't log an unsupported request")
+
+    # Not about food or coffee at all ("a night club"): say what the list is
+    # instead of showing restaurants under a note that reads like a filter.
+    if out_of_scope:
+        await _count_location_outcome(db.UNMATCHED_KEY)
+        return {"reply": replies["out_of_scope"], "places": []}
 
     # A refinement of the previous turn ("something else", "another one",
     # "cheaper") - keep the same category/tag (or "any", if that's what the
@@ -488,7 +505,8 @@ async def chat(request: Request, req: ChatRequest):
                 "offset": offset,
             }
         return _places_reply(
-            category, dietary_tag, price_tier, category is None, matches, offset + len(matches), replies, unsupported
+            category, dietary_tag, price_tier, category is None, matches, offset + len(matches), replies,
+            unsupported, mentioned_place,
         )
 
     if not extraction["any_category"] and not extraction["category"]:
@@ -514,7 +532,8 @@ async def chat(request: Request, req: ChatRequest):
         }
 
     return _places_reply(
-        category, dietary_tag, price_tier, extraction["any_category"], matches, len(matches), replies, unsupported
+        category, dietary_tag, price_tier, extraction["any_category"], matches, len(matches), replies,
+        unsupported, mentioned_place,
     )
 
 

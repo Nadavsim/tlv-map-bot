@@ -88,6 +88,24 @@ _TOOLS = [
                         "known tag or a price word here."
                     ),
                 },
+                "outside_food_scope": {
+                    "type": "boolean",
+                    "description": (
+                        "True ONLY if the request is not about food, drink or a place to eat "
+                        "or drink at all - e.g. a night club, a pharmacy, a hotel, a taxi, "
+                        "directions. False for anything food, coffee, bar or restaurant "
+                        "related, including vague ones ('tasty food', 'hearty', 'breakfast')."
+                    ),
+                },
+                "mentioned_place": {
+                    "type": "string",
+                    "description": (
+                        "A place, street, neighbourhood or landmark the user wants to be "
+                        "near, if they named one - e.g. 'Allenby', 'Florentin', 'the beach'. "
+                        "Copied from their message, one to four words. Empty string if they "
+                        "named none; 'near me' and 'nearby' are not places."
+                    ),
+                },
                 "clarifying_question": {
                     "type": "string",
                     "description": (
@@ -104,6 +122,8 @@ _TOOLS = [
                 "matched_price_tier",
                 "is_followup",
                 "unsupported_requirement",
+                "outside_food_scope",
+                "mentioned_place",
                 "clarifying_question",
             ],
         },
@@ -220,7 +240,11 @@ async def parse_food_request(
                 f"Write any clarifying_question in {language_name}. "
                 "If the user states a requirement that is not a category, a known tag or "
                 "a price level (for example vegan, kosher, open now, outdoor seating), put "
-                "it in unsupported_requirement and do not turn it into a tag."
+                "it in unsupported_requirement and do not turn it into a tag. "
+                "The list only has food and coffee places: set outside_food_scope for a "
+                "request about anything else. If the user names a place they want to be "
+                "near, put it in mentioned_place - the search always runs from the "
+                "location they have set, never from a place named in the message."
                 f"{context_sentence} "
                 "Always call the extract_food_request tool."
             ),
@@ -265,6 +289,7 @@ async def parse_food_request(
         price_tier = None
     question = result.get("clarifying_question") or None
     unsupported = _clean_requirement(result.get("unsupported_requirement"), categories, dietary_tags)
+    mentioned_place = _clean_requirement(result.get("mentioned_place"), [], [])
     is_followup = bool(result.get("is_followup")) and has_previous_context
     # Deterministic safety net: matched_category/matched_dietary_tag only
     # ever come from the known lists (never freeform), so if the model
@@ -280,7 +305,20 @@ async def parse_food_request(
     # complete search, not a question to bounce back - the model often asks
     # "what cuisine?" anyway, so settle it here rather than in the prompt.
     # Skipped for a followup, which already carries its own category.
-    if not is_followup and category is None and (dietary_tag or price_tier or unsupported):
+    # A request that is not about food at all ("a night club") is not a filter
+    # to apologise for while showing restaurants: the caller says the list is
+    # only food and coffee. Only when nothing food-related was matched.
+    out_of_scope = (
+        bool(result.get("outside_food_scope"))
+        and category is None
+        and not is_followup
+        and not dietary_tag
+        and not price_tier
+    )
+    if out_of_scope:
+        any_category = False
+        question = None
+    elif not is_followup and category is None and (dietary_tag or price_tier or unsupported):
         any_category = True
         question = None
     return {
@@ -293,4 +331,8 @@ async def parse_food_request(
         # Something the visitor asked for that the list can't honour (e.g.
         # "vegan" with no vegan tags yet). The caller says so in its reply.
         "unsupported": unsupported,
+        # Out of scope for a food list (see above), and a place the visitor
+        # named that the search does NOT use (it runs from the set location).
+        "out_of_scope": out_of_scope,
+        "mentioned_place": mentioned_place,
     }

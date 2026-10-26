@@ -2169,3 +2169,62 @@ def test_api_requests_feed_the_client_ip_diagnostic_but_static_pages_do_not(monk
         client.get("/privacy")
 
     assert seen == [("testclient", "203.0.113.9")]
+
+
+def test_an_out_of_scope_request_gets_an_honest_answer_and_no_places(monkeypatch):
+    resp, log_unmatched, record_stat = _chat_with(
+        monkeypatch, _extraction(any_category=False, unsupported="night club", out_of_scope=True), message="a night club"
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"reply": "My list only has food and coffee spots, so I can't help with that one.", "places": []}
+    log_unmatched.assert_awaited_once_with("a night club")
+    record_stat.assert_awaited_once_with(db.UNMATCHED_KEY)
+
+
+def test_the_hebrew_out_of_scope_answer(monkeypatch):
+    resp, _, _ = _chat_with(
+        monkeypatch, _extraction(any_category=False, out_of_scope=True), lang="he", message="מועדון"
+    )
+
+    assert resp.json()["reply"] == "ברשימה שלי יש רק מקומות אוכל וקפה, אז בזה אני לא יכול לעזור."
+    assert resp.json()["places"] == []
+
+
+def test_a_named_place_is_said_not_silently_dropped(monkeypatch):
+    resp, log_unmatched, _ = _chat_with(
+        monkeypatch, _extraction(mentioned_place="Allenby"), message="tasty food near Allenby"
+    )
+
+    reply = resp.json()["reply"]
+    assert reply == (
+        'I search from the location you set, not from "Allenby" - change your location above to search there. '
+        "Here are the closest spots overall:"
+    )
+    assert "Surprise" not in reply
+    assert len(resp.json()["places"]) == 1
+    log_unmatched.assert_not_awaited()
+
+
+def test_a_named_place_with_a_category_keeps_the_category_reply(monkeypatch):
+    resp, _, _ = _chat_with(
+        monkeypatch, _extraction(category="coffee", any_category=False, mentioned_place="Florentin")
+    )
+
+    assert resp.json()["reply"] == (
+        'I search from the location you set, not from "Florentin" - change your location above to search there. '
+        "Here are the closest coffee spots:"
+    )
+
+
+def test_a_named_place_and_an_unsupported_requirement_are_both_said(monkeypatch):
+    resp, _, _ = _chat_with(monkeypatch, _extraction(mentioned_place="Allenby", unsupported="vegan"))
+
+    reply = resp.json()["reply"]
+    assert reply.index("Allenby") < reply.index("vegan") < reply.index("Here are the closest spots overall:")
+
+
+def test_the_hebrew_location_note(monkeypatch):
+    resp, _, _ = _chat_with(monkeypatch, _extraction(mentioned_place="אלנבי"), lang="he", message="אוכל ליד אלנבי")
+
+    assert resp.json()["reply"].startswith('אני מחפש מהמיקום שהגדרת ולא מ"אלנבי" - שנה את המיקום למעלה כדי לחפש שם.')
