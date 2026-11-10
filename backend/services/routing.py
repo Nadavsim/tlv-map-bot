@@ -112,7 +112,7 @@ async def get_eta_seconds_batch(
         fetched = await asyncio.to_thread(
             _fetch_eta_seconds_batch, mode, origin, [destinations[i] for i in missing]
         )
-        for i, seconds in zip(missing, fetched):
+        for i, seconds in zip(missing, fetched, strict=True):
             results[i] = seconds
             if seconds is not None:
                 _eta_cache.set(keys[i], seconds)

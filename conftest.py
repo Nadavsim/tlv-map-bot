@@ -1,7 +1,14 @@
 # Its presence makes pytest add the project root to sys.path so tests can
 # `from backend import db`, `from scripts.sync_places import ...`, etc.
 
+import os
+
 import pytest
+
+# Tokens are signed with JWT_SECRET and the app refuses to start without one;
+# set before anything imports backend.services.auth (which reads it at import).
+if not os.environ.get("JWT_SECRET"):
+    os.environ["JWT_SECRET"] = "test-only-secret"
 
 
 @pytest.fixture(autouse=True)

@@ -48,13 +48,13 @@ class _Cursor:
         return gen()
 
 
-def _parsed_place(category):
+def _parsed_place(category, instagram_url=None):
     return {
         "name": "Cafelix",
         "category": category,
         "longitude": 34.78,
         "latitude": 32.08,
-        "instagram_url": None,
+        "instagram_url": instagram_url,
         "dietary_tags": [],
         "price_tier": None,
         "closes_at_hour": None,
@@ -62,8 +62,8 @@ def _parsed_place(category):
     }
 
 
-async def _run_sync(monkeypatch, *, stored_category, new_category, stale_ids=()):
-    collection = MagicMock()
+async def _run_sync(monkeypatch, *, stored_category, new_category, stale_ids=(), instagram_url=None, collection=None):
+    collection = collection or MagicMock()
     collection.count_documents = AsyncMock(return_value=1)
     collection.update_one = AsyncMock()
     collection.insert_one = AsyncMock()
@@ -72,7 +72,7 @@ async def _run_sync(monkeypatch, *, stored_category, new_category, stale_ids=())
     clear_mock = AsyncMock(return_value=0)
 
     monkeypatch.setattr(sync_places, "fetch_kml", lambda: "<kml/>")
-    monkeypatch.setattr(sync_places, "parse_kml_text", lambda text: [_parsed_place(new_category)])
+    monkeypatch.setattr(sync_places, "parse_kml_text", lambda text: [_parsed_place(new_category, instagram_url)])
     monkeypatch.setattr(sync_places, "ensure_indexes", AsyncMock())
     monkeypatch.setattr(sync_places, "get_places_collection", lambda: collection)
     monkeypatch.setattr(
@@ -106,3 +106,28 @@ async def test_sync_clears_every_report_for_places_removed_from_the_map(monkeypa
     )
 
     clear_mock.assert_awaited_once_with(["gone-1", "gone-2"])
+
+
+# --- the map's Instagram link vs one backfilled by hand ----------------------------
+
+
+async def _sync_and_get_update(monkeypatch, instagram_url):
+    collection = MagicMock()
+    await _run_sync(
+        monkeypatch, stored_category="coffee", new_category="coffee", instagram_url=instagram_url, collection=collection
+    )
+    return collection.update_one.await_args.args[1]["$set"]
+
+
+@pytest.mark.asyncio
+async def test_sync_applies_an_instagram_link_added_to_an_existing_pin(monkeypatch):
+    changes = await _sync_and_get_update(monkeypatch, "https://instagram.com/cafelix")
+
+    assert changes["instagram_url"] == "https://instagram.com/cafelix"
+
+
+@pytest.mark.asyncio
+async def test_sync_never_erases_a_hand_backfilled_link_when_the_pin_has_none(monkeypatch):
+    changes = await _sync_and_get_update(monkeypatch, None)
+
+    assert "instagram_url" not in changes

@@ -12,7 +12,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import db
@@ -40,11 +39,16 @@ BASE_DIR = Path(__file__).parent.parent
 # runs as a single Azure App Service instance, so no shared store needed).
 # 20/minute allows a real rapid back-and-forth conversation; 200/day is a
 # backstop for a shared IP (e.g. a household) without allowing sustained abuse.
-limiter = Limiter(key_func=get_remote_address)
+def _client_key(request: Request) -> str:
+    return clientip.rate_limit_key(request.client.host if request.client else None, request.headers.get("x-forwarded-for"))
+
+
+limiter = Limiter(key_func=_client_key)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    auth.require_configured()
     await db.ensure_indexes()
     yield
 
@@ -420,7 +424,7 @@ async def resolve_location(request: Request, req: LocationLinkRequest):
             # 503, not the nulls below: "couldn't look it up right now" and
             # "that address doesn't exist" need different messages - the
             # frontend turns any non-OK response into its "try again" copy.
-            raise HTTPException(status_code=503, detail="geocoding service unavailable")
+            raise HTTPException(status_code=503, detail="geocoding service unavailable") from None
         if suggestion:
             await _count_location_outcome(db.LOCATION_CORRECTION_OFFERED_KEY)
             return {"lat": None, "lon": None, "suggestion": suggestion}
@@ -666,8 +670,14 @@ async def auth_config():
 
 @app.post("/api/auth/google")
 async def auth_google(req: GoogleAuthRequest, response: Response):
-    claims = auth.verify_google_id_token(req.credential)
-    if not claims:
+    # Blocking (it may fetch Google's signing keys), so off the event loop.
+    try:
+        claims = await asyncio.to_thread(auth.verify_google_id_token, req.credential)
+    except auth.GoogleUnavailable:
+        raise HTTPException(status_code=503, detail="Google sign-in is unavailable right now") from None
+    # A token without a usable email can't make an account (the user record
+    # requires one) - rejected like any other invalid credential, not a 500.
+    if not claims or not claims.get("sub") or not claims.get("email"):
         raise HTTPException(status_code=401, detail="Invalid Google credential")
 
     existing = await db.get_user_by_google_sub(claims["sub"])
@@ -677,7 +687,7 @@ async def auth_google(req: GoogleAuthRequest, response: Response):
         user_id, user = await db.create_user(
             google_sub=claims["sub"],
             email=claims["email"],
-            name=claims["name"],
+            name=claims.get("name") or claims["email"].split("@")[0],
             picture_url=claims.get("picture"),
         )
 

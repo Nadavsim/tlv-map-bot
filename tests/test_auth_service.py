@@ -62,3 +62,14 @@ def test_verify_google_id_token_returns_claims_on_success(monkeypatch):
     claims = {"sub": "g-123", "email": "a@example.com", "name": "A", "picture": "https://example.com/p.jpg"}
     monkeypatch.setattr(auth.id_token, "verify_oauth2_token", lambda *a, **k: claims)
     assert auth.verify_google_id_token("real-looking-token") == claims
+
+
+def test_verify_google_id_token_reports_google_being_unreachable(monkeypatch):
+    from google.auth.exceptions import TransportError
+
+    def unreachable(*args, **kwargs):
+        raise TransportError("no route to certs endpoint")
+
+    monkeypatch.setattr(auth.id_token, "verify_oauth2_token", unreachable)
+    with pytest.raises(auth.GoogleUnavailable):
+        auth.verify_google_id_token("real-looking-token")

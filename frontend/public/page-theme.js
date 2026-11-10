@@ -9,6 +9,6 @@ try {
   if (saved === 'light' || saved === 'dark') {
     document.documentElement.setAttribute('data-theme', saved)
   }
-} catch (e) {
+} catch {
   // Storage can throw (private mode, blocked site data) - the OS default is fine.
 }

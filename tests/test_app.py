@@ -653,7 +653,6 @@ def test_chat_endpoint_no_more_matches_mentions_dietary_tag_when_present(monkeyp
                 "clarifying_question": None,
                 "any_category": False,
                 "is_followup": True,
-                "price_tier": None,
             }
         ),
     )
@@ -698,7 +697,6 @@ def test_chat_endpoint_ignores_followup_flag_when_no_previous_context_given(monk
                 "clarifying_question": None,
                 "any_category": False,
                 "is_followup": True,
-                "price_tier": None,
             }
         ),
     )
@@ -830,7 +828,6 @@ def test_chat_endpoint_followup_continues_with_previous_dietary_tag(monkeypatch)
                 "clarifying_question": None,
                 "any_category": False,
                 "is_followup": True,
-                "price_tier": None,
             }
         ),
     )
@@ -924,6 +921,53 @@ def test_auth_google_rejects_an_invalid_credential(monkeypatch):
         resp = client.post("/api/auth/google", json={"credential": "not-really-a-google-token"})
 
     assert resp.status_code == 401
+
+
+def test_auth_google_without_a_name_claim_falls_back_to_the_email_prefix(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(auth, "verify_google_id_token", lambda credential: {"sub": "g-9", "email": "dana@example.com"})
+    monkeypatch.setattr(db, "get_user_by_google_sub", AsyncMock(return_value=None))
+    create_user_mock = AsyncMock(return_value=("user-id-9", SAMPLE_USER))
+    monkeypatch.setattr(db, "create_user", create_user_mock)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/auth/google", json={"credential": "fake"})
+
+    assert resp.status_code == 200
+    assert create_user_mock.await_args.kwargs["name"] == "dana"
+
+
+def test_auth_google_without_an_email_claim_is_rejected_not_a_500(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(auth, "verify_google_id_token", lambda credential: {"sub": "g-9", "name": "No Email"})
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/auth/google", json={"credential": "fake"})
+
+    assert resp.status_code == 401
+
+
+def test_auth_google_says_503_when_google_cannot_be_reached(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+
+    def unreachable(credential):
+        raise auth.GoogleUnavailable("down")
+
+    monkeypatch.setattr(auth, "verify_google_id_token", unreachable)
+
+    with TestClient(app_module.app) as client:
+        resp = client.post("/api/auth/google", json={"credential": "fake"})
+
+    assert resp.status_code == 503
+
+
+def test_the_app_refuses_to_start_without_a_signing_secret(monkeypatch):
+    monkeypatch.setattr(db, "ensure_indexes", AsyncMock())
+    monkeypatch.setattr(auth, "JWT_SECRET", "")
+
+    with pytest.raises(RuntimeError, match="JWT_SECRET"):
+        with TestClient(app_module.app):
+            pass
 
 
 def test_auth_refresh_issues_a_new_access_token_with_a_valid_cookie(monkeypatch):

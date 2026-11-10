@@ -358,6 +358,32 @@ async def test_create_user_inserts_and_returns_id_and_user(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_create_user_signs_in_the_existing_account_when_a_concurrent_signup_won(monkeypatch):
+    from bson import ObjectId
+    from pymongo.errors import DuplicateKeyError
+
+    winner_id = ObjectId()
+    fake_collection = MagicMock()
+    fake_collection.insert_one = AsyncMock(side_effect=DuplicateKeyError("E11000 duplicate key"))
+    fake_collection.find_one = AsyncMock(
+        return_value={
+            "_id": winner_id,
+            "google_sub": "g-123",
+            "email": "a@example.com",
+            "name": "A",
+            "token_version": 0,
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
+    monkeypatch.setattr(db, "get_users_collection", lambda: fake_collection)
+
+    user_id, user = await db.create_user("g-123", "a@example.com", "A", None)
+
+    assert user_id == str(winner_id)
+    assert user.google_sub == "g-123"
+
+
+@pytest.mark.asyncio
 async def test_revoke_user_sessions_increments_token_version(monkeypatch):
     from bson import ObjectId
 

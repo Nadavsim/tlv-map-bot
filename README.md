@@ -1,11 +1,44 @@
-# 📍 TLV Bot
+# TLV Bot
 
-A web chatbot that recommends the closest spot from your own curated Google My Maps
-map of favorite Tel Aviv food places. Tell it what you're craving, share your
-location, and it finds the nearest match with a one-tap navigation link.
+A web chatbot that recommends the closest food or coffee spot in Tel Aviv from
+one person's hand-curated Google My Maps list. Tell it what you're craving
+("ramen", "something cheap", in English or Hebrew), set your location, and it
+returns the nearest matches with distance, walking or driving time, and a
+one-tap navigation link. FastAPI + MongoDB + React, deployed on Azure for about
+$15/month.
 
-This started as a WhatsApp bot (Twilio + Azure PostGIS Postgres); it's now a
-lightweight web app that runs for roughly $15/month.
+<p align="center"><img src="docs/screenshot.png" alt="TLV Bot showing three nearby coffee spots with distance and walking time" width="320"></p>
+
+**Live demo:** <!-- TODO: add the production URL here, e.g. https://your-app.azurewebsites.net -->
+
+## What's interesting in the code
+
+* **An LLM that is never trusted.** Claude Haiku turns free text into a
+  structured query via a tool call, but every field is re-checked in code
+  against the live category and tag lists, and a failed call is reported as an
+  outage instead of being counted as a visitor request
+  ([`backend/services/llm.py`](backend/services/llm.py)).
+* **Results first, travel times after.** Cards appear immediately with
+  distance; times come from a second request, so a slow public routing server
+  can't delay the answer. Late responses are matched to the right card
+  ([`backend/services/routing.py`](backend/services/routing.py), `requestEtas`
+  in [`frontend/src/App.tsx`](frontend/src/App.tsx)).
+* **Free public services, used politely.** OSRM and Nominatim calls are cached
+  and wrapped in a back-off, and "service unavailable" is kept distinct from
+  "no match" ([`backend/services/resilience.py`](backend/services/resilience.py)).
+* **A sync that survives edits.** The nightly job matches map pins to stored
+  places by physical proximity, so renaming a pin keeps its id, and a
+  truncation guard refuses to delete data after a partial fetch
+  ([`scripts/sync_places.py`](scripts/sync_places.py)).
+* **Account features with a privacy budget.** Google Sign-In, short-lived
+  access tokens held in memory, a rotating httpOnly refresh cookie, server-side
+  revocation, bounded stored data and self-serve account deletion.
+* **Tests gate the deploy.** About 700 tests, none of which can reach a real
+  database, run (with a linter) before anything ships. Architecture diagrams are
+  in [`docs/architecture.md`](docs/architecture.md).
+
+This started as a WhatsApp bot (Twilio + Azure PostGIS Postgres) and is now a
+lightweight web app.
 
 ## ✨ Features
 
@@ -203,8 +236,8 @@ This one is easy to miss if you ever set up an App Service by hand instead
 of through Azure's own "set up CI/CD" Portal wizard (which adds it for you
 automatically) - without it, Azure's Oryx build system never runs `pip
 install` server-side, and the app fails to start with `No module named
-uvicorn` in the Log stream, not an obvious "missing config" error. Ask me
-about this if it comes up again; there's a longer writeup in `CLAUDE.md`.
+uvicorn` in the Log stream, not an obvious "missing config" error. There's a
+longer writeup in `CLAUDE.md`.
 
 Then set the startup command (General settings tab, same Configuration page):
 
@@ -274,15 +307,18 @@ pytest
 ```
 
 The frontend must be built once first (`static/` has to exist for the app to
-import). A few auth tests need a `JWT_SECRET`; CI uses a dummy one:
+import). `JWT_SECRET` defaults to a test value, so no `.env` is needed to run
+the suite. The linter and the frontend checks:
 
 ```bash
-JWT_SECRET=anything pytest
+pip install ruff && ruff check .
+cd frontend && npm run lint && npm run build
 ```
 
 Tests never touch a real database - `conftest.py` blanks `MONGODB_URI`, so a
 test that reaches an unstubbed collection fails loudly. The deploy workflows
-run the suite before deploying, so a failing test stops the release.
+run the linter and the suite before deploying, so a failing check stops the
+release, and `.github/workflows/ci.yml` runs them on every pull request.
 
 ## Curating
 

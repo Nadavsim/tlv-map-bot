@@ -2,6 +2,7 @@ import os
 import time
 
 import jwt
+from google.auth.exceptions import TransportError
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
@@ -25,16 +26,32 @@ REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 _google_request = google_requests.Request()
 
 
+class GoogleUnavailable(Exception):
+    """Google's signing keys couldn't be fetched (network/transport failure) -
+    distinct from a bad token: the visitor did nothing wrong and can retry."""
+
+
+def require_configured() -> None:
+    """Refuse to start without a signing secret. Tokens signed with an empty
+    key are forgeable by anyone, so a missing JWT_SECRET must stop the app
+    rather than quietly weaken it."""
+    if not JWT_SECRET:
+        raise RuntimeError("JWT_SECRET is not set - refusing to start (see .env.example)")
+
+
 def verify_google_id_token(credential: str) -> dict | None:
     """Verifies a Google ID token's signature, expiry, and audience (must
     match our own Client ID - without this check, a token issued for a
     completely different Google app would also pass). Returns the token's
     claims (sub/email/name/picture) on success, None on any failure -
-    callers don't need to know or care *why* a token was rejected."""
+    callers don't need to know or care *why* a token was rejected. Raises
+    GoogleUnavailable only when Google itself couldn't be reached."""
     try:
         return id_token.verify_oauth2_token(credential, _google_request, GOOGLE_CLIENT_ID)
     except ValueError:
         return None
+    except TransportError as exc:
+        raise GoogleUnavailable("couldn't reach Google to verify the token") from exc
 
 
 def create_access_token(user_id: str) -> str:

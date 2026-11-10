@@ -564,7 +564,16 @@ async def create_user(google_sub: str, email: str, name: str, picture_url: str |
         created_at=datetime.now(timezone.utc),
     )
     users = get_users_collection()
-    result = await users.insert_one(user.model_dump())
+    try:
+        result = await users.insert_one(user.model_dump())
+    except DuplicateKeyError:
+        # Two first sign-ins for the same Google account at once: the unique
+        # index on google_sub let one through, so the other just signs in as
+        # that account instead of failing.
+        existing = await get_user_by_google_sub(google_sub)
+        if existing is None:
+            raise
+        return existing
     return str(result.inserted_id), user
 
 

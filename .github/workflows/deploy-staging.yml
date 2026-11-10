@@ -43,6 +43,12 @@ jobs:
           source antenv/bin/activate
           pip install -r requirements.txt
 
+      - name: Lint Python (a failing check stops the deploy)
+        run: |
+          source antenv/bin/activate
+          pip install ruff==0.17.4
+          ruff check .
+
       - name: Run tests (a failing test stops the deploy)
         run: |
           source antenv/bin/activate

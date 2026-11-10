@@ -87,3 +87,32 @@ def test_a_failure_inside_the_diagnostic_never_propagates(monkeypatch):
     monkeypatch.setattr(clientip, "classify", lambda value: (_ for _ in ()).throw(RuntimeError("boom")))
 
     clientip.observe("8.8.8.8", None)  # must not raise
+
+
+# --- rate_limit_key: who the per-IP limits count as one visitor ------------------
+
+
+def test_a_public_peer_is_the_key_and_the_header_cannot_override_it():
+    assert clientip.rate_limit_key("93.184.216.34", "8.8.8.8") == "93.184.216.34"
+
+
+def test_behind_a_private_proxy_the_forwarded_client_is_the_key():
+    assert clientip.rate_limit_key("169.254.130.1", "93.184.216.34:51234") == "93.184.216.34"
+
+
+def test_the_rightmost_public_entry_wins_so_a_spoofed_left_entry_is_ignored():
+    # The client claims 1.1.1.1; the proxy appended the address it really saw.
+    assert clientip.rate_limit_key("10.0.0.5", "1.1.1.1, 93.184.216.34:443") == "93.184.216.34"
+
+
+def test_private_entries_are_skipped_while_looking_for_a_public_one():
+    assert clientip.rate_limit_key("10.0.0.5", "93.184.216.34, 10.1.1.1") == "93.184.216.34"
+
+
+def test_ipv6_with_a_port_is_unwrapped():
+    assert clientip.rate_limit_key("10.0.0.5", "[2606:4700:4700::1111]:443") == "2606:4700:4700::1111"
+
+
+def test_with_nothing_usable_it_falls_back_to_the_peer():
+    assert clientip.rate_limit_key("10.0.0.5", "garbage, 192.168.1.1") == "10.0.0.5"
+    assert clientip.rate_limit_key(None, None) == "unknown"

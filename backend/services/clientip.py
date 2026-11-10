@@ -65,3 +65,34 @@ def observe(peer: str | None, forwarded_for: str | None) -> None:
         logger.info("client-ip shape: peer=%s x-forwarded-for=%s first-hop=%s -> %s", peer_kind, header, forwarded_kind, verdict)
     except Exception:  # a diagnostic must never be able to break a request
         logger.debug("client-ip diagnostic failed", exc_info=True)
+
+
+def _strip_port(value: str) -> str:
+    """"1.2.3.4:5678" -> "1.2.3.4", "[::1]:80" -> "::1". Azure's front end adds
+    the client's source port to the X-Forwarded-For entries it appends."""
+    value = value.strip()
+    if value.startswith("["):
+        return value[1:].split("]", 1)[0]
+    if value.count(":") == 1:
+        return value.split(":", 1)[0]
+    return value
+
+
+def rate_limit_key(peer: str | None, forwarded_for: str | None) -> str:
+    """Who the per-IP rate limits should count as one visitor.
+
+    Normally the connection's own peer address. Behind a proxy that is the
+    proxy's (private) address, which would put every visitor in one shared
+    bucket - so when the peer is not public, the *rightmost public* entry of
+    X-Forwarded-For is used instead. Rightmost, because each proxy appends the
+    address it saw: entries further left were supplied by the client and can
+    say anything, so trusting the first one would let a caller pick their own
+    bucket. A public peer is never overridden by the header."""
+    if classify(peer) == "public":
+        return peer.strip()
+    if forwarded_for:
+        for entry in reversed(forwarded_for.split(",")):
+            candidate = _strip_port(entry)
+            if classify(candidate) == "public":
+                return candidate
+    return (peer or "unknown").strip() or "unknown"

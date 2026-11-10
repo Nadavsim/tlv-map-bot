@@ -49,8 +49,8 @@ def _mix(value: str) -> str:
     if not m:
         return value.strip()
     a, pct, b = _hex(m.group(1)), int(m.group(2)) / 100, _hex(m.group(3))
-    mixed = [round((x * pct + y * (1 - pct)) * 255) for x, y in zip(a, b)]
-    return "#%02x%02x%02x" % tuple(mixed)
+    mixed = [round((x * pct + y * (1 - pct)) * 255) for x, y in zip(a, b, strict=True)]
+    return "#{:02x}{:02x}{:02x}".format(*mixed)
 
 
 def _lum(value: str) -> float:

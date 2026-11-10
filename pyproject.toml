@@ -1,0 +1,19 @@
+[tool.ruff]
+line-length = 140
+target-version = "py311"
+extend-exclude = ["venv", "static", "frontend"]
+
+[tool.ruff.lint]
+# Pyflakes + pycodestyle errors/warnings + import order + bugbear + pyupgrade.
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "B008",  # FastAPI's Depends()/Query()/Header() defaults are the framework's idiom
+    "UP017",  # timezone.utc is used throughout and reads fine on 3.11
+    "E501",  # long comments/strings are wrapped by hand where it helps; not enforced
+]
+
+[tool.ruff.lint.per-file-ignores]
+# load_dotenv() must run before the project imports that read the environment.
+"scripts/*.py" = ["E402"]
+# Test modules group imports next to the tests that use them.
+"tests/*.py" = ["E402", "I001"]

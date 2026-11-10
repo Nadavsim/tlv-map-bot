@@ -11,7 +11,6 @@ from backend.db import (
     find_nearby,
     get_places_collection,
     invalidate_categories_cache,
-    invalidate_dietary_tags_cache,
 )
 from backend.models import GeoPoint, Place
 from backend.parser import parse_kml_text
@@ -106,21 +105,22 @@ async def sync() -> None:
                 # The pin was moved to another layer: the "wrong category"
                 # reports about it have been acted on.
                 await clear_place_reports([existing["_id"]], kinds=["wrong_category"])
-            await collection.update_one(
-                {"_id": existing["_id"]},
-                {
-                    "$set": {
-                        "name": validated.name,
-                        "category": validated.category,
-                        "location": location_doc,
-                        "dietary_tags": validated.dietary_tags,
-                        "price_tier": validated.price_tier,
-                        "closes_at_hour": validated.closes_at_hour,
-                        "outdoor_seating": validated.outdoor_seating,
-                        "last_synced_at": validated.last_synced_at,
-                    }
-                },
-            )
+            changes = {
+                "name": validated.name,
+                "category": validated.category,
+                "location": location_doc,
+                "dietary_tags": validated.dietary_tags,
+                "price_tier": validated.price_tier,
+                "closes_at_hour": validated.closes_at_hour,
+                "outdoor_seating": validated.outdoor_seating,
+                "last_synced_at": validated.last_synced_at,
+            }
+            # A link on the map is applied (so adding one to an existing pin
+            # works), but a pin with no link never erases one that was
+            # backfilled by hand in Atlas.
+            if validated.instagram_url:
+                changes["instagram_url"] = validated.instagram_url
+            await collection.update_one({"_id": existing["_id"]}, {"$set": changes})
         else:
             await collection.insert_one(
                 {
