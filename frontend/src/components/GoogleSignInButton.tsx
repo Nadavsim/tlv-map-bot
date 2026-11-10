@@ -13,7 +13,14 @@ declare global {
           initialize(config: { client_id: string; callback: (response: { credential: string }) => void }): void
           renderButton(
             parent: HTMLElement,
-            options: { theme: 'outline' | 'filled_black'; shape: 'pill'; size: 'large'; text: 'signin_with'; width: number },
+            options: {
+              theme: 'outline' | 'filled_black'
+              shape: 'pill'
+              size: 'large'
+              text: 'signin_with'
+              width: number
+              locale: Lang
+            },
           ): void
         }
       }
@@ -60,23 +67,28 @@ export function GoogleSignInButton({ clientId, theme, lang, onCredential }: Goog
         size: 'large',
         text: 'signin_with',
         width: 220,
+        // Without this Google picks the language itself (the visitor's Google
+        // account or browser) and swaps the button to it a moment after it first
+        // appears, ignoring this app's own language toggle.
+        locale: lang,
       })
     }
 
-    // The button's own text is baked into the script Google serves, keyed
-    // by this `hl` query param - without it, Google falls back to the
-    // browser's own locale/an existing Google session's language, which can
-    // silently mismatch this app's own (independent) language toggle. A
-    // language change needs a fresh script load, not just a re-render.
-    const scriptUrl = `https://accounts.google.com/gsi/client?hl=${lang}`
+    // One script load for the life of the page: the language is chosen per
+    // render (the `locale` option above), so a language change is just a
+    // re-render - no script teardown and reload, which used to be flaky.
+    const scriptUrl = 'https://accounts.google.com/gsi/client'
     const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null
     if (existing) {
-      if (existing.src === scriptUrl && window.google) {
+      if (window.google) {
         render()
-        return
+      } else {
+        // Still loading from an earlier mount: render when it arrives. Removed on
+        // cleanup so a stale handler can't draw an out-of-date language later.
+        existing.addEventListener('load', render, { once: true })
+        return () => existing.removeEventListener('load', render)
       }
-      existing.remove()
-      window.google = undefined
+      return
     }
 
     const script = document.createElement('script')
@@ -86,6 +98,7 @@ export function GoogleSignInButton({ clientId, theme, lang, onCredential }: Goog
     script.defer = true
     script.addEventListener('load', render, { once: true })
     document.body.appendChild(script)
+    return () => script.removeEventListener('load', render)
   }, [clientId, theme, lang])
 
   return <div ref={containerRef} className="google-signin-button" />
