@@ -6,7 +6,6 @@ import { t } from '../i18n'
 import type { AuthUser, Lang, Place, SavedAddress, SuggestOutcome, Theme } from '../types'
 
 interface AccountSectionProps {
-  isOpen: boolean
   user: AuthUser | null
   googleClientId: string | null
   theme: Theme
@@ -27,15 +26,14 @@ interface AccountSectionProps {
   onSuggestSpot: (place: string, category: string) => Promise<SuggestOutcome>
 }
 
-// Pure content, no trigger/popover of its own - lives pinned to the bottom
-// of SideMenu. `isOpen` gates the Google button specifically (not just this
-// component's own mount) so it only ever mounts while the menu is actually
-// open - see GoogleSignInButton for why that matters (reacting to a
-// language change while it stayed mounted turned out to be genuinely flaky
-// under rapid toggling; mounting fresh each time the menu opens sidesteps
-// that instead of reacting to it live).
+// Pure content, no trigger/popover of its own - lives at the top of SideMenu.
+// The Google button stays mounted whenever the visitor is signed out, even
+// while the drawer is closed (it is off-screen and inert then). Google builds
+// that button in two steps - a placeholder pill in our page, then an iframe
+// that replaces it - and mounting it fresh on every open made that handoff
+// visible each time (a doubled button, then a blink). Kept mounted, the handoff
+// finishes in the background and the button is already settled when the menu opens.
 export function AccountSection({
-  isOpen,
   user,
   googleClientId,
   theme,
@@ -262,7 +260,7 @@ export function AccountSection({
           </div>
         </>
       ) : (
-        isOpen && googleClientId && (
+        googleClientId && (
           <>
             <p className="saved-addresses-note">{t(lang, 'suggestSignedOut')}</p>
             <GoogleSignInButton clientId={googleClientId} theme={theme} lang={lang} onCredential={onCredential} />

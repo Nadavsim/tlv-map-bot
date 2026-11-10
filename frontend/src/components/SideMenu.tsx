@@ -82,7 +82,6 @@ export function SideMenu({
         </div>
         <p className="side-menu-curator">{t(lang, 'drawerCurator')}</p>
         <AccountSection
-          isOpen={isOpen}
           user={authUser}
           googleClientId={googleClientId}
           theme={theme}
