@@ -30,6 +30,11 @@ declare global {
 
 const SCRIPT_ID = 'google-identity-services'
 
+// Google warns (and uses only the last call) when initialize() runs more than
+// once per script load, so it is done once per client id; reset whenever the
+// script is replaced, since a fresh script has no memory of it.
+let initializedClientId: string | null = null
+
 interface GoogleSignInButtonProps {
   clientId: string
   theme: Theme
@@ -51,10 +56,10 @@ export function GoogleSignInButton({ clientId, theme, lang, onCredential }: Goog
   useEffect(() => {
     function render() {
       if (!containerRef.current || !window.google) return
-      // initialize() is safe to call again on a theme/language change - it
-      // just re-registers the same callback, it doesn't create a second
-      // listener.
-      window.google.accounts.id.initialize({ client_id: clientId, callback: (response) => onCredentialRef.current(response.credential) })
+      if (initializedClientId !== clientId) {
+        window.google.accounts.id.initialize({ client_id: clientId, callback: (response) => onCredentialRef.current(response.credential) })
+        initializedClientId = clientId
+      }
       containerRef.current.innerHTML = ''
       // The full branded "Sign in with Google" button - safe to use here
       // since this only ever renders inside the account menu panel, which
@@ -74,21 +79,29 @@ export function GoogleSignInButton({ clientId, theme, lang, onCredential }: Goog
       })
     }
 
-    // One script load for the life of the page: the language is chosen per
-    // render (the `locale` option above), so a language change is just a
-    // re-render - no script teardown and reload, which used to be flaky.
-    const scriptUrl = 'https://accounts.google.com/gsi/client'
+    // Google decides the button's language in two places, and they must agree or
+    // the button flips between them: the script URL's `hl` (what it shows first)
+    // and renderButton's `locale` above (what it settles on). A language change
+    // therefore needs a fresh script load, not just a re-render. That is safe
+    // here because this component only exists while the menu is open, and
+    // changing the language closes the menu, so no button is alive to flicker.
+    const scriptUrl = `https://accounts.google.com/gsi/client?hl=${lang}`
     const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null
     if (existing) {
-      if (window.google) {
-        render()
-      } else {
-        // Still loading from an earlier mount: render when it arrives. Removed on
-        // cleanup so a stale handler can't draw an out-of-date language later.
-        existing.addEventListener('load', render, { once: true })
-        return () => existing.removeEventListener('load', render)
+      if (existing.src === scriptUrl) {
+        if (window.google) {
+          render()
+        } else {
+          // Still loading from an earlier mount: render when it arrives. Removed
+          // on cleanup so a stale handler can't draw an out-of-date language.
+          existing.addEventListener('load', render, { once: true })
+          return () => existing.removeEventListener('load', render)
+        }
+        return
       }
-      return
+      existing.remove()
+      window.google = undefined
+      initializedClientId = null
     }
 
     const script = document.createElement('script')
