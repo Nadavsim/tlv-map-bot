@@ -9,7 +9,7 @@ $15/month.
 
 <p align="center"><img src="docs/screenshot.png" alt="TLV Bot showing three nearby coffee spots with distance and walking time" width="320"></p>
 
-**Live demo:** <!-- TODO: add the production URL here, e.g. https://your-app.azurewebsites.net -->
+**Live demo:** https://nadavbot-tlv-fpeuhag4gaexgwf0.israelcentral-01.azurewebsites.net/
 
 ## What's interesting in the code
 
