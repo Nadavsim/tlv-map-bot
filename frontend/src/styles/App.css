@@ -201,6 +201,15 @@ header h1 svg {
   justify-content: center;
 }
 
+/* The page is color-scheme: dark, Google's button document is not, and a
+   browser paints an opaque white backdrop behind an iframe whose scheme differs
+   from its document's - the white rectangle around the dark pill. Declaring the
+   iframe light matches Google's document, so the backdrop stays transparent.
+   The pill itself is still drawn dark by renderButton's filled_black theme. */
+.google-signin-button iframe {
+  color-scheme: light;
+}
+
 /* Dims and click-closes the page behind the drawer. Kept in the DOM (not
    conditionally rendered) so the opacity transition has something to
    animate; pointer-events is what actually makes it inert while closed. */

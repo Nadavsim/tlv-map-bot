@@ -32,6 +32,14 @@ interface GoogleSignInButtonProps {
 
 export function GoogleSignInButton({ clientId, theme, lang, onCredential }: GoogleSignInButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  // The parent hands in a new function on every render. Reading it through a ref
+  // keeps it out of the effect's dependencies - otherwise every re-render of the
+  // app tore the button down and rebuilt it (a visible flicker), and a sign-in
+  // that completed mid-rebuild could call a stale handler.
+  const onCredentialRef = useRef(onCredential)
+  useEffect(() => {
+    onCredentialRef.current = onCredential
+  })
 
   useEffect(() => {
     function render() {
@@ -39,7 +47,7 @@ export function GoogleSignInButton({ clientId, theme, lang, onCredential }: Goog
       // initialize() is safe to call again on a theme/language change - it
       // just re-registers the same callback, it doesn't create a second
       // listener.
-      window.google.accounts.id.initialize({ client_id: clientId, callback: (response) => onCredential(response.credential) })
+      window.google.accounts.id.initialize({ client_id: clientId, callback: (response) => onCredentialRef.current(response.credential) })
       containerRef.current.innerHTML = ''
       // The full branded "Sign in with Google" button - safe to use here
       // since this only ever renders inside the account menu panel, which
@@ -78,7 +86,7 @@ export function GoogleSignInButton({ clientId, theme, lang, onCredential }: Goog
     script.defer = true
     script.addEventListener('load', render, { once: true })
     document.body.appendChild(script)
-  }, [clientId, theme, lang, onCredential])
+  }, [clientId, theme, lang])
 
   return <div ref={containerRef} className="google-signin-button" />
 }
